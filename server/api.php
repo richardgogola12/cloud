@@ -642,7 +642,7 @@ try {
 
     case 'notifications_unread': {
         $last = q('SELECT MAX(id) FROM ' . P . 'notifications WHERE user_id = ?', [$uid])->fetchColumn();
-        json_out(['ok' => true, 'unread' => notifications_unread($uid), 'last' => (int)$last]);
+        json_out(['ok' => true, 'unread' => notifications_unread($uid), 'last' => (int)$last, 'ver' => APP_VERSION]);
     }
 
     case 'notifications_read': {

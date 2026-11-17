@@ -147,6 +147,11 @@ window.Cloud = (function () {
       const r = await api('api.php?action=notifications_unread');
       if (!r.ok) return;
       setBadge(r.unread);
+      // server bol aktualizovaný → načítať stránku znova (aplikácia drží stránku otvorenú dlho)
+      const cur = document.documentElement.dataset.ver;
+      if (r.ver && cur && r.ver !== cur && !document.querySelector('.modal.show') && !document.querySelector('.upload-panel:not(.d-none)')) {
+        if (sessionStorage.getItem('cloud-reloaded-for') !== r.ver) { sessionStorage.setItem('cloud-reloaded-for', r.ver); location.reload(); return; }
+      }
       if (r.last > lastSeen) {
         if (lastSeen > 0 && r.unread > 0) {
           const l = await api('api.php?action=notifications');

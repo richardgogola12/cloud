@@ -98,7 +98,7 @@
     };
     const fits = () => {
       const W = c.clientWidth;
-      if (!W) return true;
+      if (!W) return false;
       if (c.scrollWidth > W + 1) return false;
       const texts = [...c.querySelectorAll('.crumb-text')];
       for (const t of texts) {
@@ -113,6 +113,17 @@
     for (const [k, icon] of configs) { c.innerHTML = build(k, icon); if (fits()) return; }
   }
   addEventListener('resize', () => { clearTimeout(window.__crT); window.__crT = setTimeout(renderCrumbs, 150); });
+  // v aplikácii môže byť stránka vykreslená ešte skrytá (zámok odtlačkom) alebo s iným písmom → prepočítať pri zmene šírky
+  (() => {
+    const box = $('#crumbs')?.parentElement; if (!box) return;
+    let lastW = -1;
+    if ('ResizeObserver' in window) new ResizeObserver(() => {
+      const w = Math.round(box.clientWidth); if (w === lastW) return; lastW = w;
+      clearTimeout(window.__crR); window.__crR = setTimeout(() => { if (state.view) renderCrumbs(); }, 60);
+    }).observe(box);
+    document.fonts?.ready.then(() => { if (state.view) renderCrumbs(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view) renderCrumbs(); });
+  })();
 
   function render() {
     renderCrumbs();
