@@ -49,6 +49,23 @@ jobs:
       - name: End-to-end testy
         run: php tests/e2e.php
 
+      - name: Snímky obrazovky (mobil a počítač)
+        if: always()
+        run: |
+          cd tests
+          npm init -y > /dev/null
+          npm i --no-save --silent playwright@1
+          npx playwright install --with-deps chromium > /dev/null
+          node screens.mjs
+
+      - name: Uloženie snímok
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: screens
+          path: tests/screens/
+          if-no-files-found: ignore
+
       - name: Denná údržba
         run: php -d error_reporting=E_ALL -d display_errors=1 tests/housekeeping.php
 
