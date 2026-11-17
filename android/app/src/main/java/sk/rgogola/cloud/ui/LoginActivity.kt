@@ -25,6 +25,7 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(b.root)
+        applySystemInsets(b.root)
 
         b.server.setText(prefs.server)
         b.email.setText(prefs.userEmail.ifBlank { intent.getStringExtra("email") ?: "" })

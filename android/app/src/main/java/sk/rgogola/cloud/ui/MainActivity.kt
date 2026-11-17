@@ -109,6 +109,7 @@ class MainActivity : AppCompatActivity() {
         if (!prefs.loggedIn) { goLogin(null); return }
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
+        applySystemInsets(b.root)
         setupWeb()
 
         b.retryBtn.setOnClickListener { b.offline.visibility = View.GONE; loadWeb() }

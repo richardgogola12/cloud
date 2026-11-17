@@ -61,6 +61,7 @@ class SyncActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivitySyncBinding.inflate(layoutInflater)
         setContentView(b.root)
+        applySystemInsets(b.root)
         b.toolbar.setNavigationOnClickListener { finish() }
 
         b.addBtn.setOnClickListener {
