@@ -283,7 +283,7 @@ ok(empty($beata->api('delete', ['items' => ["f:$fileId"]])['ok']), 'príjemca s 
 $up = upload($beata, $folder, 'cudzi.txt', 'x');
 ok(empty($up['done']), 'príjemca s čítaním nemôže nahrávať');
 $j = $beata->api('notifications');
-ok(!empty($j['ok']) && ($j['items'][0]['type'] ?? '') === 'share', 'príjemca dostal upozornenie o zdieľaní', json_encode($j['items'][0] ?? $j));
+ok(!empty($j['ok']) && in_array('share', array_column($j['items'] ?? [], 'type'), true), 'príjemca dostal upozornenie o zdieľaní', json_encode($j));
 $r = $beata->get('app.php?action=notifications&after=0', ['ajax' => true]);
 ok(($r['json']['last'] ?? 0) > 0, 'upozornenie je dostupné aj pre aplikáciu');
 $sh = $web->api('share_get', ['type' => 'd', 'id' => $folder]);
