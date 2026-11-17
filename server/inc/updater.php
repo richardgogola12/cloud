@@ -31,7 +31,7 @@ function gh_http(string $url, ?string $saveTo = null): string {
 /** @return array<int, array{version:string, tag:string, name:string, notes:string, date:string, zip:?string, apk:?string}> */
 function gh_releases(string $prefix): array {
     $repo = cfg('update_repo', 'richardgogola12/cloud');
-    $data = json_decode(gh_http("https://api.github.com/repos/$repo/releases?per_page=40"), true);
+    $data = json_decode(gh_http("https://api.github.com/repos/$repo/releases?per_page=100"), true);
     if (!is_array($data)) throw new RuntimeException('Neplatná odpoveď GitHubu.');
     $out = [];
     foreach ($data as $r) {

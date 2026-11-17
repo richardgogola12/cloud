@@ -24,7 +24,7 @@ object Updater {
     /** Najnovšie vydanie (blokujúce volanie – spúšťať mimo hlavného vlákna). */
     fun latest(): Release? {
         val req = Request.Builder()
-            .url("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=20")
+            .url("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=100")
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", Api.USER_AGENT)
             .build()
