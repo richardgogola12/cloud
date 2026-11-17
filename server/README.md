@@ -37,6 +37,13 @@ PHP 8.1+, MySQL/MariaDB, Bootstrap 5, Select2, PWA, prihlásenie odtlačkom prst
 
 Databáza sa pri aktualizácii **upraví automaticky** pri prvom načítaní stránky (nové tabuľky a stĺpce, prefix `cloud_`).
 
+## Novinky vo verzii 2.2
+- **Šifrovanie súborov na disku** (AES-256-GCM, každý súbor vlastný kľúč). Hlavný kľúč sa vytvorí sám v `secret.key.php`
+  – **zálohuj ho** (Administrácia → Údržba → Stiahnuť záložný kľúč). Existujúce súbory zašifruješ tlačidlom v Údržbe.
+- **Kontrola integrity** (iba admin): rýchla / hĺbková kontrola, nepoužívané súbory na disku.
+- **Upozornenia**: zvonček na webe, notifikácie v Android aplikácii.
+- V Android aplikácii: **Otvoriť v aplikácii** a **Poslať** pri súboroch.
+
 ## Session pri viacerých weboch na serveri
 Aplikácia má vlastnú, izolovanú session:
 - vlastný názov cookie (`session_name` v `config.php` – zmeň na unikátny),

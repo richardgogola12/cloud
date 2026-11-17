@@ -6,4 +6,6 @@
     <color name="surface">#1B1E24</color>
     <color name="ink">#E8EAED</color>
     <color name="ink_muted">#9AA0A6</color>
+    <color name="widget_bg">#F21B1E24</color>
+    <color name="widget_btn">#2C313A</color>
 </resources>

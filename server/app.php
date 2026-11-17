@@ -30,6 +30,7 @@ try {
         q('INSERT INTO ' . P . 'app_tokens (user_id, token_hash, name, ip) VALUES (?,?,?,?)', [$u['id'], hash('sha256', $token), $device, client_ip()]);
         q('UPDATE ' . P . 'users SET last_login = NOW() WHERE id = ?', [$u['id']]);
         log_action((int)$u['id'], 'app_login', $device);
+        notify((int)$u['id'], 'device', 'Prihlásenie v aplikácii', $device . ' · IP ' . client_ip(), 'profile.php#sessions');
         if (setting('notify_new_device', '1') === '1') {
             send_mail($u['email'], 'Prihlásenie v aplikácii – ' . cfg('app_name'), 'Nové prihlásenie v mobilnej aplikácii',
                 '<p>Ahoj ' . e($u['name']) . ', do tvojho účtu sa práve prihlásila mobilná aplikácia.</p>'
@@ -44,7 +45,7 @@ try {
         $u = bearer_user();
         if (!$u) { header('Location: ' . url('login.php')); exit; }
         if (empty($_SESSION['uid']) || (int)$_SESSION['uid'] !== (int)$u['id']) login_user($u, true, 'aplikácia');
-        $to = preg_match('#^[a-z0-9_\-]+\.php(\#[\w/\-%]*)?$#i', (string)($_GET['to'] ?? '')) ? $_GET['to'] : 'index.php';
+        $to = preg_match('#^[a-z0-9_\-]+\.php(\?[\w=&%\-]*)?(\#[\w/\-%]*)?$#i', (string)($_GET['to'] ?? '')) ? $_GET['to'] : 'index.php';
         header('Location: ' . url($to));
         exit;
     }
@@ -56,6 +57,15 @@ try {
         json_out(['ok' => true, 'user' => ['name' => $u['name'], 'email' => $u['email'], 'role' => $u['role']],
                   'quota' => ['used' => $used, 'quota' => (int)$u['quota'], 'used_h' => format_bytes($used), 'quota_h' => $u['quota'] ? format_bytes($u['quota']) : null],
                   'chunk' => chunk_size()]);
+    }
+
+    case 'notifications': { // nové upozornenia pre Android (od posledného známeho ID)
+        $u = bearer_user();
+        if (!$u) json_out(['ok' => false, 'error' => 'Neplatné prihlásenie.'], 401);
+        $after = max(0, (int)($_GET['after'] ?? 0));
+        $items = $after > 0 ? array_reverse(notifications_list((int)$u['id'], 20, $after)) : [];
+        $last = (int)q('SELECT COALESCE(MAX(id),0) FROM ' . P . 'notifications WHERE user_id = ?', [$u['id']])->fetchColumn();
+        json_out(['ok' => true, 'items' => array_values(array_filter($items, fn($i) => !$i['read'])), 'last' => $last, 'unread' => notifications_unread((int)$u['id'])]);
     }
 
     case 'logout': {

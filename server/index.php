@@ -100,6 +100,8 @@ require __DIR__ . '/inc/views/layout_start.php';
 <!-- kontextové menu (zdieľané) -->
 <ul class="dropdown-menu shadow ctx-menu" id="ctxMenu">
   <li><a class="dropdown-item" href="#" data-ctx="open"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="openapp"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť v aplikácii…</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="send"><i class="bi bi-send me-2"></i>Poslať…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="edit"><i class="bi bi-pencil-square me-2"></i>Upraviť text</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="download"><i class="bi bi-download me-2"></i>Stiahnuť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="share"><i class="bi bi-person-plus me-2"></i>Zdieľať</a></li>
@@ -138,6 +140,8 @@ require __DIR__ . '/inc/views/layout_start.php';
       <div class="preview-bar">
         <button class="btn btn-icon text-white" data-bs-dismiss="modal"><i class="bi bi-arrow-left"></i></button>
         <span class="text-truncate flex-grow-1 fw-semibold" id="previewName"></span>
+        <a class="btn btn-icon text-white d-none" id="previewOpenApp" title="Otvoriť v aplikácii"><i class="bi bi-box-arrow-up-right"></i></a>
+        <a class="btn btn-icon text-white d-none" id="previewSend" title="Poslať"><i class="bi bi-send"></i></a>
         <a class="btn btn-icon text-white" id="previewDownload" title="Stiahnuť"><i class="bi bi-download"></i></a>
       </div>
       <button class="preview-nav prev" id="previewPrev"><i class="bi bi-chevron-left"></i></button>

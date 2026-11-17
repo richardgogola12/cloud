@@ -15,4 +15,5 @@
     <string name="use_password">Použiť heslo</string>
     <string name="channel_sync">Synchronizácia</string>
     <string name="channel_alerts">Upozornenia</string>
+    <string name="widget_desc">Stav synchronizácie zložiek s tlačidlami Synchronizovať a Pozastaviť</string>
 </resources>

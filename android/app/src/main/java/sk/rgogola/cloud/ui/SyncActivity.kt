@@ -1,6 +1,8 @@
 package sk.rgogola.cloud.ui
 
 import android.annotation.SuppressLint
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -37,6 +39,7 @@ import sk.rgogola.cloud.net.RemoteFolder
 import sk.rgogola.cloud.sync.SyncDb
 import sk.rgogola.cloud.sync.SyncEngine
 import sk.rgogola.cloud.sync.SyncService
+import sk.rgogola.cloud.sync.SyncWidget
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,6 +83,7 @@ class SyncActivity : AppCompatActivity() {
         b.swEnabled.setOnCheckedChangeListener { _, on ->
             prefs.syncEnabled = on
             if (on) CloudApp.kick(applicationContext, true) else SyncService.stop(this)
+            SyncWidget.updateAll(this)
             refreshStatus()
         }
         b.swWifi.isChecked = prefs.wifiOnly
@@ -105,6 +109,15 @@ class SyncActivity : AppCompatActivity() {
                 onError = { v.isChecked = false })
         }
         b.updateBtn.setOnClickListener { updater.check(manual = true) }
+        b.swNotify.isChecked = prefs.notifyEnabled
+        b.swNotify.setOnCheckedChangeListener { _, on -> prefs.notifyEnabled = on }
+        val wm = AppWidgetManager.getInstance(this)
+        b.widgetBtn.visibility = if (wm.isRequestPinAppWidgetSupported) View.VISIBLE else View.GONE
+        b.widgetBtn.setOnClickListener {
+            if (!wm.requestPinAppWidget(ComponentName(this, SyncWidget::class.java), null, null)) {
+                Toast.makeText(this, "Widget pridáš podržaním prsta na ploche → Widgety → Cloud.", Toast.LENGTH_LONG).show()
+            }
+        }
         b.logoutBtn.setOnClickListener {
             MaterialAlertDialogBuilder(this).setTitle("Odhlásiť sa?").setMessage("Synchronizácia sa zastaví.")
                 .setPositiveButton("Odhlásiť") { _, _ ->

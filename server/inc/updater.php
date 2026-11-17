@@ -50,7 +50,7 @@ function gh_releases(string $prefix): array {
 }
 
 function updater_skip(string $rel): bool {
-    if ($rel === 'config.php' || str_starts_with($rel, 'storage/') || $rel === 'storage' || str_starts_with($rel, 'install/')) return true;
+    if ($rel === 'config.php' || $rel === 'secret.key.php' || str_starts_with($rel, 'storage/') || $rel === 'storage' || str_starts_with($rel, 'install/')) return true;
     if (in_array($rel, ['.htaccess', '.user.ini'], true) && is_file(APP_ROOT . '/' . $rel)) return true; // ponechaj vlastné nastavenia
     return false;
 }
@@ -69,7 +69,7 @@ function updater_backup(): string {
         $real = $f->getRealPath();
         if (!$real || str_starts_with($real, $storage . DIRECTORY_SEPARATOR)) continue;
         $rel = ltrim(str_replace('\\', '/', substr($real, strlen($root))), '/');
-        if ($rel === 'config.php' || str_starts_with($rel, 'storage/')) continue;
+        if ($rel === 'config.php' || $rel === 'secret.key.php' || str_starts_with($rel, 'storage/')) continue;
         $zip->addFile($real, $rel);
     }
     $zip->close();

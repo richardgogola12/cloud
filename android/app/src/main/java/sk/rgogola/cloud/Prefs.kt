@@ -66,6 +66,14 @@ class Prefs(ctx: Context) {
         get() = p.getInt("skipped_version", 0)
         set(v) = p.edit().putInt("skipped_version", v).apply()
 
+    var lastNotifId: Int
+        get() = p.getInt("last_notif_id", 0)
+        set(v) = p.edit().putInt("last_notif_id", v).apply()
+
+    var notifyEnabled: Boolean
+        get() = p.getBoolean("notify_enabled", true)
+        set(v) = p.edit().putBoolean("notify_enabled", v).apply()
+
     var authError: Boolean
         get() = p.getBoolean("auth_error", false)
         set(v) = p.edit().putBoolean("auth_error", v).apply()
@@ -74,6 +82,6 @@ class Prefs(ctx: Context) {
 
     fun logout() {
         secure.edit().remove("token").apply()
-        p.edit().remove("user_name").remove("user_email").putBoolean("biometric", false).apply()
+        p.edit().remove("user_name").remove("user_email").remove("last_notif_id").putBoolean("biometric", false).apply()
     }
 }

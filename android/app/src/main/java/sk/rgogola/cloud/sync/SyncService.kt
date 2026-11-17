@@ -69,6 +69,7 @@ class SyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         running = true
+        SyncWidget.updateAll(this)
         startFg(Notif.service(this, "Sledujem zložky…", null))
 
         observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -112,11 +113,13 @@ class SyncService : Service() {
             if (!shouldRun(this)) { stopSelf(); return }
             SyncEngine.run(this) { text, pct -> Notif.updateService(this, text, pct) }
             Notif.updateService(this, idleText(), null)
+            NotifPoller.poll(this)
         }
     }
 
     override fun onDestroy() {
         running = false
+        SyncWidget.updateAll(this)
         scope.cancel()
         observer?.let { try { contentResolver.unregisterContentObserver(it) } catch (_: Exception) {} }
         netCb?.let { try { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) } catch (_: Exception) {} }

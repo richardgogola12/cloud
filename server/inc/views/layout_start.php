@@ -33,6 +33,18 @@ require __DIR__ . '/head.php';
     <input type="search" id="searchInput" class="form-control" placeholder="Hľadať v disku" autocomplete="off">
   </form>
   <?php else: ?><div class="flex-grow-1"></div><?php endif; ?>
+  <div class="dropdown">
+    <button class="btn btn-icon position-relative" id="notifBell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Upozornenia" title="Upozornenia">
+      <i class="bi bi-bell"></i><?php $unr = notifications_unread((int)$user['id']); ?><span class="notif-badge<?= $unr ? '' : ' d-none' ?>" id="notifBadge"><?= $unr > 99 ? '99+' : $unr ?></span>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow notif-menu p-0">
+      <div class="d-flex align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold me-auto">Upozornenia</span>
+        <button class="btn btn-link btn-sm text-decoration-none p-0" id="notifReadAll">Označiť ako prečítané</button>
+      </div>
+      <div id="notifList" class="notif-list"><div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div></div>
+    </div>
+  </div>
   <button class="btn btn-icon" id="themeToggle" title="Prepnúť tmavý režim"><i class="bi bi-moon-stars"></i></button>
   <div class="dropdown">
     <button class="btn avatar-btn" data-bs-toggle="dropdown" aria-label="Účet">

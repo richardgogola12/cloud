@@ -4,6 +4,8 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const { api, toast, esc, formatBytes, base } = Cloud;
   const PERM = { view: 1, edit: 2, owner: 3 };
+  const IN_APP = navigator.userAgent.includes('CloudAndroid/');
+  const appUrl = (act, it) => 'cloudapp://' + act + '?id=' + it.id + '&name=' + encodeURIComponent(it.name) + '&mime=' + encodeURIComponent(it.mime || '') + '&size=' + (it.size || 0);
 
   const state = {
     view: 'folder', folder: null, q: '', items: [], crumbs: [], perm: 'owner', root: 'drive', trashDays: 30,
@@ -488,6 +490,7 @@
     const body = $('#previewBody');
     $('#previewName').textContent = it.name;
     $('#previewDownload').href = fileUrl(it.id);
+    if (IN_APP) { $('#previewOpenApp').classList.remove('d-none'); $('#previewOpenApp').href = appUrl('open', it); $('#previewSend').classList.remove('d-none'); $('#previewSend').href = appUrl('send', it); }
     $('#previewPrev').style.visibility = pvIdx > 0 ? 'visible' : 'hidden';
     $('#previewNext').style.visibility = pvIdx < files.length - 1 ? 'visible' : 'hidden';
     $('#previewEdit')?.remove();
@@ -528,7 +531,9 @@
       }
     } else {
       const [ic, cls] = fileIcon(it);
-      body.innerHTML = '<div class="text-center text-white"><i class="bi ' + ic + ' ' + cls + '" style="font-size:6rem"></i><p class="mt-3 mb-1 fw-semibold">' + esc(it.name) + '</p><p class="text-white-50">' + formatBytes(it.size) + ' · náhľad nie je dostupný</p><a class="btn btn-light rounded-pill px-4" href="' + fileUrl(it.id) + '"><i class="bi bi-download me-2"></i>Stiahnuť</a></div>';
+      body.innerHTML = '<div class="text-center text-white"><i class="bi ' + ic + ' ' + cls + '" style="font-size:6rem"></i><p class="mt-3 mb-1 fw-semibold">' + esc(it.name) + '</p><p class="text-white-50">' + formatBytes(it.size) + ' · náhľad nie je dostupný</p>'
+        + (IN_APP ? '<a class="btn btn-primary rounded-pill px-4 me-2 mb-2" href="' + appUrl('open', it) + '"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť v aplikácii</a>' : '')
+        + '<a class="btn btn-light rounded-pill px-4 mb-2" href="' + fileUrl(it.id) + '"><i class="bi bi-download me-2"></i>Stiahnuť</a></div>';
     }
   }
   function renderSheet(body, wb) {
@@ -566,7 +571,7 @@
     const trash = state.view === 'trash';
     const minPerm = items.reduce((m, i) => Math.min(m, PERM[i.perm] || 1), 3);
     const vis = {
-      open: single && !trash, edit: single && !trash && isText(single) && minPerm >= 2, download: !trash,
+      open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && isText(single) && minPerm >= 2, download: !trash,
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
       info: single && !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
@@ -587,7 +592,7 @@
     const a = e.target.closest('[data-ctx]'); if (!a) return;
     e.preventDefault(); hideCtx();
     const it = ctxItems[0], items = ctxItems;
-    ({ open: () => open(it), edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
+    ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
        info: () => info(it), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items) })[a.dataset.ctx]();
   });

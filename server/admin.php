@@ -3,6 +3,54 @@ require __DIR__ . '/inc/core.php';
 require_once __DIR__ . '/inc/mailer.php';
 $user = require_admin();
 require_once __DIR__ . '/inc/updater.php';
+require_once __DIR__ . '/inc/maintenance.php';
+
+/* ---------------- AJAX: údržba (dávkové spracovanie) ---------------- */
+if (isset($_GET['ajax'])) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'error' => 'Metóda nie je povolená'], 405);
+    csrf_check();
+    session_write_close();
+    @set_time_limit(180);
+    try {
+        switch ($_GET['ajax']) {
+            case 'encrypt':
+                if (!crypto_enabled()) throw new RuntimeException('Šifrovanie je vypnuté.');
+                $r = maint_encrypt_batch();
+                if ($r['done']) log_action((int)$user['id'], 'encrypt_batch', $r['done'] . ' súborov');
+                json_out(['ok' => true] + $r);
+            case 'check':
+                json_out(['ok' => true] + maint_check_batch(($_POST['mode'] ?? '') === 'deep' ? 'deep' : 'quick', (int)($_POST['after'] ?? 0)));
+            case 'check_done':
+                $n = (int)($_POST['problems'] ?? 0); $checked = (int)($_POST['checked'] ?? 0);
+                log_action((int)$user['id'], 'integrity_check', ($_POST['mode'] ?? '') . ": $checked kontrolovaných, $n problémov");
+                if ($n > 0) notify_admins('integrity', "Kontrola integrity: $n problémov", "Skontrolovaných $checked súborov.", 'admin.php?tab=maintenance');
+                setting_set('last_integrity', date('Y-m-d H:i') . " · $checked súborov · $n problémov");
+                json_out(['ok' => true]);
+            case 'orphans':
+                $o = maint_orphans();
+                json_out(['ok' => true, 'count' => count($o['items']), 'bytes' => format_bytes($o['bytes']), 'items' => array_slice($o['items'], 0, 50)]);
+            case 'orphans_delete':
+                $o = maint_orphans(); $n = 0;
+                foreach ($o['items'] as $i) if (@unlink(data_path('files/' . $i['path']))) $n++;
+                log_action((int)$user['id'], 'orphans_delete', "$n súborov, " . format_bytes($o['bytes']));
+                json_out(['ok' => true, 'deleted' => $n]);
+            case 'remove_missing': // odstráni z DB záznamy, ktorých dáta na disku chýbajú
+                $n = 0;
+                foreach ((array)($_POST['items'] ?? []) as $it) {
+                    if (!preg_match('/^([fv]):(\d+)$/', (string)$it, $m)) continue;
+                    $row = q('SELECT * FROM ' . ($m[1] === 'f' ? P . 'files' : P . 'file_versions') . ' WHERE id = ?', [(int)$m[2]])->fetch();
+                    if (!$row || is_file(stored_path($row))) continue; // iba skutočne chýbajúce
+                    if ($m[1] === 'f') purge_file($row); else q('DELETE FROM ' . P . 'file_versions WHERE id = ?', [$row['id']]);
+                    $n++;
+                }
+                log_action((int)$user['id'], 'remove_missing', "$n záznamov");
+                json_out(['ok' => true, 'removed' => $n]);
+        }
+        json_out(['ok' => false, 'error' => 'Neznáma akcia'], 400);
+    } catch (Throwable $ex) {
+        json_out(['ok' => false, 'error' => $ex instanceof PDOException ? 'Chyba databázy.' : $ex->getMessage()], 400);
+    }
+}
 $me = (int)$user['id'];
 $U = P . 'users';
 
@@ -70,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         '<p>Ahoj ' . e($name) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', cfg('app_url') . '/login.php');
                 }
                 if ((int)$old['quota'] !== $quota) {
+                    notify($id, 'quota', 'Kvóta úložiska bola zmenená', 'Nová kvóta: ' . ($quota ? format_bytes($quota) : 'bez limitu'));
                     send_mail($email, 'Zmena úložiska – ' . cfg('app_name'), 'Kvóta úložiska bola zmenená',
                         '<p>Ahoj ' . e($name) . ', tvoja kvóta úložiska je teraz <b>' . ($quota ? format_bytes($quota) : 'bez limitu') . '</b>.</p>');
                 }
@@ -126,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $quota = quota_from_post();
                 $rows = q("SELECT * FROM $U WHERE id IN ($in) AND quota <> ?", [$quota])->fetchAll();
                 q("UPDATE $U SET quota = ?, quota_warned = 0 WHERE id IN ($in)", [$quota]);
+                foreach ($rows as $r) notify((int)$r['id'], 'quota', 'Kvóta úložiska bola zmenená', 'Nová kvóta: ' . ($quota ? format_bytes($quota) : 'bez limitu'));
                 if (!empty($_POST['bulk_notify'])) foreach ($rows as $r) {
                     send_mail($r['email'], 'Zmena úložiska – ' . cfg('app_name'), 'Kvóta úložiska bola zmenená',
                         '<p>Ahoj ' . e($r['name']) . ', tvoja kvóta úložiska je teraz <b>' . ($quota ? format_bytes($quota) : 'bez limitu') . '</b>.</p>');
@@ -150,6 +200,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', 'E-maily boli označené ako overené.');
             }
             log_action($me, 'admin_bulk_' . $op, count($ids) . ' používateľov');
+        } elseif ($act === 'download_key') {
+            log_action($me, 'download_key');
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: attachment; filename="cloud-sifrovaci-kluc-' . date('Y-m-d') . '.txt"');
+            echo "HLAVNÝ ŠIFROVACÍ KĽÚČ CLOUDU\r\n============================\r\n\r\n";
+            echo "Server: " . cfg('app_url') . "\r\nOdtlačok kľúča: " . crypto_fingerprint() . "\r\nStiahnuté: " . date('d.m.Y H:i') . "\r\n\r\n";
+            echo "Kľúč (base64):\r\n" . base64_encode(crypto_master_key()) . "\r\n\r\n";
+            echo "Obnova: do config.php pridaj riadok\r\n    'encryption_key' => '" . base64_encode(crypto_master_key()) . "',\r\n\r\n";
+            echo "Ulož tento súbor na bezpečné miesto (mimo servera). Bez kľúča sa zašifrované súbory nedajú prečítať.\r\n";
+            exit;
+        } elseif ($act === 'encryption_setting') {
+            setting_set('encrypt_files', !empty($_POST['encrypt_files']) ? '1' : '0');
+            if (!empty($_POST['encrypt_files'])) crypto_master_key(); // vytvor kľúč hneď
+            log_action($me, 'encryption_setting', setting('encrypt_files'));
+            flash('success', 'Nastavenie šifrovania bolo uložené.');
         } elseif ($act === 'update') {
             $want = (string)($_POST['version'] ?? '');
             $rel = null;
@@ -239,9 +304,11 @@ $smtp = smtp_conf();
 
 $title = 'Administrácia';
 $active = 'admin';
-$scripts = $tab === 'dashboard' && count($hist) >= 2 ? ['assets/js/admin.js', 'assets/js/admin-chart.js'] : ['assets/js/admin.js'];
+$scripts = ['assets/js/admin.js'];
+if ($tab === 'dashboard' && count($hist) >= 2) $scripts[] = 'assets/js/admin-chart.js';
+if ($tab === 'maintenance') $scripts[] = 'assets/js/admin-maint.js';
 require __DIR__ . '/inc/views/layout_start.php';
-$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
+$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'maintenance' => ['bi-shield-check', 'Údržba'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <h1 class="h4 fw-bold mb-0 me-auto"><i class="bi bi-shield-lock me-2 text-primary"></i>Administrácia</h1>
@@ -455,6 +522,57 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <p class="form-text mt-3 mb-0">Používa sa na: obnovu hesla, uvítací e-mail, schválenie účtu, upozornenie na plné úložisko, zmenu kvóty a hesla, notifikácie adminom.</p>
 </form>
 </div></div>
+
+<?php elseif ($tab === 'maintenance'):
+  $cs = maint_crypto_stats();
+  $keyErr = null; $fp = '';
+  try { if (crypto_enabled() || $cs['enc'] > 0) $fp = crypto_fingerprint(); } catch (Throwable $ex) { $keyErr = $ex->getMessage(); }
+  $keyFromConfig = (string)cfg('encryption_key', '') !== '';
+?>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card card-soft h-100"><div class="card-body p-4">
+    <h2 class="h6 fw-bold mb-3"><i class="bi bi-lock-fill me-2 text-success"></i>Šifrovanie súborov</h2>
+    <p class="small text-body-secondary">Súbory, staršie verzie aj miniatúry sú na disku servera uložené zašifrované (AES-256-GCM). Ani niekto s prístupom k FTP či hostingu ich bez kľúča neprečíta. Každý súbor má vlastný kľúč, chránený hlavným kľúčom.</p>
+    <?php if ($keyErr): ?><div class="alert alert-danger small"><?= e($keyErr) ?></div><?php endif; ?>
+    <form method="post" class="mb-3">
+      <?= csrf_field() ?><input type="hidden" name="act" value="encryption_setting"><input type="hidden" name="tab" value="maintenance">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" name="encrypt_files" id="encOn" value="1" <?= crypto_enabled() ? 'checked' : '' ?> onchange="this.form.submit()">
+        <label class="form-check-label fw-semibold" for="encOn">Šifrovať nové súbory</label>
+      </div>
+    </form>
+    <div class="d-flex flex-wrap gap-3 small mb-3">
+      <span><i class="bi bi-lock-fill text-success me-1"></i>Zašifrované: <b id="encCount"><?= $cs['enc'] ?></b></span>
+      <span><i class="bi bi-unlock text-warning me-1"></i>Nezašifrované: <b id="plainCount"><?= $cs['plain'] ?></b></span>
+    </div>
+    <?php if ($cs['plain'] > 0 && crypto_enabled()): ?>
+      <button class="btn btn-primary rounded-pill" id="encryptBtn"><i class="bi bi-lock me-1"></i>Zašifrovať existujúce súbory</button>
+      <div class="progress mt-3 d-none" id="encProgress" style="height:8px"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:0"></div></div>
+      <div class="small text-body-secondary mt-2" id="encStatus"></div>
+    <?php endif; ?>
+    <?php if ($fp): ?>
+    <hr>
+    <div class="small mb-2"><b>Hlavný kľúč</b> · odtlačok <code><?= e($fp) ?></code> · <?= $keyFromConfig ? 'z config.php' : 'súbor <code>secret.key.php</code>' ?></div>
+    <div class="alert alert-warning small mb-2"><i class="bi bi-exclamation-triangle me-1"></i><b>Kľúč si zálohuj mimo servera.</b> Ak ho stratíš (napr. pri sťahovaní na nový hosting bez neho), zašifrované súbory sa už nebudú dať otvoriť.</div>
+    <form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="download_key"><input type="hidden" name="tab" value="maintenance">
+      <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="bi bi-key me-1"></i>Stiahnuť záložný kľúč</button></form>
+    <?php endif; ?>
+  </div></div></div>
+
+  <div class="col-lg-6"><div class="card card-soft h-100"><div class="card-body p-4">
+    <h2 class="h6 fw-bold mb-3"><i class="bi bi-clipboard2-check me-2 text-primary"></i>Kontrola integrity</h2>
+    <p class="small text-body-secondary">Overí, či ku každému súboru existujú dáta na disku a či sa nezmenili. <b>Rýchla</b> kontrola porovná veľkosti, <b>hĺbková</b> prečíta a overí obsah každého súboru (trvá dlhšie).</p>
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <button class="btn btn-primary rounded-pill" data-check="quick"><i class="bi bi-lightning me-1"></i>Rýchla kontrola</button>
+      <button class="btn btn-outline-primary rounded-pill" data-check="deep"><i class="bi bi-search me-1"></i>Hĺbková kontrola</button>
+      <button class="btn btn-outline-secondary rounded-pill" id="orphanBtn"><i class="bi bi-trash2 me-1"></i>Nepoužívané súbory</button>
+    </div>
+    <div class="small text-body-secondary mb-2">Posledná kontrola: <?= e(setting('last_integrity', 'zatiaľ nebola')) ?></div>
+    <div class="progress d-none mb-2" id="chkProgress" style="height:8px"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div></div>
+    <div id="chkStatus" class="small"></div>
+    <div id="chkResults" class="mt-2"></div>
+  </div></div></div>
+</div>
 
 <?php elseif ($tab === 'update'):
   $relErr = null; $srv = []; $apk = [];

@@ -268,6 +268,7 @@ function check_new_device(array $user, string $method): void {
         if (q('SELECT id FROM ' . P . 'devices WHERE user_id = ? AND device_hash = ?', [$user['id'], $h])->fetch()) return;
         $hadDevices = (int)q('SELECT COUNT(*) FROM ' . P . 'devices WHERE user_id = ?', [$user['id']])->fetchColumn();
         q('INSERT IGNORE INTO ' . P . 'devices (user_id, device_hash, ua) VALUES (?,?,?)', [$user['id'], $h, mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255)]);
+        if ($hadDevices) notify((int)$user['id'], 'device', 'Prihlásenie z nového zariadenia', ua_label($_SERVER['HTTP_USER_AGENT'] ?? '') . ' · IP ' . client_ip(), 'profile.php#sessions');
         if ($hadDevices && setting('notify_new_device', '1') === '1') {
             send_mail($user['email'], 'Prihlásenie z nového zariadenia – ' . cfg('app_name'), 'Nové prihlásenie do účtu',
                 '<p>Ahoj ' . e($user['name']) . ', do tvojho účtu sa práve niekto prihlásil z nového zariadenia.</p>'
@@ -345,6 +346,8 @@ function view(string $name, array $vars = []): void {
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/migrate.php';
 require_once __DIR__ . '/files.php';
+require_once __DIR__ . '/crypto.php';
+require_once __DIR__ . '/notify.php';
 
 setting('schema_version');
 if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SCHEMA_VERSION) {

@@ -165,6 +165,15 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
         "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state IN (?, ?)", arrayOf(ST_PENDING.toString(), ST_ERROR.toString())
     ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
+    fun totalErrors(): Int = readableDatabase.rawQuery(
+        "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state = ?", arrayOf(ST_ERROR.toString())
+    ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
+    /** Počet súborov nahratých od daného času (pre widget „dnes nahraté“). */
+    fun uploadedSince(ts: Long): Int = readableDatabase.rawQuery(
+        "SELECT COUNT(*) FROM log WHERE ok = 1 AND ts >= ? AND msg LIKE '%→%'", arrayOf(ts.toString())
+    ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
     // ---------------- záznam ----------------
     fun log(msg: String, ok: Boolean = true) {
         val db = writableDatabase

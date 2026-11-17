@@ -169,39 +169,55 @@ function photo_date(string $path, string $mime): ?string {
     return "$m[1]-$m[2]-$m[3] $m[4]:$m[5]:$m[6]";
 }
 /**
- * Presunie hotový súbor do úložiska vlastníka. Ak súbor s rovnakým názvom existuje, uloží sa nová verzia.
- * @return array{id:int,name:string,versioned:bool}
+ * Presunie hotový súbor do úložiska vlastníka (a zašifruje ho). Ak súbor s rovnakým názvom existuje, uloží sa nová verzia;
+ * ak má rovnaký obsah, nič sa nemení.
+ * @return array{id:int,name:string,versioned:bool,size:int,unchanged?:bool}
  */
 function store_file(int $owner, ?int $folder, string $name, string $src, bool $isUploaded): array {
-    $stored = bin2hex(random_bytes(20));
-    $dest = storage_dir($owner) . '/' . $stored;
-    $ok = $isUploaded ? move_uploaded_file($src, $dest) : rename($src, $dest);
+    // 1) dočasný súbor s otvoreným textom
+    $plain = tmp_file();
+    $ok = $isUploaded ? move_uploaded_file($src, $plain) : rename($src, $plain);
     if (!$ok) throw new RuntimeException('Nepodarilo sa uložiť súbor.');
-    $size = filesize($dest);
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($dest) ?: 'application/octet-stream';
-    $taken = photo_date($dest, $mime);
+    try {
+        $size = filesize($plain);
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($plain) ?: 'application/octet-stream';
+        $taken = photo_date($plain, $mime);
+        $sha = hash_file('sha256', $plain);
 
-    $ex = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$owner, $folder, $name])->fetch();
-    // rovnaký obsah už existuje → nevytváraj zbytočnú verziu
-    if ($ex && (int)$ex['size'] === $size) {
-        $old = storage_dir($owner) . '/' . $ex['stored_name'];
-        if (is_file($old) && hash_file('sha256', $old) === hash_file('sha256', $dest)) {
-            @unlink($dest);
-            return ['id' => (int)$ex['id'], 'name' => $name, 'versioned' => false, 'unchanged' => true, 'size' => $size];
+        $ex = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$owner, $folder, $name])->fetch();
+        // rovnaký obsah už existuje → nevytváraj zbytočnú verziu
+        if ($ex && (int)$ex['size'] === $size) {
+            $exSha = $ex['sha256'] ?? null;
+            if (!$exSha) { try { $exSha = stored_sha256($ex); q('UPDATE ' . P . 'files SET sha256 = ? WHERE id = ?', [$exSha, $ex['id']]); } catch (Throwable $e) { $exSha = null; } }
+            if ($exSha === $sha) return ['id' => (int)$ex['id'], 'name' => $name, 'versioned' => false, 'unchanged' => true, 'size' => $size];
         }
+
+        // 2) uloženie (šifrované alebo nie)
+        $stored = bin2hex(random_bytes(20));
+        $dest = storage_dir($owner) . '/' . $stored;
+        $encKey = null;
+        if (crypto_enabled()) {
+            [$raw, $encKey] = crypto_new_file_key();
+            crypto_encrypt_file($plain, $dest, $raw);
+        } elseif (!rename($plain, $dest)) {
+            throw new RuntimeException('Nepodarilo sa uložiť súbor.');
+        }
+    } finally {
+        if (is_file($plain)) @unlink($plain);
     }
+
     if ($ex) {
-        q('INSERT INTO ' . P . 'file_versions (file_id, user_id, stored_name, size, mime, created_at) VALUES (?,?,?,?,?,?)',
-          [$ex['id'], $owner, $ex['stored_name'], $ex['size'], $ex['mime'], $ex['updated_at']]);
-        q('UPDATE ' . P . 'files SET stored_name = ?, size = ?, mime = ?, taken_at = COALESCE(?, taken_at), updated_at = NOW() WHERE id = ?',
-          [$stored, $size, $mime, $taken, $ex['id']]);
+        q('INSERT INTO ' . P . 'file_versions (file_id, user_id, stored_name, size, mime, enc_key, sha256, created_at) VALUES (?,?,?,?,?,?,?,?)',
+          [$ex['id'], $owner, $ex['stored_name'], $ex['size'], $ex['mime'], $ex['enc_key'] ?? null, $ex['sha256'] ?? null, $ex['updated_at']]);
+        q('UPDATE ' . P . 'files SET stored_name = ?, size = ?, mime = ?, enc_key = ?, sha256 = ?, taken_at = COALESCE(?, taken_at), updated_at = NOW() WHERE id = ?',
+          [$stored, $size, $mime, $encKey, $sha, $taken, $ex['id']]);
         @unlink(data_path('thumbs/' . $owner . '/' . $ex['stored_name'] . '.jpg'));
         prune_versions((int)$ex['id'], $owner);
         $id = (int)$ex['id'];
         $versioned = true;
     } else {
-        q('INSERT INTO ' . P . 'files (user_id, folder_id, name, stored_name, size, mime, taken_at) VALUES (?,?,?,?,?,?,?)',
-          [$owner, $folder, $name, $stored, $size, $mime, $taken]);
+        q('INSERT INTO ' . P . 'files (user_id, folder_id, name, stored_name, size, mime, enc_key, sha256, taken_at) VALUES (?,?,?,?,?,?,?,?,?)',
+          [$owner, $folder, $name, $stored, $size, $mime, $encKey, $sha, $taken]);
         $id = (int)db()->lastInsertId();
         $versioned = false;
     }
@@ -286,6 +302,20 @@ function purge_trash(int $owner, ?int $olderThanDays = null): int {
 function housekeeping(): void {
     setting_set('housekeeping_day', date('Y-m-d'));
     $days = (int)setting('trash_days', '30');
+    if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
+        $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY
+                   UNION ALL SELECT user_id FROM ' . P . 'folders WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY) t GROUP BY user_id')->fetchAll();
+        foreach ($rows as $r) notify((int)$r['user_id'], 'trash', 'Kôš sa čoskoro vyprázdni', $r['c'] . ' položiek sa o 3 dni natrvalo zmaže. Ak ich potrebuješ, obnov ich.', 'index.php#trash');
+    }
+    // nová verzia servera → upozorni administrátorov
+    try {
+        require_once __DIR__ . '/updater.php';
+        $rel = gh_releases('server-v')[0] ?? null;
+        if ($rel && version_compare($rel['version'], APP_VERSION, '>') && setting('notified_version') !== $rel['version']) {
+            setting_set('notified_version', $rel['version']);
+            notify_admins('update', 'Dostupná aktualizácia servera ' . $rel['version'], 'Nainštalovaná je ' . APP_VERSION . '. Aktualizuješ ju jedným tlačidlom.', 'admin.php?tab=update');
+        }
+    } catch (Throwable $e) {}
     if ($days > 0) {
         $owners = q('SELECT DISTINCT user_id FROM ' . P . 'files WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)
                      UNION SELECT DISTINCT user_id FROM ' . P . 'folders WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)')->fetchAll(PDO::FETCH_COLUMN);
@@ -339,6 +369,37 @@ function send_file(string $path, string $name, string $mime, bool $inline): neve
     fclose($fp);
     exit;
 }
+/** Pošle uložený súbor (rozšifruje ho za behu; podporuje Range pre video a pokračovanie sťahovania). */
+function send_stored(array $row, string $name, bool $inline): never {
+    $key = row_key($row);
+    if ($key === null) send_file(stored_path($row), $name, $row['mime'], $inline);
+    $size = (int)$row['size'];
+    $start = 0; $end = $size - 1;
+    $mime = $row['mime'];
+    if (!($inline && $mime === 'application/pdf')) {
+        header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'");
+    }
+    header('Accept-Ranges: bytes');
+    header('Content-Type: ' . ($inline ? $mime : 'application/octet-stream'));
+    $ascii = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', $name);
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    if ($size > 0 && isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $m)) {
+        if ($m[1] === '' && $m[2] !== '') { $start = max(0, $size - (int)$m[2]); }
+        else { $start = (int)$m[1]; if ($m[2] !== '') $end = min((int)$m[2], $size - 1); }
+        if ($start > $end || $start >= $size) { http_response_code(416); header("Content-Range: bytes */$size"); exit; }
+        http_response_code(206);
+        header("Content-Range: bytes $start-$end/$size");
+    }
+    header('Content-Length: ' . max(0, $end - $start + 1));
+    while (ob_get_level()) ob_end_clean();
+    if ($size > 0) {
+        @set_time_limit(0);
+        crypto_decrypt_range(stored_path($row), $key, $size, $start, $end, function ($d) { echo $d; flush(); return !connection_aborted(); });
+    }
+    exit;
+}
+
 function safe_inline(string $mime): bool {
     return (bool)preg_match('#^(image/(jpeg|png|gif|webp|bmp)|video/|audio/|application/pdf$|text/plain$)#', $mime);
 }
@@ -367,16 +428,36 @@ function send_thumb(array $f): never {
     $owner = (int)$f['user_id'];
     $tdir = data_path('thumbs/' . $owner);
     $tpath = $tdir . '/' . $f['stored_name'] . '.jpg';
+    $key = row_key($f);
     if (!is_file($tpath)) {
         if (!is_dir($tdir)) mkdir($tdir, 0750, true);
-        if (!make_thumb(storage_dir($owner) . '/' . $f['stored_name'], $tpath, 400)) { http_response_code(404); exit; }
+        if ((int)$f['size'] > 40 * 1024 * 1024) { http_response_code(404); exit; }
+        $src = stored_to_temp($f);
+        $plainThumb = tmp_file();
+        try {
+            if (!make_thumb($src, $plainThumb, 400)) { http_response_code(404); exit; }
+            if ($key !== null) crypto_encrypt_file($plainThumb, $tpath, $key); // miniatúry sú šifrované kľúčom súboru
+            else rename($plainThumb, $tpath);
+        } finally { @unlink($src); if (is_file($plainThumb)) @unlink($plainThumb); }
     }
     header('Content-Type: image/jpeg');
     header('Cache-Control: private, max-age=604800');
-    header('Content-Length: ' . filesize($tpath));
-    readfile($tpath);
+    if ($key === null) {
+        header('Content-Length: ' . filesize($tpath));
+        readfile($tpath);
+        exit;
+    }
+    // veľkosť otvoreného textu miniatúry vypočítame z veľkosti šifry
+    $cs = filesize($tpath) - ENC_HEADER;
+    $blocks = (int)ceil($cs / (ENC_BLOCK + ENC_TAG));
+    $plainSize = max(0, $cs - $blocks * ENC_TAG);
+    header('Content-Length: ' . $plainSize);
+    try {
+        if ($plainSize > 0) crypto_decrypt_range($tpath, $key, $plainSize, 0, $plainSize - 1, function ($d) { echo $d; return true; });
+    } catch (Throwable $e) { @unlink($tpath); }
     exit;
 }
+
 /** Zabalí zložky/súbory (riadky z DB) do ZIP a pošle ho. */
 function send_zip(array $folders, array $files, string $zipName): never {
     if (!class_exists('ZipArchive')) throw new RuntimeException('Na serveri chýba rozšírenie ZipArchive.');
@@ -386,18 +467,24 @@ function send_zip(array $folders, array $files, string $zipName): never {
     $tmp = $tmpDir . '/' . bin2hex(random_bytes(8)) . '.zip';
     $zip = new ZipArchive();
     $zip->open($tmp, ZipArchive::CREATE);
-    $add = function (array $d, string $prefix) use (&$add, $zip) {
+    $temps = [];
+    $addFile = function (array $f, string $as) use ($zip, &$temps) {
+        if (empty($f['enc_key'])) { $zip->addFile(stored_path($f), $as); return; }
+        $t = stored_to_temp($f); $temps[] = $t; $zip->addFile($t, $as);
+    };
+    $add = function (array $d, string $prefix) use (&$add, $zip, $addFile) {
         $owner = (int)$d['user_id'];
         $zip->addEmptyDir(rtrim($prefix, '/'));
         foreach (q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id = ? AND deleted_at IS NULL', [$owner, $d['id']]) as $f)
-            $zip->addFile(storage_dir($owner) . '/' . $f['stored_name'], $prefix . $f['name']);
+            $addFile($f, $prefix . $f['name']);
         foreach (q('SELECT * FROM ' . P . 'folders WHERE user_id = ? AND parent_id = ? AND deleted_at IS NULL', [$owner, $d['id']]) as $c)
             $add($c, $prefix . $c['name'] . '/');
     };
     foreach ($folders as $d) $add($d, $d['name'] . '/');
-    foreach ($files as $f) $zip->addFile(storage_dir((int)$f['user_id']) . '/' . $f['stored_name'], $f['name']);
+    foreach ($files as $f) $addFile($f, $f['name']);
     if ($zip->numFiles === 0) $zip->addEmptyDir('prazdne');
     $zip->close();
+    foreach ($temps as $t) @unlink($t);
     register_shutdown_function(fn() => @unlink($tmp));
     send_file($tmp, $zipName . '.zip', 'application/zip', false);
 }

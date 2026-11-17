@@ -17,7 +17,7 @@ window.Cloud = (function () {
 
   function toast(msg, type = 'dark', delay = 3500) {
     const wrap = document.getElementById('toasts') || (() => { const d = document.createElement('div'); d.id = 'toasts'; d.className = 'toast-container position-fixed bottom-0 end-0 p-3'; document.body.appendChild(d); return d; })();
-    const icons = { success: 'check-circle', danger: 'exclamation-octagon', warning: 'exclamation-triangle', info: 'info-circle', dark: 'info-circle' };
+    const icons = { success: 'check-circle', danger: 'exclamation-octagon', warning: 'exclamation-triangle', info: 'info-circle', dark: 'info-circle', primary: 'bell' };
     const el = document.createElement('div');
     el.className = 'toast align-items-center border-0 text-bg-' + type;
     el.innerHTML = '<div class="d-flex"><div class="toast-body"><i class="bi bi-' + (icons[type] || 'info-circle') + ' me-2"></i></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
@@ -99,6 +99,65 @@ window.Cloud = (function () {
         $s.select2({ theme: 'bootstrap-5', width: '100%', minimumResultsForSearch: $s.data('search') === false ? Infinity : 0, dropdownParent: $s.closest('.modal').length ? $s.closest('.modal') : jQuery(document.body) });
       });
     }
+  });
+
+  // ---------------- upozornenia (zvonček) ----------------
+  function timeAgo(s) {
+    const d = (Date.now() - new Date(s.replace(' ', 'T')).getTime()) / 1000;
+    if (d < 60) return 'práve teraz';
+    if (d < 3600) return 'pred ' + Math.floor(d / 60) + ' min';
+    if (d < 86400) return 'pred ' + Math.floor(d / 3600) + ' h';
+    if (d < 7 * 86400) return 'pred ' + Math.floor(d / 86400) + ' d';
+    return new Date(s.replace(' ', 'T')).toLocaleDateString('sk-SK');
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const bell = document.getElementById('notifBell');
+    if (!bell) return;
+    const badge = document.getElementById('notifBadge'), list = document.getElementById('notifList');
+    const setBadge = (n) => { badge.textContent = n > 99 ? '99+' : n; badge.classList.toggle('d-none', !n); };
+    async function loadList() {
+      const r = await api('api.php?action=notifications');
+      if (!r.ok) { list.innerHTML = '<div class="text-center text-body-secondary small py-4">Nepodarilo sa načítať</div>'; return; }
+      setBadge(r.unread);
+      if (!r.items.length) { list.innerHTML = '<div class="text-center text-body-secondary py-5"><i class="bi bi-bell-slash fs-2 d-block mb-2"></i>Žiadne upozornenia</div>'; return; }
+      list.innerHTML = '';
+      r.items.forEach(n => {
+        const a = document.createElement('a');
+        a.className = 'notif-item' + (n.read ? '' : ' unread');
+        a.href = n.link ? base + n.link : '#';
+        a.innerHTML = '<span class="notif-ic"><i class="bi ' + esc(n.icon) + '"></i></span><span class="flex-grow-1 min-w-0"><span class="d-block fw-semibold notif-title"></span><span class="d-block small text-body-secondary notif-body"></span><span class="d-block small text-body-secondary opacity-75">' + esc(timeAgo(n.date)) + '</span></span>';
+        a.querySelector('.notif-title').textContent = n.title;
+        a.querySelector('.notif-body').textContent = n.body;
+        a.addEventListener('click', (e) => {
+          if (!n.read) api('api.php?action=notifications_read', { id: n.id });
+          if (!n.link) e.preventDefault();
+          else if (location.pathname.endsWith(n.link.split('#')[0]) && n.link.includes('#')) { e.preventDefault(); location.hash = n.link.split('#')[1]; bootstrap.Dropdown.getInstance(bell)?.hide(); }
+        });
+        list.appendChild(a);
+      });
+    }
+    bell.addEventListener('show.bs.dropdown', loadList);
+    document.getElementById('notifReadAll').addEventListener('click', async () => {
+      await api('api.php?action=notifications_read'); setBadge(0); list.querySelectorAll('.unread').forEach(x => x.classList.remove('unread'));
+    });
+    // kontrola nových každú minútu
+    let lastSeen = parseInt(localStorage.getItem('cloud-notif-last') || '0');
+    async function poll() {
+      if (document.hidden) return;
+      const r = await api('api.php?action=notifications_unread');
+      if (!r.ok) return;
+      setBadge(r.unread);
+      if (r.last > lastSeen) {
+        if (lastSeen > 0 && r.unread > 0) {
+          const l = await api('api.php?action=notifications');
+          const fresh = (l.items || []).filter(n => n.id > lastSeen && !n.read);
+          if (fresh.length) toast(fresh[0].title + (fresh.length > 1 ? ' (+' + (fresh.length - 1) + ')' : ''), 'primary', 6000);
+        }
+        lastSeen = r.last; localStorage.setItem('cloud-notif-last', String(lastSeen));
+      }
+    }
+    poll(); setInterval(poll, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   });
 
   // PWA – service worker

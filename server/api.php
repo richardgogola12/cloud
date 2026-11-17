@@ -37,6 +37,7 @@ function check_quota_warning(int $owner): void {
     $pct = $used / $u['quota'];
     if ($pct >= 0.9 && !$u['quota_warned']) {
         q('UPDATE ' . P . 'users SET quota_warned = 1 WHERE id = ?', [$owner]);
+        notify($owner, 'quota', 'Úložisko je takmer plné', 'Využívaš ' . format_bytes($used) . ' z ' . format_bytes($u['quota']) . ' (' . round($pct * 100) . ' %).', 'index.php#trash');
         send_mail($u['email'], 'Úložisko je takmer plné – ' . cfg('app_name'), 'Dochádza ti miesto',
             '<p>Ahoj ' . e($u['name']) . ', využívaš <b>' . format_bytes($used) . '</b> z <b>' . format_bytes($u['quota']) . '</b> (' . round($pct * 100) . ' %).</p>'
             . '<p>Uvoľni miesto zmazaním nepotrebných súborov (nezabudni vysypať kôš a staré verzie) alebo požiadaj administrátora o navýšenie kvóty.</p>',
@@ -59,13 +60,12 @@ if (in_array($action, ['download', 'thumb', 'zip'], true)) {
             if (!empty($_GET['v'])) { // stará verzia
                 $ver = q("SELECT * FROM $V WHERE id = ? AND file_id = ?", [(int)$_GET['v'], $f['id']])->fetch();
                 if (!$ver) throw new RuntimeException('Verzia neexistuje.');
-                $f['stored_name'] = $ver['stored_name']; $f['mime'] = $ver['mime'];
+                $f['stored_name'] = $ver['stored_name']; $f['mime'] = $ver['mime']; $f['size'] = $ver['size']; $f['enc_key'] = $ver['enc_key'] ?? null;
                 $dot = strrpos($f['name'], '.');
                 $f['name'] = ($dot ? substr($f['name'], 0, $dot) : $f['name']) . ' (' . date('Y-m-d H-i', strtotime($ver['created_at'])) . ')' . ($dot ? substr($f['name'], $dot) : '');
             }
-            $path = storage_dir((int)$f['user_id']) . '/' . $f['stored_name'];
-            if (!is_file($path)) throw new RuntimeException('Súbor chýba na disku.');
-            send_file($path, $f['name'], $f['mime'], !empty($_GET['inline']) && safe_inline($f['mime']));
+            if (!is_file(stored_path($f))) throw new RuntimeException('Súbor chýba na disku.');
+            send_stored($f, $f['name'], !empty($_GET['inline']) && safe_inline($f['mime']));
         }
         if ($action === 'thumb') {
             send_thumb(file_access($uid, (int)($_GET['id'] ?? 0))['row']);
@@ -319,8 +319,7 @@ try {
         $rows = array_map(fn($id) => file_access($uid, $id)['row'], $items['f']);
         check_space($tacc['owner'], array_sum(array_column($rows, 'size')));
         foreach ($rows as $f) {
-            $tmp = tmp_file();
-            if (!copy(storage_dir((int)$f['user_id']) . '/' . $f['stored_name'], $tmp)) throw new RuntimeException('Kopírovanie zlyhalo.');
+            $tmp = stored_to_temp($f);
             store_file($tacc['owner'], $target, unique_name($tacc['owner'], $target, $f['name'], 'f'), $tmp, false);
         }
         log_action($uid, 'copy', count($rows) . ' súborov');
@@ -411,7 +410,7 @@ try {
     /* ---------------- textový editor ---------------- */
     case 'text': {
         $a = file_access($uid, (int)($_POST['id'] ?? 0)); $f = $a['row'];
-        $txt = file_get_contents(storage_dir((int)$f['user_id']) . '/' . $f['stored_name'], false, null, 0, 2000000);
+        $txt = stored_read($f, 2000000);
         if ($txt !== '' && !mb_check_encoding($txt, 'UTF-8')) $txt = mb_convert_encoding($txt, 'UTF-8', 'Windows-1250');
         json_out(['ok' => true, 'text' => $txt, 'truncated' => $f['size'] > 2000000, 'editable' => PERM_LEVEL[$a['perm']] >= 2 && $f['size'] <= 2000000, 'updated' => $f['updated_at']]);
     }
@@ -446,8 +445,10 @@ try {
         if (!$v) throw new RuntimeException('Verzia neexistuje.');
         $a = need(file_access($uid, (int)$v['file_id']), 'edit'); $f = $a['row'];
         db()->beginTransaction();
-        q("INSERT INTO $V (file_id, user_id, stored_name, size, mime, created_at) VALUES (?,?,?,?,?,?)", [$f['id'], $f['user_id'], $f['stored_name'], $f['size'], $f['mime'], $f['updated_at']]);
-        q("UPDATE $F SET stored_name = ?, size = ?, mime = ?, updated_at = NOW() WHERE id = ?", [$v['stored_name'], $v['size'], $v['mime'], $f['id']]);
+        q("INSERT INTO $V (file_id, user_id, stored_name, size, mime, enc_key, sha256, created_at) VALUES (?,?,?,?,?,?,?,?)",
+          [$f['id'], $f['user_id'], $f['stored_name'], $f['size'], $f['mime'], $f['enc_key'] ?? null, $f['sha256'] ?? null, $f['updated_at']]);
+        q("UPDATE $F SET stored_name = ?, size = ?, mime = ?, enc_key = ?, sha256 = ?, updated_at = NOW() WHERE id = ?",
+          [$v['stored_name'], $v['size'], $v['mime'], $v['enc_key'] ?? null, $v['sha256'] ?? null, $f['id']]);
         q("DELETE FROM $V WHERE id = ?", [$vid]);
         db()->commit();
         @unlink(data_path('thumbs/' . $f['user_id'] . '/' . $f['stored_name'] . '.jpg'));
@@ -532,6 +533,8 @@ try {
             if (!$t || $tid === $uid) continue;
             q('INSERT INTO ' . P . 'user_shares (owner_id, item_type, item_id, target_id, permission) VALUES (?,?,?,?,?)
                ON DUPLICATE KEY UPDATE permission = VALUES(permission)', [$uid, $type, $id, $tid, $perm]);
+            notify($tid, 'share', $user['name'] . ' s tebou zdieľa ' . ($type === 'd' ? 'zložku' : 'súbor'),
+                '„' . $a['row']['name'] . '“ – ' . ($perm === 'edit' ? 'môžeš upravovať' : 'iba na čítanie'), 'index.php#shared');
             if ($notify) {
                 send_mail($t['email'], $user['name'] . ' s tebou zdieľa „' . $a['row']['name'] . '“', 'Niekto s tebou zdieľa ' . ($type === 'd' ? 'zložku' : 'súbor'),
                     '<p><b>' . e($user['name']) . '</b> s tebou zdieľa ' . ($type === 'd' ? 'zložku' : 'súbor') . ' <b>' . e($a['row']['name']) . '</b>'
@@ -552,6 +555,27 @@ try {
 
     case 'share_user_remove': {
         q('DELETE FROM ' . P . 'user_shares WHERE id = ? AND owner_id = ?', [(int)($_POST['sid'] ?? 0), $uid]);
+        json_out(['ok' => true]);
+    }
+
+    case 'notifications': {
+        json_out(['ok' => true, 'items' => notifications_list($uid, 30), 'unread' => notifications_unread($uid)]);
+    }
+
+    case 'notifications_unread': {
+        $last = q('SELECT MAX(id) FROM ' . P . 'notifications WHERE user_id = ?', [$uid])->fetchColumn();
+        json_out(['ok' => true, 'unread' => notifications_unread($uid), 'last' => (int)$last]);
+    }
+
+    case 'notifications_read': {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id) q('UPDATE ' . P . 'notifications SET read_at = NOW() WHERE id = ? AND user_id = ? AND read_at IS NULL', [$id, $uid]);
+        else q('UPDATE ' . P . 'notifications SET read_at = NOW() WHERE user_id = ? AND read_at IS NULL', [$uid]);
+        json_out(['ok' => true]);
+    }
+
+    case 'notifications_clear': {
+        q('DELETE FROM ' . P . 'notifications WHERE user_id = ?', [$uid]);
         json_out(['ok' => true]);
     }
 

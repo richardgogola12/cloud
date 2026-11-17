@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_UNLOCKED = "unlocked"
         const val EXTRA_CHECK_UPDATE = "check_update"
+        const val EXTRA_OPEN_LINK = "open_link"
         private const val LOCK_AFTER_MS = 3 * 60 * 1000L
 
         /** Obnovenie potiahnutím nadol: v disku znovu načíta aktuálnu zložku, inde obnoví stránku. */
@@ -93,6 +94,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var b: ActivityMainBinding
     private val prefs by lazy { Prefs(this) }
     private val updater by lazy { UpdateUi(this) }
+    private val opener by lazy { FileOpener(this) }
+    private var pendingLink: String? = null
     private var unlocked = false
     private var pausedAt = 0L
     private var loaded = false
@@ -141,6 +144,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         unlocked = intent.getBooleanExtra(EXTRA_UNLOCKED, false) || !prefs.biometric
+        pendingLink = intent.getStringExtra(EXTRA_OPEN_LINK)
         if (intent.getBooleanExtra(EXTRA_CHECK_UPDATE, false)) updater.check(manual = true)
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -152,6 +156,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_UNLOCKED, false)) { unlocked = true; loaded = false }
+        intent.getStringExtra(EXTRA_OPEN_LINK)?.let { pendingLink = it; loaded = false }
         if (intent.getBooleanExtra(EXTRA_CHECK_UPDATE, false)) updater.check(manual = true)
     }
 
@@ -271,7 +276,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Prihlási WebView tokenom a otvorí disk. */
-    private fun loadWeb(to: String = "index.php") {
+    private fun loadWeb(target: String? = null) {
+        val to = target ?: pendingLink?.takeIf { Regex("^[a-z0-9_-]+\\.php([?#].*)?$", RegexOption.IGNORE_CASE).matches(it) } ?: "index.php"
+        pendingLink = null
         loaded = true
         b.offline.visibility = View.GONE
         val (url, headers) = Api(prefs).webLogin(to)
@@ -301,6 +308,7 @@ class MainActivity : AppCompatActivity() {
                     "sync" -> startActivity(Intent(this, SyncActivity::class.java))
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
+                    "open", "send" -> opener.handle(uri)
                 }
                 return true
             }

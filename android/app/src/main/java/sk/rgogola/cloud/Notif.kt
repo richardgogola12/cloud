@@ -21,12 +21,16 @@ import sk.rgogola.cloud.update.Updater
 object Notif {
     const val CH_SYNC = "sync"
     const val CH_ALERT = "alerts"
+    const val CH_CLOUD = "cloud_news"
 
     fun createChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannel(NotificationChannel(CH_SYNC, ctx.getString(R.string.channel_sync), NotificationManager.IMPORTANCE_LOW).apply {
             description = "Trvalá notifikácia synchronizácie zložiek"
             setShowBadge(false)
+        })
+        nm.createNotificationChannel(NotificationChannel(CH_CLOUD, "Upozornenia z Cloudu", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "Zdieľanie, plné úložisko, nové prihlásenia a ďalšie udalosti v účte"
         })
         nm.createNotificationChannel(NotificationChannel(CH_ALERT, ctx.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "Chyby synchronizácie a nové verzie aplikácie"
@@ -80,6 +84,24 @@ object Notif {
             .setContentIntent(activityPi(ctx, target, 100 + id, extra))
             .build()
         try { NotificationManagerCompat.from(ctx).notify(id, n) } catch (_: Exception) {}
+    }
+
+    /** Upozornenie zo servera (zvonček) – po ťuknutí otvorí príslušnú stránku. */
+    @SuppressLint("MissingPermission")
+    fun server(ctx: Context, id: Int, title: String, body: String, link: String?) {
+        if (!canPost(ctx)) return
+        val i = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        if (!link.isNullOrBlank()) i.putExtra(MainActivity.EXTRA_OPEN_LINK, link)
+        val pi = PendingIntent.getActivity(ctx, 2000 + id % 10000, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val n = NotificationCompat.Builder(ctx, CH_CLOUD)
+            .setSmallIcon(R.drawable.ic_stat_cloud)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+        try { NotificationManagerCompat.from(ctx).notify(10000 + id % 100000, n) } catch (_: Exception) {}
     }
 
     fun authError(ctx: Context) =

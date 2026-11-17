@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -23,6 +23,7 @@ function migrate(): void {
     try {
         if ($v < 2) migrate_v2();
         if ($v < 3) migrate_v3();
+        if ($v < 4) migrate_v4();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -155,4 +156,26 @@ function migrate_v3(): void {
         INDEX (user_id),
         CONSTRAINT fk_cloud_app_tokens_user FOREIGN KEY (user_id) REFERENCES " . P . "users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/* v4: šifrovanie súborov, kontrolné súčty, upozornenia */
+function migrate_v4(): void {
+    $p = P;
+    add_col("{$p}files", 'enc_key', 'VARCHAR(120) NULL');
+    add_col("{$p}files", 'sha256', 'CHAR(64) NULL');
+    add_col("{$p}file_versions", 'enc_key', 'VARCHAR(120) NULL');
+    add_col("{$p}file_versions", 'sha256', 'CHAR(64) NULL');
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}notifications (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        type VARCHAR(30) NOT NULL,
+        title VARCHAR(200) NOT NULL,
+        body VARCHAR(500) NULL,
+        link VARCHAR(255) NULL,
+        read_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id, id),
+        CONSTRAINT fk_cloud_notif_user FOREIGN KEY (user_id) REFERENCES {$p}users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    if (setting('encrypt_files') === null) setting_set('encrypt_files', '1');
 }

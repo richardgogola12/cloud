@@ -108,7 +108,36 @@ class Api(private val prefs: Prefs) {
 
     fun uploadCancel(id: String) { try { post("api.php?action=upload_cancel", "id" to id) } catch (_: Exception) {} }
 
+    /** Stiahne súbor z cloudu do [out]; progress v percentách. */
+    fun download(id: Int, out: java.io.File, progress: (Int) -> Unit) {
+        val req = builder("api.php?action=download&id=$id").get().build()
+        client.newCall(req).execute().use { resp ->
+            if (resp.code == 401) throw ApiException("Prihlásenie vypršalo – prihlás sa znova.", 401)
+            if (!resp.isSuccessful) throw ApiException("Súbor sa nepodarilo stiahnuť (HTTP ${resp.code}).", resp.code)
+            val body = resp.body ?: throw ApiException("Prázdna odpoveď servera")
+            val total = body.contentLength()
+            val tmp = java.io.File(out.parentFile, out.name + ".part")
+            body.byteStream().use { input ->
+                tmp.outputStream().use { o ->
+                    val buf = ByteArray(64 * 1024)
+                    var done = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        o.write(buf, 0, n)
+                        done += n
+                        if (total > 0) progress((done * 100 / total).toInt())
+                    }
+                }
+            }
+            if (!tmp.renameTo(out)) throw ApiException("Uloženie súboru zlyhalo")
+        }
+    }
+
+    /** Nové upozornenia od [after]. */
+    fun notifications(after: Int): JSONObject = exec(builder("app.php?action=notifications&after=$after").get().build())
+
     /** URL a hlavičky pre prihlásenie WebView do webového rozhrania. */
     fun webLogin(to: String = "index.php"): Pair<String, Map<String, String>> =
-        url("app.php?action=web&to=$to") to mapOf("X-Cloud-Token" to (prefs.token ?: ""))
+        url("app.php?action=web&to=" + android.net.Uri.encode(to)) to mapOf("X-Cloud-Token" to (prefs.token ?: ""))
 }

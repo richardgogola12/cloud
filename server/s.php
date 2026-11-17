@@ -65,7 +65,7 @@ if (isset($_GET['dl']) || isset($_GET['thumb']) || isset($_GET['zip'])) {
         send_zip([$d], [], $d['name']);
     }
     $f = shared_file((int)$_GET['dl']);
-    send_file(storage_dir($owner) . '/' . $f['stored_name'], $f['name'], $f['mime'], !empty($_GET['inline']) && safe_inline($f['mime']));
+    send_stored($f, $f['name'], !empty($_GET['inline']) && safe_inline($f['mime']));
 }
 
 /* ----- stránka ----- */

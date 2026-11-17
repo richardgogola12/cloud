@@ -29,6 +29,12 @@ object SyncEngine {
         private set
     @Volatile var busy = false
         private set
+    /** priebeh aktuálneho súboru (0–100) alebo null */
+    @Volatile var progressPct: Int? = null
+        private set
+    @Volatile var currentFile: String? = null
+        private set
+    private var lastWidget = 0L
 
     const val ACTION_CHANGED = "sk.rgogola.cloud.SYNC_CHANGED"
 
@@ -47,6 +53,20 @@ object SyncEngine {
     private fun setStatus(ctx: Context, s: String) {
         status = s
         ctx.sendBroadcast(Intent(ACTION_CHANGED).setPackage(ctx.packageName))
+        widget(ctx, force = true)
+    }
+
+    private fun widget(ctx: Context, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastWidget < 1500) return
+        lastWidget = now
+        try { SyncWidget.updateAll(ctx) } catch (_: Exception) {}
+    }
+
+    private fun report(ctx: Context, label: String, pct: Int?, progress: ((String, Int?) -> Unit)?) {
+        progressPct = pct
+        progress?.invoke(label, pct)
+        widget(ctx)
     }
 
     /**
@@ -65,6 +85,8 @@ object SyncEngine {
             return true
         } finally {
             busy = false
+            progressPct = null
+            currentFile = null
             if (wl?.isHeld == true) wl.release()
             mutex.unlock()
             setStatus(app, status)
@@ -119,10 +141,11 @@ object SyncEngine {
             n++
             val name = row.rel.substringAfterLast('/')
             val label = "Nahrávam $n/${todo.size}: $name"
+            currentFile = name
             setStatus(ctx, label)
-            progress?.invoke(label, 0)
+            report(ctx, label, 0, progress)
             try {
-                val versioned = uploadOne(ctx, api, db, pair, row) { pct -> progress?.invoke(label, pct) }
+                val versioned = uploadOne(ctx, api, db, pair, row) { pct -> report(ctx, label, pct, progress) }
                 db.setFileState(pair.id, row.rel, SyncDb.ST_DONE)
                 db.setPairError(pair.id, null)
                 db.log("${pair.localName}/${row.rel} → ${pair.remoteName}" + when (versioned) { true -> " (nová verzia)"; null -> " (už v cloude)"; else -> "" })

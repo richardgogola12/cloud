@@ -46,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             send_mail($email, 'Registrácia prijatá – ' . cfg('app_name'), 'Ďakujeme za registráciu',
                 '<p>Tvoj účet čaká na schválenie administrátorom. Keď bude aktivovaný, pošleme ti e-mail.</p>');
         }
+        notify_admins('register', 'Nový používateľ: ' . $name, $email . ($active ? '' : ' · čaká na schválenie'), 'admin.php?tab=users');
         if (setting('notify_admin_register', '1') === '1') {
             foreach (admin_emails() as $a) {
                 send_mail($a, 'Nový používateľ: ' . $name, 'Nová registrácia',

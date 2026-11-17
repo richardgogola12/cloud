@@ -194,6 +194,15 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/widgetBtn"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Pridať widget synchronizácie na plochu"
+                app:cornerRadius="24dp" />
+
             <!-- aktivita -->
             <TextView
                 style="@style/Cloud.Section"
@@ -243,6 +252,12 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:textColor="@color/ink_muted" />
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swNotify"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Upozornenia z Cloudu (zdieľanie, úložisko, prihlásenia)" />
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/swBiometric"
                         android:layout_width="match_parent"

@@ -32,6 +32,8 @@ class WatchdogWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             } catch (e: Exception) { false }
             if (!started) SyncEngine.run(ctx)
         }
+        NotifPoller.poll(ctx)
+        SyncWidget.updateAll(ctx)
         if (prefs.loggedIn && System.currentTimeMillis() - prefs.lastUpdateCheck > TimeUnit.HOURS.toMillis(20)) {
             prefs.lastUpdateCheck = System.currentTimeMillis()
             try {

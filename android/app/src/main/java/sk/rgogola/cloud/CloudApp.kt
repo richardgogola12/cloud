@@ -16,6 +16,7 @@ class CloudApp : Application() {
         fun kick(app: android.content.Context, syncNow: Boolean = false) {
             WatchdogWorker.schedule(app)
             SyncService.start(app, syncNow)
+            sk.rgogola.cloud.sync.SyncWidget.updateAll(app)
         }
     }
 }
