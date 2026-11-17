@@ -49,6 +49,35 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_UNLOCKED = "unlocked"
         const val EXTRA_CHECK_UPDATE = "check_update"
         private const val LOCK_AFTER_MS = 3 * 60 * 1000L
+
+        /** Doplní do webového menu položky aplikácie (funguje s každou verziou servera). */
+        private val INJECT_JS = """
+            (function(){
+              function link(key, icon, label, cls){
+                var a = document.createElement('a');
+                a.className = cls; a.href = 'cloudapp://' + key; a.setAttribute('data-nav', 'app-' + key);
+                a.innerHTML = '<i class="bi ' + icon + (cls.indexOf('dropdown') >= 0 ? ' me-2' : '') + '"></i>' + label;
+                return a;
+              }
+              var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
+              var nav = document.querySelector('.side-nav');
+              if (nav && !nav.querySelector('[href^="cloudapp:"]')) {
+                items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
+              }
+              var dd = document.querySelector('.app-topbar .dropdown-menu');
+              if (dd && !dd.querySelector('[href^="cloudapp://sync"]')) {
+                var hr = dd.querySelector('hr');
+                items.forEach(function(i){
+                  var li = document.createElement('li'); li.appendChild(link(i[0], i[1], i[2], 'dropdown-item'));
+                  dd.insertBefore(li, hr ? hr.parentNode.nextSibling : null);
+                });
+              }
+              document.querySelectorAll('form[action$="logout.php"]').forEach(function(f){
+                var li = f.parentNode, a = link('logout', 'bi-box-arrow-right', 'Odhlásiť sa z aplikácie', 'dropdown-item text-danger');
+                li.replaceChild(a, f);
+              });
+            })();
+        """.trimIndent()
     }
 
     private lateinit var b: ActivityMainBinding
@@ -123,7 +152,7 @@ class MainActivity : AppCompatActivity() {
             if (!loaded) loadWeb()
         }
         updater.resume()
-        if (System.currentTimeMillis() - prefs.lastUpdateCheck > 20 * 3600 * 1000L) updater.check(manual = false)
+        if (System.currentTimeMillis() - prefs.lastUpdateCheck > 6 * 3600 * 1000L) updater.check(manual = false)
     }
 
     override fun onPause() {
@@ -169,6 +198,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 b.progress.visibility = View.GONE
+                if (Uri.parse(url).host == Uri.parse(prefs.server).host) view.evaluateJavascript(INJECT_JS, null)
                 if (Uri.parse(url).path?.endsWith("/login.php") == true) relogin()
             }
 
