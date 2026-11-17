@@ -321,7 +321,22 @@ function purge_folder(int $owner, int $id): void {
     q('DELETE FROM ' . P . "shares WHERE item_type = 'd' AND item_id IN ($in)");
     q('DELETE FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id IN ($in)");
     try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'd' AND item_id IN ($in)"); } catch (Throwable $e) {}
-    q('DELETE FROM ' . P . 'folders WHERE id = ? AND user_id = ?', [$id, $owner]);
+    delete_folder_rows($owner, [$id]);
+}
+
+/** Zmaže riadky zložiek po úrovniach od najhlbšej – inak MySQL narazí na limit kaskády (15 úrovní). */
+function delete_folder_rows(int $owner, array $roots): void {
+    $levels = []; $level = array_map('intval', $roots);
+    while ($level) {
+        $levels[] = $level;
+        $in = implode(',', $level);
+        $level = array_map('intval', q('SELECT id FROM ' . P . "folders WHERE user_id = ? AND parent_id IN ($in)", [$owner])->fetchAll(PDO::FETCH_COLUMN));
+    }
+    foreach (array_reverse($levels) as $lv) {
+        foreach (array_chunk($lv, 500) as $chunk) {
+            q('DELETE FROM ' . P . 'folders WHERE user_id = ? AND id IN (' . implode(',', $chunk) . ')', [$owner]);
+        }
+    }
 }
 function purge_trash(int $owner, ?int $olderThanDays = null): int {
     $cond = $olderThanDays !== null ? ' AND deleted_at < (NOW() - INTERVAL ' . (int)$olderThanDays . ' DAY)' : '';

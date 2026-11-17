@@ -153,6 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 rrmdir(rtrim(cfg('storage_path'), '/') . '/files/' . $id);
                 rrmdir(rtrim(cfg('storage_path'), '/') . '/thumbs/' . $id);
                 @unlink(avatar_path($id));
+                $roots = q('SELECT id FROM ' . P . 'folders WHERE user_id = ? AND parent_id IS NULL', [$id])->fetchAll(PDO::FETCH_COLUMN);
+                if ($roots) delete_folder_rows($id, $roots);
                 q("DELETE FROM $U WHERE id = ?", [$id]);
                 log_action($me, 'admin_user_delete', $u['email']);
                 flash('success', 'Používateľ ' . $u['email'] . ' a všetky jeho súbory boli zmazané.');
