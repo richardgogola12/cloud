@@ -4,10 +4,12 @@ import { mkdirSync } from 'fs';
 mkdirSync('screens', { recursive: true });
 const base = 'http://127.0.0.1:8080/';
 const browser = await chromium.launch();
-const sizes = [['mobil', { ...devices['Pixel 7'] }], ['pc', { viewport: { width: 1280, height: 800 } }]];
+const sizes = [['mobil', { ...devices['Pixel 7'] }], ['velky', { viewport: { width: 580, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }], ['pc', { viewport: { width: 1280, height: 800 } }]];
 for (const [name, opts] of sizes) {
   const ctx = await browser.newContext({ ...opts, locale: 'sk-SK' });
   const page = await ctx.newPage();
+  // „velky“ = širší telefón s väčším písmom (ako textZoom vo WebView)
+  if (name === 'velky') await page.addInitScript(() => addEventListener('DOMContentLoaded', () => { document.documentElement.style.fontSize = '125%'; }));
   page.on('pageerror', e => console.log(`[${name}] JS chyba: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error') console.log(`[${name}] konzola: ${m.text()}`); });
   await page.goto(base + 'login.php');
@@ -32,6 +34,8 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-1-dlha-cesta.png` });
   await page.goto(base + 'index.php#folder/' + ids[0]); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-2-cesta-2-urovne.png` });
+  await page.goto(base + 'index.php#folder/' + ids[1]); await page.waitForTimeout(1200);
+  await page.screenshot({ path: `screens/${name}-2b-cesta-3-urovne.png` });
   await page.goto(base + 'index.php#'); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-3-moj-disk.png` });
   if (name === 'mobil') {

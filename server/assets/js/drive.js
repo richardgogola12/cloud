@@ -67,7 +67,6 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
-    const mobile = innerWidth < 576;
     const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
     const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
@@ -76,26 +75,42 @@
       return;
     }
     if (state.view !== 'folder') { c.innerHTML = '<li class="breadcrumb-item active">' + txt(titles[state.view]) + '</li>'; return; }
-    // na mobile: ikona namiesto „Môj disk“, „…“ (= o úroveň vyššie) a aktuálna zložka
+    // cesta sa prispôsobí skutočnému miestu: najprv celé, potom „…“ v strede, nakoniec ikona namiesto „Môj disk“
     const rootLabel = state.root === 'shared' ? 'Zdieľané so mnou' : 'Môj disk';
-    const rootInner = mobile && state.crumbs.length ? '<i class="bi ' + (state.root === 'shared' ? 'bi-people' : 'bi-hdd-stack') + '" title="' + rootLabel + '"></i>' : txt(rootLabel);
-    const rootLi = state.root === 'shared'
-      ? '<li class="breadcrumb-item crumb-root"><a href="#shared">' + rootInner + '</a></li>'
-      : '<li class="breadcrumb-item crumb-root' + (state.crumbs.length ? '' : ' active') + '"><a href="#" data-drop-folder="0">' + rootInner + '</a></li>';
-    let list = state.crumbs.map((cr, i) => ({ ...cr, last: i === state.crumbs.length - 1 }));
-    const keep = mobile ? 1 : 4;
-    let h = rootLi;
-    if (list.length > keep) {
-      const hidden = list.slice(0, list.length - keep);
-      const up = hidden[hidden.length - 1];
-      h += '<li class="breadcrumb-item crumb-more"><a href="#folder/' + up.id + '" title="' + esc(hidden.map(x => x.name).join(' / ')) + '">…</a></li>';
-      list = list.slice(-keep);
-    }
-    list.forEach(cr => {
-      h += '<li class="breadcrumb-item' + (cr.last ? ' active' : '') + '">'
-        + (cr.last ? txt(cr.name) : '<a href="#folder/' + cr.id + '" data-drop-folder="' + cr.id + '">' + txt(cr.name) + '</a>') + '</li>';
-    });
-    c.innerHTML = h;
+    const all = state.crumbs.map((cr, i) => ({ ...cr, last: i === state.crumbs.length - 1 }));
+    const build = (keep, icon) => {
+      const rootInner = icon ? '<i class="bi ' + (state.root === 'shared' ? 'bi-people' : 'bi-hdd-stack') + '" title="' + rootLabel + '"></i>' : txt(rootLabel);
+      let h = state.root === 'shared'
+        ? '<li class="breadcrumb-item crumb-root"><a href="#shared">' + rootInner + '</a></li>'
+        : '<li class="breadcrumb-item crumb-root' + (all.length ? '' : ' active') + '"><a href="#" data-drop-folder="0">' + rootInner + '</a></li>';
+      let list = all;
+      if (list.length > keep) {
+        const hidden = list.slice(0, list.length - keep);
+        const up = hidden[hidden.length - 1];
+        h += '<li class="breadcrumb-item crumb-more"><a href="#folder/' + up.id + '" title="' + esc(hidden.map(x => x.name).join(' / ')) + '">…</a></li>';
+        list = list.slice(-keep);
+      }
+      list.forEach(cr => {
+        h += '<li class="breadcrumb-item' + (cr.last ? ' active' : '') + '">'
+          + (cr.last ? txt(cr.name) : '<a href="#folder/' + cr.id + '" data-drop-folder="' + cr.id + '">' + txt(cr.name) + '</a>') + '</li>';
+      });
+      return h;
+    };
+    const fits = () => {
+      const W = c.clientWidth;
+      if (!W) return true;
+      if (c.scrollWidth > W + 1) return false;
+      const texts = [...c.querySelectorAll('.crumb-text')];
+      for (const t of texts) {
+        const isLast = t.closest('li') === c.lastElementChild;
+        if (t.scrollWidth > t.clientWidth + 1 && !(isLast && t.clientWidth >= W * 0.45)) return false;
+      }
+      return true;
+    };
+    const configs = [];
+    for (let k = Math.min(all.length, 4); k >= 1; k--) configs.push([k, false]);
+    if (all.length) configs.push([1, true]); else configs.push([0, false]);
+    for (const [k, icon] of configs) { c.innerHTML = build(k, icon); if (fits()) return; }
   }
   addEventListener('resize', () => { clearTimeout(window.__crT); window.__crT = setTimeout(renderCrumbs, 150); });
 
