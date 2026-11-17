@@ -43,7 +43,7 @@ for (const [name, opts] of sizes) {
     const card = page.locator('[data-key="d:' + ids[0] + '"]').first();
     await card.click({ button: 'right' }); await page.waitForTimeout(400);
     await page.click('[data-ctx="share"]'); await page.waitForTimeout(800);
-    await page.click('#shareModal .select2-selection'); await page.waitForTimeout(300);
+    await page.click('#shUserSel + .select2 .select2-selection'); await page.waitForTimeout(300);
     await page.keyboard.type('beata@test.sk', { delay: 40 });
     await page.waitForTimeout(1500);
     const txt = await page.locator('.select2-results').innerText().catch(() => '(žiadne výsledky)');

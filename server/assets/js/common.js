@@ -94,7 +94,8 @@ window.Cloud = (function () {
     }));
     // Select2
     if (window.jQuery && jQuery.fn.select2) {
-      jQuery('.select2').each(function () {
+      jQuery('select.select2').each(function () {
+        if (jQuery(this).data('select2')) return;
         const $s = jQuery(this);
         $s.select2({ theme: 'bootstrap-5', width: '100%', minimumResultsForSearch: $s.data('search') === false ? Infinity : 0, dropdownParent: $s.closest('.modal').length ? $s.closest('.modal') : jQuery(document.body) });
       });
