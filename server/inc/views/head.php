@@ -21,5 +21,5 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
-<link href="<?= e(url('assets/css/app.css')) ?>?v=2" rel="stylesheet">
+<link href="<?= e(url('assets/css/app.css')) ?>?v=<?= e(APP_VERSION) ?>" rel="stylesheet">
 </head>

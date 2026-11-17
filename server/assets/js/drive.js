@@ -67,27 +67,37 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
+    const mobile = innerWidth < 576;
     const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
+    const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
       const t = state.crumbs[0] || {};
-      c.innerHTML = '<li class="breadcrumb-item active"><span class="tag-chip me-1" style="background:' + (safeColor(t.color) || '#5f6368') + ';color:' + textOn(safeColor(t.color) || '#5f6368') + '">' + esc(t.name || 'Štítok') + '</span></li>';
+      c.innerHTML = '<li class="breadcrumb-item active"><span class="tag-chip crumb-chip" style="background:' + (safeColor(t.color) || '#5f6368') + ';color:' + textOn(safeColor(t.color) || '#5f6368') + '">' + esc(t.name || 'Štítok') + '</span></li>';
       return;
     }
-    if (state.view !== 'folder') { c.innerHTML = '<li class="breadcrumb-item active">' + esc(titles[state.view]) + '</li>'; return; }
+    if (state.view !== 'folder') { c.innerHTML = '<li class="breadcrumb-item active">' + txt(titles[state.view]) + '</li>'; return; }
+    // na mobile: ikona namiesto „Môj disk“, zo stredu cesty iba „…“ (posledné 2 úrovne)
+    const rootLabel = state.root === 'shared' ? 'Zdieľané so mnou' : 'Môj disk';
+    const rootInner = mobile && state.crumbs.length ? '<i class="bi ' + (state.root === 'shared' ? 'bi-people' : 'bi-hdd-stack') + '" title="' + rootLabel + '"></i>' : txt(rootLabel);
     const rootLi = state.root === 'shared'
-      ? '<li class="breadcrumb-item"><a href="#shared">Zdieľané so mnou</a></li>'
-      : '<li class="breadcrumb-item' + (state.crumbs.length ? '' : ' active') + '"><a href="#" data-drop-folder="0">Môj disk</a></li>';
+      ? '<li class="breadcrumb-item crumb-root"><a href="#shared">' + rootInner + '</a></li>'
+      : '<li class="breadcrumb-item crumb-root' + (state.crumbs.length ? '' : ' active') + '"><a href="#" data-drop-folder="0">' + rootInner + '</a></li>';
+    let list = state.crumbs.map((cr, i) => ({ ...cr, last: i === state.crumbs.length - 1 }));
+    const keep = mobile ? 2 : 4;
     let h = rootLi;
-    state.crumbs.forEach((cr, i) => {
-      const last = i === state.crumbs.length - 1;
-      h += '<li class="breadcrumb-item' + (last ? ' active' : '') + '">' + (last ? esc(cr.name) : '<a href="#folder/' + cr.id + '" data-drop-folder="' + cr.id + '">' + esc(cr.name) + '</a>') + '</li>';
+    if (list.length > keep) {
+      const hidden = list.slice(0, list.length - keep);
+      const up = hidden[hidden.length - 1];
+      h += '<li class="breadcrumb-item crumb-more"><a href="#folder/' + up.id + '" title="' + esc(hidden.map(x => x.name).join(' / ')) + '">…</a></li>';
+      list = list.slice(-keep);
+    }
+    list.forEach(cr => {
+      h += '<li class="breadcrumb-item' + (cr.last ? ' active' : '') + '">'
+        + (cr.last ? txt(cr.name) : '<a href="#folder/' + cr.id + '" data-drop-folder="' + cr.id + '">' + txt(cr.name) + '</a>') + '</li>';
     });
     c.innerHTML = h;
-    if (state.crumbs.length > 2 && innerWidth < 576) {
-      const lis = $$('li', c); lis.slice(1, -2).forEach(li => li.remove());
-      lis[0].insertAdjacentHTML('afterend', '<li class="breadcrumb-item">…</li>');
-    }
   }
+  addEventListener('resize', () => { clearTimeout(window.__crT); window.__crT = setTimeout(renderCrumbs, 150); });
 
   function render() {
     renderCrumbs();

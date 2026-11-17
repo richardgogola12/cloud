@@ -1,11 +1,7 @@
 /* Service worker – Cloud PWA */
-const VERSION = 'cloud-v2';
+const VERSION = 'cloud-v3';
 const SHELL = [
   'offline.html',
-  'assets/css/app.css?v=2',
-  'assets/js/common.js?v=2',
-  'assets/js/drive.js?v=2',
-  'assets/js/passkey.js?v=2',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
 ];

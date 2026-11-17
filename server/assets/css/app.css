@@ -82,13 +82,23 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 
 /* ---- hlavička disku ---- */
 .drive-head { display: flex; align-items: center; gap: 4px; min-height: 48px; margin-bottom: 8px; }
-.drive-crumbs { font-size: 1.35rem; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
-.drive-crumbs .breadcrumb-item { min-width: 0; }
-.drive-crumbs .breadcrumb-item.active { color: var(--bs-body-color); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
-.drive-crumbs a { color: var(--bs-secondary-color); text-decoration: none; border-radius: 8px; padding: 2px 6px; }
+.drive-crumbs { font-size: 1.35rem; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; min-width: 0; align-items: center; }
+/* každá časť cesty sa skráti s „…“ – nikdy sa neprekrývajú */
+.drive-crumbs .breadcrumb-item { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; padding-left: 0; }
+.drive-crumbs .breadcrumb-item + .breadcrumb-item::before { float: none; flex-shrink: 0; padding: 0 .35rem; }
+.drive-crumbs .breadcrumb-item:not(:last-child) { flex-shrink: 4; max-width: 40%; }
+.drive-crumbs .crumb-root, .drive-crumbs .crumb-more { flex-shrink: 0; max-width: none; }
+.drive-crumbs .breadcrumb-item.active { color: var(--bs-body-color); font-weight: 500; flex-shrink: 1; }
+.drive-crumbs .crumb-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-crumbs a { display: flex; align-items: center; min-width: 0; max-width: 100%; color: var(--bs-secondary-color); text-decoration: none; border-radius: 8px; padding: 2px 6px; }
 .drive-crumbs a:hover { background: var(--c-hover); }
 .drive-crumbs a.drop-target { background: var(--c-sel); }
-@media (max-width: 575.98px) { .drive-crumbs { font-size: 1.1rem; } }
+.drive-crumbs .crumb-chip { max-width: 100%; height: auto; font-size: .9rem; padding: 2px 12px; line-height: 1.4; }
+@media (max-width: 575.98px) { .drive-crumbs { font-size: 1.1rem; } .drive-crumbs .breadcrumb-item:not(:last-child) { max-width: 34%; } }
+/* dlhé názvy v kartách a dialógoch */
+.item-name, .file-meta, .folder-card { min-width: 0; }
+.modal-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-main h1 { overflow-wrap: anywhere; }
 
 .selection-bar { position: sticky; top: var(--topbar-h); z-index: 10; display: flex; align-items: center; gap: 2px; background: var(--c-sel); border-radius: 24px; padding: 4px 8px; margin-bottom: 10px; }
 [data-bs-theme="dark"] .selection-bar { color: #d3e3fd; }

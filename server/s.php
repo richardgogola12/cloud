@@ -123,7 +123,7 @@ require __DIR__ . '/inc/views/head.php';
 <?php else: ?>
   <nav><ol class="breadcrumb drive-crumbs mb-3">
     <?php foreach ($crumbs as $i => $c): $last = $i === count($crumbs) - 1; ?>
-      <li class="breadcrumb-item <?= $last ? 'active' : '' ?>"><?= $last ? e($c['name']) : '<a href="' . e(url($base . '&f=' . $c['id'])) . '">' . e($c['name']) . '</a>' ?></li>
+      <li class="breadcrumb-item <?= $last ? 'active' : '' ?>"><?= $last ? '<span class="crumb-text" title="' . e($c['name']) . '">' . e($c['name']) . '</span>' : '<a href="' . e(url($base . '&f=' . $c['id'])) . '"><span class="crumb-text" title="' . e($c['name']) . '">' . e($c['name']) . '</span></a>' ?></li>
     <?php endforeach; ?>
   </ol></nav>
   <div class="card-soft">
