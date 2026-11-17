@@ -436,7 +436,9 @@
       li.innerHTML = '<span class="avatar avatar-sm"></span><div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate"></div><div class="small text-body-secondary text-truncate"></div></div>'
         + '<select class="form-select form-select-sm" style="width:auto"><option value="view">Čítanie</option><option value="edit">Úpravy</option></select>'
         + '<button class="btn btn-icon text-danger" title="Odobrať prístup"><i class="bi bi-x-lg"></i></button>';
-      li.querySelector('.avatar').textContent = u.name.charAt(0).toUpperCase();
+      const av = li.querySelector('.avatar');
+      if (u.avatar) { av.classList.add('has-img'); const im = document.createElement('img'); im.src = u.avatar; im.alt = ''; av.appendChild(im); }
+      else av.textContent = u.name.charAt(0).toUpperCase();
       li.querySelector('.fw-semibold').textContent = u.name;
       li.querySelector('.small').textContent = u.email;
       const sel = li.querySelector('select'); sel.value = u.permission;

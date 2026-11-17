@@ -494,8 +494,10 @@ try {
         $id = (int)($_POST['id'] ?? 0);
         $a = need($type === 'd' ? folder_access($uid, $id) : file_access($uid, $id), 'owner');
         $link = q('SELECT * FROM ' . P . 'shares WHERE item_type = ? AND item_id = ? ORDER BY id DESC LIMIT 1', [$type, $id])->fetch();
-        $users = q('SELECT s.id, s.permission, u.name, u.email FROM ' . P . 'user_shares s JOIN ' . P . 'users u ON u.id = s.target_id
+        $users = q('SELECT s.id, s.permission, u.id AS uid, u.name, u.email, u.avatar_key, u.avatar_v FROM ' . P . 'user_shares s JOIN ' . P . 'users u ON u.id = s.target_id
                     WHERE s.item_type = ? AND s.item_id = ? ORDER BY u.name', [$type, $id])->fetchAll();
+        $users = array_map(fn($r) => ['id' => (int)$r['id'], 'permission' => $r['permission'], 'name' => $r['name'], 'email' => $r['email'],
+            'avatar' => avatar_url(['id' => $r['uid'], 'avatar_key' => $r['avatar_key'], 'avatar_v' => $r['avatar_v']])], $users);
         json_out(['ok' => true, 'name' => $a['row']['name'],
             'link' => $link ? ['url' => share_url($link['token']), 'has_password' => (bool)$link['password'], 'expires' => $link['expires_at'] ? substr($link['expires_at'], 0, 10) : '',
                                'downloads' => (int)$link['downloads'], 'expired' => $link['expires_at'] && strtotime($link['expires_at']) < time()] : null,
@@ -539,8 +541,8 @@ try {
         $s = trim((string)($_POST['q'] ?? ''));
         if (mb_strlen($s) < 2) json_out(['ok' => true, 'results' => []]);
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s) . '%';
-        $rows = q('SELECT id, name, email FROM ' . P . 'users WHERE is_active = 1 AND id <> ? AND (email LIKE ? OR name LIKE ?) ORDER BY name LIMIT 10', [$uid, $like, $like])->fetchAll();
-        json_out(['ok' => true, 'results' => array_map(fn($r) => ['id' => (int)$r['id'], 'text' => $r['name'] . ' (' . $r['email'] . ')', 'name' => $r['name'], 'email' => $r['email']], $rows)]);
+        $rows = q('SELECT id, name, email, avatar_key, avatar_v FROM ' . P . 'users WHERE is_active = 1 AND id <> ? AND (email LIKE ? OR name LIKE ?) ORDER BY name LIMIT 10', [$uid, $like, $like])->fetchAll();
+        json_out(['ok' => true, 'results' => array_map(fn($r) => ['id' => (int)$r['id'], 'text' => $r['name'] . ' (' . $r['email'] . ')', 'name' => $r['name'], 'email' => $r['email'], 'avatar' => avatar_url($r)], $rows)]);
     }
 
     case 'share_user_add': {

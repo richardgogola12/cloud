@@ -374,6 +374,23 @@ foreach (['dashboard', 'users', 'settings', 'smtp', 'log', 'maintenance', 'updat
 }
 $r = $web->get('profile.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'Test Phone'), 'Môj účet zobrazuje prihlásenú aplikáciu');
+$r = $web->get('admin.php?tab=dashboard');
+ok(str_contains($r['body'], 'Disk servera') && str_contains($r['body'], '% zaplnené'), 'admin: zaplnenie disku servera');
+
+section('Profilová fotka');
+$r = $web->req('POST', 'profile.php', ['multipart' => true, 'form' => ['_csrf' => $web->csrf, 'act' => 'avatar', 'avatar' => new CURLStringFile(jpeg(640, 400, 7), 'ja.jpg', 'image/jpeg')]]);
+$pdoA = new PDO('mysql:host=127.0.0.1;dbname=cloud', 'root', 'root');
+$av = $pdoA->query("SELECT id, avatar_key, avatar_v FROM cloud_users WHERE avatar_key IS NOT NULL LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ok((bool)$av, 'fotka uložená', 'HTTP ' . $r['code']);
+$enc = $av ? @file_get_contents(STORAGE . '/avatars/' . $av['id'] . '.bin') : '';
+ok($enc !== '' && str_starts_with($enc, 'CLAV1') && !str_contains($enc, "\xFF\xD8\xFF"), 'fotka je na disku zašifrovaná');
+$r = $web->get('avatar.php?u=' . ($av['id'] ?? 0) . '&v=' . ($av['avatar_v'] ?? 0));
+$img = $r['code'] === 200 ? @imagecreatefromstring($r['body']) : false;
+ok($img && imagesx($img) === 320 && imagesy($img) === 320, 'fotka sa vydá rozšifrovaná a orezaná na 320×320', 'HTTP ' . $r['code']);
+ok((new Client())->get('avatar.php?u=' . ($av['id'] ?? 0))['code'] === 403, 'fotka nie je dostupná bez prihlásenia');
+ok(str_contains($web->get('index.php')['body'], 'avatar.php?u='), 'fotka sa zobrazuje v hornej lište');
+$web->post('profile.php', ['_csrf' => $web->csrf, 'act' => 'avatar_remove']);
+ok(!is_file(STORAGE . '/avatars/' . ($av['id'] ?? 0) . '.bin'), 'fotka sa dá odstrániť');
 no_php_errors($r['body'], 'profile.php');
 
 $adm = fn($a, $f = []) => ($web->req('POST', "admin.php?ajax=$a", ['ajax' => true, 'form' => $web->flat($f)]))['json'] ?? ['ok' => false, 'error' => substr($web->last['body'], 0, 300)];

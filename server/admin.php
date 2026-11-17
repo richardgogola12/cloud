@@ -152,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($u) {
                 rrmdir(rtrim(cfg('storage_path'), '/') . '/files/' . $id);
                 rrmdir(rtrim(cfg('storage_path'), '/') . '/thumbs/' . $id);
+                @unlink(avatar_path($id));
                 q("DELETE FROM $U WHERE id = ?", [$id]);
                 log_action($me, 'admin_user_delete', $u['email']);
                 flash('success', 'Používateľ ' . $u['email'] . ' a všetky jeho súbory boli zmazané.');
@@ -266,6 +267,16 @@ $stats = [
     'quota'   => (int)q("SELECT COALESCE(SUM(quota),0) FROM $U")->fetchColumn(),
 ];
 $disk = @disk_free_space(cfg('storage_path')) ?: null;
+// disky servera: úložisko súborov a web (ak sú na rovnakom disku, zobrazí sa raz)
+$disks = [];
+foreach (['Úložisko súborov' => cfg('storage_path'), 'Web (aplikácia)' => APP_ROOT] as $dl => $dp) {
+    $tot = @disk_total_space($dp); $fr = @disk_free_space($dp);
+    if (!$tot || $fr === false) continue;
+    $st = @stat($dp);
+    $dev = $st ? 'd' . $st['dev'] : $dp;
+    if (isset($disks[$dev])) { $disks[$dev]['labels'][] = $dl; continue; }
+    $disks[$dev] = ['labels' => [$dl], 'path' => realpath($dp) ?: $dp, 'total' => (float)$tot, 'free' => (float)$fr, 'used' => (float)$tot - (float)$fr, 'storage' => $dl === 'Úložisko súborov'];
+}
 $stats['versions'] = (int)q('SELECT COALESCE(SUM(size),0) FROM ' . P . 'file_versions')->fetchColumn();
 $stats['bytes'] += $stats['versions'];
 // história využitia (denné snímky) + dnešná živá hodnota
@@ -325,13 +336,43 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <?php foreach ([['bi-people', 'Používatelia', $stats['users'], $stats['pending'] ? $stats['pending'] . ' čaká na schválenie' : 'všetci aktívni'],
                   ['bi-files', 'Súbory', number_format($stats['files'], 0, ',', ' '), $stats['folders'] . ' zložiek'],
                   ['bi-hdd', 'Využité miesto', format_bytes($stats['bytes']), 'pridelené ' . format_bytes($stats['quota'])],
-                  ['bi-device-hdd', 'Voľné na serveri', $disk ? format_bytes($disk) : '—', 'disk úložiska']] as [$ic, $lbl, $val, $sub]): ?>
+                  ['bi-device-hdd', 'Voľné na serveri', $disk ? format_bytes($disk) : '—', ($d0 = reset($disks)) ? 'z ' . format_bytes($d0['total']) . ' · zaplnené ' . round($d0['used'] / $d0['total'] * 100) . ' %' : 'disk úložiska']] as [$ic, $lbl, $val, $sub]): ?>
   <div class="col-6 col-xl-3"><div class="card card-soft h-100"><div class="card-body">
     <div class="stat-icon mb-2"><i class="bi <?= $ic ?>"></i></div>
     <div class="small text-body-secondary"><?= $lbl ?></div><div class="fs-4 fw-bold"><?= $val ?></div><div class="small text-body-secondary"><?= e($sub) ?></div>
   </div></div></div>
   <?php endforeach; ?>
 </div>
+<?php if ($disks): ?>
+<div class="card card-soft mb-3"><div class="card-body">
+  <h2 class="h6 fw-bold mb-3"><i class="bi bi-device-hdd me-2"></i>Disk servera</h2>
+  <?php foreach ($disks as $d):
+      $pct = $d['total'] > 0 ? $d['used'] / $d['total'] * 100 : 0;
+      $cloud = $d['storage'] ? min($d['used'], (float)$stats['bytes']) : 0;
+      $other = max(0, $d['used'] - $cloud);
+      $cls = $pct >= 90 ? 'text-danger' : ($pct >= 75 ? 'text-warning' : ''); ?>
+    <div class="mb-3">
+      <div class="d-flex flex-wrap align-items-baseline gap-2 mb-1">
+        <span class="fw-semibold"><?= e(implode(' + ', $d['labels'])) ?></span>
+        <code class="small text-body-secondary text-truncate" style="max-width:100%"><?= e($d['path']) ?></code>
+        <span class="ms-auto fw-bold <?= $cls ?>"><?= round($pct, 1) ?> % zaplnené</span>
+      </div>
+      <div class="progress disk-bar" style="height:14px" role="img" aria-label="Zaplnenie disku <?= round($pct, 1) ?> %">
+        <?php if ($cloud > 0): ?><div class="progress-bar" style="width:<?= round($cloud / $d['total'] * 100, 2) ?>%" title="Cloud: <?= format_bytes((int)$cloud) ?>"></div><?php endif; ?>
+        <div class="progress-bar bg-secondary bg-opacity-50" style="width:<?= round($other / $d['total'] * 100, 2) ?>%" title="Ostatné: <?= format_bytes((int)$other) ?>"></div>
+      </div>
+      <div class="d-flex flex-wrap gap-3 small mt-2">
+        <?php if ($d['storage']): ?><span><span class="legend-dot bg-primary"></span>Cloud <b><?= format_bytes((int)$cloud) ?></b></span><?php endif; ?>
+        <span><span class="legend-dot bg-secondary bg-opacity-50"></span><?= $d['storage'] ? 'Ostatné dáta' : 'Využité' ?> <b><?= format_bytes((int)$other) ?></b></span>
+        <span><span class="legend-dot border"></span>Voľné <b><?= format_bytes((int)$d['free']) ?></b></span>
+        <span class="text-body-secondary">Celkom <?= format_bytes((int)$d['total']) ?></span>
+      </div>
+      <?php if ($pct >= 90): ?><div class="alert alert-danger small py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Na disku dochádza miesto – nahrávanie môže zlyhať.</div><?php endif; ?>
+    </div>
+  <?php endforeach; ?>
+  <div class="small text-body-secondary">Cloud = súbory a verzie používateľov (bez miniatúr a dočasných súborov).</div>
+</div></div>
+<?php endif; ?>
 <div class="row g-3 mb-3">
   <div class="col-lg-8"><div class="card card-soft h-100"><div class="card-body">
     <div class="d-flex align-items-baseline mb-1"><h2 class="h6 fw-bold mb-0 me-auto">Využitie úložiska v čase</h2><span class="small text-body-secondary">posledných 180 dní</span></div>
@@ -412,7 +453,7 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <?php foreach ($users as $u): $p = $u['quota'] ? min(100, $u['used'] / $u['quota'] * 100) : 0; [$qv, $qu] = quota_split((int)$u['quota']); ?>
     <tr class="<?= $u['is_active'] ? '' : 'table-warning' ?>">
       <td><input type="checkbox" class="form-check-input bulk-check" name="ids[]" value="<?= (int)$u['id'] ?>" form="bulkForm" aria-label="Vybrať"></td>
-      <td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm"><?= e(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?></span>
+      <td><div class="d-flex align-items-center gap-2"><?= avatar_html($u, 'avatar-sm') ?>
         <div class="min-w-0"><div class="fw-semibold text-truncate"><?= e($u['name']) ?><?= $u['passkeys'] ? ' <i class="bi bi-fingerprint text-primary" title="Má odtlačok"></i>' : '' ?></div><div class="small text-body-secondary text-truncate"><?= e($u['email']) ?></div>
         <?php if (!$u['is_active']): ?><span class="badge text-bg-warning">neaktívny</span><?php endif; ?>
         <?php if (isset($u['email_verified']) && !$u['email_verified']): ?><span class="badge text-bg-info">neoverený e-mail</span><?php endif; ?></div></div></td>

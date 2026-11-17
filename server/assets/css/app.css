@@ -34,6 +34,9 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 .brand-logo { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--c-primary), var(--c-accent)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 12px rgba(26,115,232,.3); }
 .brand-logo-lg { width: 64px; height: 64px; border-radius: 18px; font-size: 2rem; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #34a853, #1a73e8); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
+.avatar.has-img { background: var(--c-hover); overflow: hidden; }
+.avatar.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-xl { width: 96px; height: 96px; font-size: 2.4rem; }
 .avatar-sm { width: 32px; height: 32px; font-size: .85rem; }
 .avatar-btn { padding: 2px; border-radius: 50%; border: 0; }
 
@@ -312,3 +315,8 @@ a.share-row:hover { background: var(--c-hover); }
 .side-tags .tag-count { margin-left: auto; font-size: .78rem; color: var(--bs-secondary-color); }
 .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice { border-radius: 10px; border: 0; font-weight: 600; font-size: .8rem; }
 .tag-row .color-swatch { width: 22px; height: 22px; }
+
+/* disk servera (admin) */
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.disk-bar { border-radius: 8px; background: var(--c-hover); }
+.disk-bar .progress-bar + .progress-bar { border-left: 2px solid var(--c-surface); }

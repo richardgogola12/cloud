@@ -48,7 +48,7 @@ require __DIR__ . '/head.php';
   <button class="btn btn-icon" id="themeToggle" title="Prepnúť tmavý režim"><i class="bi bi-moon-stars"></i></button>
   <div class="dropdown">
     <button class="btn avatar-btn" data-bs-toggle="dropdown" aria-label="Účet">
-      <span class="avatar"><?= e(mb_strtoupper(mb_substr($user['name'], 0, 1))) ?></span>
+      <?= avatar_html($user) ?>
     </button>
     <ul class="dropdown-menu dropdown-menu-end shadow">
       <li class="px-3 py-2"><div class="fw-semibold"><?= e($user['name']) ?></div><div class="small text-body-secondary"><?= e($user['email']) ?></div></li>

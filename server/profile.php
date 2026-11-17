@@ -7,7 +7,18 @@ $uid = (int)$user['id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $act = $_POST['act'] ?? '';
-    if ($act === 'profile') {
+    if ($act === 'avatar') {
+        try {
+            $f = $_FILES['avatar'] ?? null;
+            if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new RuntimeException(($f['error'] ?? 0) === UPLOAD_ERR_INI_SIZE ? 'Fotka je príliš veľká.' : 'Vyber fotku.');
+            avatar_save($uid, $f['tmp_name']);
+            log_action($uid, 'avatar_change');
+            flash('success', 'Profilová fotka bola uložená (zašifrovaná).');
+        } catch (Throwable $e) { flash('danger', $e->getMessage()); }
+    } elseif ($act === 'avatar_remove') {
+        avatar_delete($uid);
+        flash('success', 'Profilová fotka bola odstránená.');
+    } elseif ($act === 'profile') {
         $name = trim((string)($_POST['name'] ?? ''));
         $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
         if (mb_strlen($name) < 2) flash('danger', 'Meno je príliš krátke.');
@@ -82,6 +93,20 @@ $used = used_space($uid);
     <div class="card card-soft mb-4">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-3"><i class="bi bi-person me-2"></i>Osobné údaje</h2>
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <?= avatar_html($user, 'avatar-xl') ?>
+          <div>
+            <form method="post" enctype="multipart/form-data" class="d-inline" id="avatarForm"><?= csrf_field() ?><input type="hidden" name="act" value="avatar">
+              <label class="btn btn-outline-primary rounded-pill btn-sm px-3 mb-1"><i class="bi bi-camera me-1"></i><?= empty($user['avatar_key']) ? 'Pridať fotku' : 'Zmeniť fotku' ?>
+                <input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp" class="d-none" onchange="this.form.submit()"></label>
+            </form>
+            <?php if (!empty($user['avatar_key'])): ?>
+            <form method="post" class="d-inline" data-confirm="Odstrániť profilovú fotku?"><?= csrf_field() ?><input type="hidden" name="act" value="avatar_remove">
+              <button class="btn btn-link btn-sm text-danger text-decoration-none mb-1">Odstrániť</button></form>
+            <?php endif; ?>
+            <div class="small text-body-secondary"><i class="bi bi-lock me-1"></i>Fotka sa ukladá zašifrovaná. Orezaná na štvorec.</div>
+          </div>
+        </div>
         <form method="post">
           <?= csrf_field() ?><input type="hidden" name="act" value="profile">
           <div class="mb-3"><label class="form-label">Meno</label><input class="form-control" name="name" value="<?= e($user['name']) ?>" required></div>
