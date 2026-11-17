@@ -167,7 +167,7 @@
         const d = new Date((it.taken || it.updated).replace(' ', 'T'));
         const m = d.toLocaleDateString('sk-SK', { month: 'long', year: 'numeric' });
         if (m !== month) { if (month) h += '</div>'; month = m; h += '<div class="section-title photo-month">' + esc(m) + '</div><div class="photo-grid">'; }
-        h += '<div class="item photo-item" data-key="' + key(it) + '"><input type="checkbox" class="form-check-input item-check" tabindex="-1"><img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt=""></div>';
+        h += '<div class="item photo-item thumb-loading" data-key="' + key(it) + '"><input type="checkbox" class="form-check-input item-check" tabindex="-1"><img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'bi-image text-body-secondary\')"></div>';
       });
       if (month) h += '</div>';
     } else if (layout === 'grid') {
@@ -203,9 +203,13 @@
   const colorAttr = (it) => safeColor(it.color) ? ' style="--item-color:' + it.color + '"' : '';
   const colorCls = (it) => safeColor(it.color) ? ' has-color' : '';
   const iconStyle = (it) => safeColor(it.color) ? ' style="color:' + it.color + '"' : '';
+  const hasThumb = (it) => it.type === 'f' && it.thumb && !it.deleted;
+  // načítanie miniatúry: kým nepríde, bliká sivá plocha (thumb-loading)
+  window.thumbOk = (img) => { img.classList.add('ok'); img.parentNode && img.parentNode.classList.remove('thumb-loading'); };
+  window.thumbErr = (img, cls) => { const p = img.parentNode; if (p) p.classList.remove('thumb-loading'); img.replaceWith(Object.assign(document.createElement('i'), { className: 'bi ' + cls })); };
   function thumbHtml(it, big) {
     const [ic, cls] = fileIcon(it);
-    if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'i\'),{className:\'bi ' + ic + ' ' + cls + '\'}))">';
+    if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + ic + ' ' + cls + '\')">';
     return '<i class="bi ' + ic + ' ' + cls + (big ? ' big' : '') + '"' + iconStyle(it) + '></i>';
   }
   function shareSummary(it) {
@@ -225,7 +229,7 @@
     const k = key(it);
     return '<div class="item row-item' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
       + '<div class="c-check"><input type="checkbox" class="form-check-input item-check" tabindex="-1"></div>'
-      + '<div class="c-name"><span class="item-icon">' + thumbHtml(it) + '</span><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + tagChips(it) + '</div>'
+      + '<div class="c-name"><span class="item-icon' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it) + '</span><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + tagChips(it) + '</div>'
       + '<div class="c-date d-none d-md-block text-truncate">' + esc(subText(it)) + '</div>'
       + '<div class="c-size d-none d-sm-block">' + (it.type === 'f' ? formatBytes(it.size) : (it.count != null ? it.count + ' pol.' : '—')) + '</div>'
       + '<div class="c-act"><button class="btn btn-icon btn-sm item-menu" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div></div>';
@@ -241,7 +245,7 @@
     const [ic, cls] = fileIcon(it);
     return '<div class="item file-card' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '">'
       + '<input type="checkbox" class="form-check-input item-check" tabindex="-1">'
-      + '<div class="file-thumb">' + thumbHtml(it, true) + '</div>'
+      + '<div class="file-thumb' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it, true) + '</div>'
       + '<div class="file-meta"><i class="bi ' + ic + ' ' + cls + '"' + iconStyle(it) + '></i><span class="item-name text-truncate">' + esc(it.name) + '</span>'
       + '<button class="btn btn-icon btn-sm item-menu ms-auto" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div>'
       + '<div class="file-sub text-truncate">' + formatBytes(it.size) + ' · ' + esc(subText(it)) + ' ' + badges(it) + '</div>' + tagChips(it) + '</div>';
@@ -704,7 +708,14 @@
     $('#previewEdit')?.remove();
     const m = it.mime, u = fileUrl(it.id, true);
     bootstrap.Modal.getOrCreateInstance($('#previewModal')).show();
-    if (/^image\/(jpeg|png|gif|webp|bmp)/.test(m)) body.innerHTML = '<img src="' + u + '" alt="">';
+    if (/^image\/(jpeg|png|gif|webp|bmp)/.test(m)) {
+      // najprv rozmazaná miniatúra + spinner, potom plná fotka
+      body.innerHTML = '<div class="pv-img">' + (it.thumb ? '<img class="pv-low" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="">' : '')
+        + '<div class="pv-spin spinner-border text-light"></div><img class="pv-full" src="' + u + '" alt=""></div>';
+      const box = body.firstChild, full = box.querySelector('.pv-full');
+      const done = () => box.classList.add('loaded');
+      if (full.complete && full.naturalWidth) done(); else { full.onload = done; full.onerror = () => { done(); toast('Fotku sa nepodarilo načítať', 'danger'); }; }
+    }
     else if (m.startsWith('video/')) body.innerHTML = '<video src="' + u + '" controls autoplay playsinline></video>';
     else if (m.startsWith('audio/')) body.innerHTML = '<div class="text-center"><i class="bi bi-music-note-beamed display-1 d-block mb-4 text-white-50"></i><audio src="' + u + '" controls autoplay></audio></div>';
     else if (m === 'application/pdf') body.innerHTML = '<iframe src="' + u + '" title="PDF"></iframe>';

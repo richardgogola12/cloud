@@ -329,3 +329,18 @@ a.share-row:hover { background: var(--c-hover); }
 .side-toggle.collapsed .bi { transform: rotate(-90deg); }
 .side-sep { height: 1px; background: var(--c-border); margin: .5rem 1rem; opacity: .7; }
 .share-badge { display: inline-flex; align-items: center; gap: 3px; font-size: .75rem; color: var(--bs-secondary-color); flex-shrink: 0; }
+
+/* načítavanie miniatúr a fotiek */
+@keyframes thumbShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.thumb-loading { background: linear-gradient(100deg, var(--c-hover) 30%, var(--c-surface) 50%, var(--c-hover) 70%) !important; background-size: 300% 100% !important; animation: thumbShimmer 1.3s linear infinite; }
+.thumb-loading img { opacity: 0; }
+.file-thumb img, .photo-item img, .item-icon img { transition: opacity .3s ease, transform .2s; }
+.item-icon.thumb-loading { border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .thumb-loading { animation: none; } }
+.pv-img { position: relative; width: 100%; height: 100%; }
+.pv-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+.pv-low { filter: blur(8px); opacity: .85; transform: scale(1.01); }
+.pv-full { opacity: 0; transition: opacity .25s; }
+.pv-spin { position: absolute; left: 50%; top: 50%; margin: -1rem 0 0 -1rem; }
+.pv-img.loaded .pv-full { opacity: 1; }
+.pv-img.loaded .pv-low, .pv-img.loaded .pv-spin { display: none; }
