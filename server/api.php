@@ -259,7 +259,7 @@ try {
         if ($up['relpath'] && str_contains($up['relpath'], '/')) $folder = ensure_path($owner, $folder, dirname($up['relpath']));
         $r = store_file($owner, $folder, $up['name'], $path, false);
         q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
-        log_action($uid, 'upload', $r['name'] . ' (' . format_bytes($r['size']) . ')' . ($r['versioned'] ? ' – nová verzia' : ''));
+        if (empty($r['unchanged'])) log_action($uid, 'upload', $r['name'] . ' (' . format_bytes($r['size']) . ')' . ($r['versioned'] ? ' – nová verzia' : ''));
         check_quota_warning($owner);
         json_out(['ok' => true, 'done' => true, 'received' => $have, 'file' => $r, 'quota' => quota_info($user)]);
     }

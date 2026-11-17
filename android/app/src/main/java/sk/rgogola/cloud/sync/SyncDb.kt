@@ -17,7 +17,7 @@ data class SyncPair(
     val lastError: String?,
 )
 
-data class PairStats(val done: Int, val pending: Int, val errors: Int)
+data class PairStats(val done: Int, val pending: Int, val errors: Int, val skipped: Int = 0)
 
 data class LogEntry(val ts: Long, val msg: String, val ok: Boolean)
 
@@ -30,6 +30,7 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
         const val ST_PENDING = 0
         const val ST_DONE = 1
         const val ST_ERROR = 2
+        const val ST_SKIPPED = 3 // existovali pred pridaním zložky a nemali sa nahrať
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -96,15 +97,16 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
     }
 
     fun stats(pairId: Long): PairStats {
-        var done = 0; var pending = 0; var err = 0
+        var done = 0; var pending = 0; var err = 0; var skipped = 0
         readableDatabase.rawQuery("SELECT state, COUNT(*) FROM files WHERE pair_id = ? GROUP BY state", arrayOf(pairId.toString())).use { c ->
             while (c.moveToNext()) when (c.getInt(0)) {
                 ST_DONE -> done = c.getInt(1)
                 ST_PENDING -> pending = c.getInt(1)
                 ST_ERROR -> err = c.getInt(1)
+                ST_SKIPPED -> skipped = c.getInt(1)
             }
         }
-        return PairStats(done, pending, err)
+        return PairStats(done, pending, err, skipped)
     }
 
     // ---------------- súbory ----------------
@@ -120,8 +122,8 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
 
     fun pendingFiles(pairId: Long): List<FileRow> {
         val out = ArrayList<FileRow>()
-        readableDatabase.rawQuery("SELECT rel, doc_uri, size, mtime, state, upload_id FROM files WHERE pair_id = ? AND state <> ? ORDER BY mtime",
-            arrayOf(pairId.toString(), ST_DONE.toString())).use { c ->
+        readableDatabase.rawQuery("SELECT rel, doc_uri, size, mtime, state, upload_id FROM files WHERE pair_id = ? AND state IN (?, ?) ORDER BY mtime",
+            arrayOf(pairId.toString(), ST_PENDING.toString(), ST_ERROR.toString())).use { c ->
             while (c.moveToNext()) out += FileRow(c.getString(0), c.getString(1), c.getLong(2), c.getLong(3), c.getInt(4), c.getString(5))
         }
         return out
@@ -141,6 +143,15 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
             arrayOf<Any?>(state, err, System.currentTimeMillis(), pairId, rel))
     }
 
+    /** Zaradí na nahratie všetky súbory zložky (aj tie, čo boli preskočené alebo už nahraté – server duplicity rozpozná). */
+    fun requeueAll(pairId: Long): Int {
+        val db = writableDatabase
+        db.execSQL("UPDATE files SET state = ?, upload_id = NULL, err = NULL WHERE pair_id = ? AND state IN (?, ?)",
+            arrayOf<Any>(ST_PENDING, pairId, ST_DONE, ST_SKIPPED))
+        db.execSQL("UPDATE pairs SET include_existing = 1 WHERE id = ?", arrayOf<Any>(pairId))
+        return stats(pairId).pending
+    }
+
     fun setUploadId(pairId: Long, rel: String, uploadId: String?) {
         writableDatabase.execSQL("UPDATE files SET upload_id = ? WHERE pair_id = ? AND rel = ?", arrayOf<Any?>(uploadId, pairId, rel))
     }
@@ -151,7 +162,7 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
     }
 
     fun totalPending(): Int = readableDatabase.rawQuery(
-        "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state <> ?", arrayOf(ST_DONE.toString())
+        "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state IN (?, ?)", arrayOf(ST_PENDING.toString(), ST_ERROR.toString())
     ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
     // ---------------- záznam ----------------

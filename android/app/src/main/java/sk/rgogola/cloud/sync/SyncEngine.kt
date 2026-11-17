@@ -97,7 +97,7 @@ object SyncEngine {
                 for (f in list) {
                     val k = known[f.rel]
                     if (k == null) {
-                        val st = if (!pair.initialized && !pair.includeExisting) SyncDb.ST_DONE else SyncDb.ST_PENDING
+                        val st = if (!pair.initialized && !pair.includeExisting) SyncDb.ST_SKIPPED else SyncDb.ST_PENDING
                         db.upsertFile(pair.id, f.rel, f.docUri, f.size, f.mtime, st)
                     } else if (k.size != f.size || k.mtime != f.mtime) {
                         db.upsertFile(pair.id, f.rel, f.docUri, f.size, f.mtime, SyncDb.ST_PENDING)
@@ -125,7 +125,7 @@ object SyncEngine {
                 val versioned = uploadOne(ctx, api, db, pair, row) { pct -> progress?.invoke(label, pct) }
                 db.setFileState(pair.id, row.rel, SyncDb.ST_DONE)
                 db.setPairError(pair.id, null)
-                db.log("${pair.localName}/${row.rel} → ${pair.remoteName}" + if (versioned) " (nová verzia)" else "")
+                db.log("${pair.localName}/${row.rel} → ${pair.remoteName}" + when (versioned) { true -> " (nová verzia)"; null -> " (už v cloude)"; else -> "" })
                 ok++
             } catch (e: ApiException) {
                 if (e.code == 401) {
@@ -219,8 +219,8 @@ object SyncEngine {
         }
     }
 
-    /** Nahrá jeden súbor po častiach (s pokračovaním). Vráti true, ak vznikla nová verzia. */
-    private suspend fun uploadOne(ctx: Context, api: Api, db: SyncDb, pair: SyncPair, row: SyncDb.FileRow, onPct: (Int) -> Unit): Boolean {
+    /** Nahrá jeden súbor po častiach (s pokračovaním). Vráti true = nová verzia, null = rovnaký súbor už v cloude bol. */
+    private suspend fun uploadOne(ctx: Context, api: Api, db: SyncDb, pair: SyncPair, row: SyncDb.FileRow, onPct: (Int) -> Unit): Boolean? {
         val name = row.rel.substringAfterLast('/')
         val init = retry { api.uploadInit(pair.remoteId, name, row.size, row.rel, row.uploadId) }
         db.setUploadId(pair.id, row.rel, init.id)
@@ -238,7 +238,8 @@ object SyncEngine {
                 if (row.size > 0) onPct((offset * 100 / row.size).toInt())
                 if (res.optBoolean("done")) {
                     db.setUploadId(pair.id, row.rel, null)
-                    return res.optJSONObject("file")?.optBoolean("versioned") == true
+                    val f = res.optJSONObject("file")
+                    return if (f?.optBoolean("unchanged") == true) null else f?.optBoolean("versioned") == true
                 }
                 if (len == 0) throw IOException("Server neukončil nahrávanie")
             }

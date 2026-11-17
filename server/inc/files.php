@@ -182,6 +182,14 @@ function store_file(int $owner, ?int $folder, string $name, string $src, bool $i
     $taken = photo_date($dest, $mime);
 
     $ex = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$owner, $folder, $name])->fetch();
+    // rovnaký obsah už existuje → nevytváraj zbytočnú verziu
+    if ($ex && (int)$ex['size'] === $size) {
+        $old = storage_dir($owner) . '/' . $ex['stored_name'];
+        if (is_file($old) && hash_file('sha256', $old) === hash_file('sha256', $dest)) {
+            @unlink($dest);
+            return ['id' => (int)$ex['id'], 'name' => $name, 'versioned' => false, 'unchanged' => true, 'size' => $size];
+        }
+    }
     if ($ex) {
         q('INSERT INTO ' . P . 'file_versions (file_id, user_id, stored_name, size, mime, created_at) VALUES (?,?,?,?,?,?)',
           [$ex['id'], $owner, $ex['stored_name'], $ex['size'], $ex['mime'], $ex['updated_at']]);

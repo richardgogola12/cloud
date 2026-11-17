@@ -163,7 +163,11 @@ class SyncActivity : AppCompatActivity() {
             val v = b.pairs.getChildAt(i)
             val id = v.tag as? Long ?: continue
             val st = db.stats(id)
-            ItemPairBinding.bind(v).stats.text = "Nahraté ${st.done}" + (if (st.pending > 0) " · čaká ${st.pending}" else "") + (if (st.errors > 0) " · chyby ${st.errors}" else "")
+            val ib = ItemPairBinding.bind(v)
+            ib.stats.text = "Nahraté ${st.done}" + (if (st.pending > 0) " · čaká ${st.pending}" else "") +
+                (if (st.errors > 0) " · chyby ${st.errors}" else "") + (if (st.skipped > 0) " · nenahraté staršie ${st.skipped}" else "")
+            ib.pairRequeue.text = if (st.skipped > 0) "Nahrať aj ${st.skipped} starších súborov" else "Nahrať všetky súbory znova"
+            ib.pairRequeue.visibility = if (st.pending == 0) View.VISIBLE else View.GONE
         }
     }
 
@@ -180,6 +184,19 @@ class SyncActivity : AppCompatActivity() {
             ib.pairError.visibility = if (p.lastError.isNullOrBlank()) View.GONE else View.VISIBLE
             ib.pairEnabled.isChecked = p.enabled
             ib.pairEnabled.setOnCheckedChangeListener { _, on -> db.setPairEnabled(p.id, on); CloudApp.kick(applicationContext, on) }
+            ib.pairRequeue.setOnClickListener {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Nahrať všetky súbory?")
+                    .setMessage("Do cloudu sa nahrajú všetky súbory zo zložky „${p.localName}“. Súbory, ktoré tam už rovnaké sú, sa preskočia.")
+                    .setPositiveButton("Nahrať") { _, _ ->
+                        val n = db.requeueAll(p.id)
+                        prefs.authError = false
+                        CloudApp.kick(applicationContext, syncNow = true)
+                        Toast.makeText(this, "Na nahratie čaká $n súborov", Toast.LENGTH_SHORT).show()
+                        refreshStatus()
+                    }
+                    .setNegativeButton("Zrušiť", null).show()
+            }
             ib.pairDelete.setOnClickListener {
                 MaterialAlertDialogBuilder(this)
                     .setTitle("Prestať sledovať „${p.localName}“?")

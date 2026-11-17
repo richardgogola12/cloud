@@ -35,6 +35,7 @@
 
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/includeExisting"
+        android:checked="true"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Nahrať aj súbory, ktoré už v zložke sú" />
