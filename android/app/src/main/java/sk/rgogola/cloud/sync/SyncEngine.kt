@@ -156,7 +156,7 @@ object SyncEngine {
         for ((pair, row) in todo) {
             if (!prefs.syncEnabled || !prefs.loggedIn) break
             if (!networkOk(ctx, prefs.wifiOnly)) { setStatus(ctx, "Prerušené – čaká sa na pripojenie"); return }
-            if (System.currentTimeMillis() - row.mtime < 5000) continue // súbor sa ešte zapisuje
+            if (System.currentTimeMillis() - row.mtime in 0 until 5000) continue // súbor sa ešte zapisuje (dátum v budúcnosti neblokuje)
             n++
             val name = row.rel.substringAfterLast('/')
             val label = "Nahrávam $n/${todo.size}: $name"
