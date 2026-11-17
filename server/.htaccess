@@ -1,0 +1,24 @@
+# Cloud – Apache
+Options -Indexes
+DirectoryIndex index.php
+
+# zakázané priečinky a súbory
+RedirectMatch 404 ^/(.*/)?(inc|storage)(/|$)
+<FilesMatch "^(config\.php|schema\.sql|.*\.md)$">
+    Require all denied
+</FilesMatch>
+
+AddType application/manifest+json .webmanifest
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
+</IfModule>
+
+# limity nahrávania (funguje pri mod_php; pri PHP-FPM nastav v php.ini / .user.ini)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 520M
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+</IfModule>

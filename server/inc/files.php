@@ -1,0 +1,395 @@
+<?php
+declare(strict_types=1);
+/* ------------------------------------------------------------------
+ *  Knižnica pre súbory: prístupové práva, kôš, verzie, ukladanie, ZIP, sťahovanie
+ * ------------------------------------------------------------------ */
+
+const PERM_LEVEL = ['view' => 1, 'edit' => 2, 'owner' => 3];
+
+function clean_name(string $n): string {
+    $n = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]+/u', '', $n));
+    $n = mb_substr($n, 0, 255);
+    if ($n === '' || $n === '.' || $n === '..') throw new RuntimeException('Neplatný názov.');
+    return $n;
+}
+function is_thumbable(string $mime): bool { return in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true); }
+function data_path(string $sub = ''): string { return rtrim(cfg('storage_path'), '/') . ($sub !== '' ? '/' . $sub : ''); }
+function tmp_file(): string {
+    $d = data_path('tmp');
+    if (!is_dir($d)) mkdir($d, 0750, true);
+    return $d . '/' . bin2hex(random_bytes(10));
+}
+/** Veľkosť jednej časti pri nahrávaní – podľa limitov servera (max. 8 MB). */
+function chunk_size(): int {
+    $toB = function ($v) { $v = trim((string)$v); $n = (float)$v; $u = strtolower(substr($v, -1));
+        return (int)($u === 'g' ? $n * 1073741824 : ($u === 'm' ? $n * 1048576 : ($u === 'k' ? $n * 1024 : $n))); };
+    $lim = array_filter([$toB(ini_get('upload_max_filesize')), $toB(ini_get('post_max_size'))], fn($x) => $x > 0);
+    $min = $lim ? min($lim) : 2097152;
+    return (int)max(262144, min(8 * 1048576, $min - 65536));
+}
+
+/* ================== Prístupové práva ==================
+ * Vracia: ['row' => riadok|null, 'owner' => id vlastníka, 'perm' => owner|edit|view, 'share_root' => id zdieľanej položky]
+ */
+function folder_access(int $uid, ?int $id, bool $withDeleted = false): array {
+    if (!$id) return ['row' => null, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
+    $f = q('SELECT * FROM ' . P . 'folders WHERE id = ?', [$id])->fetch();
+    if (!$f || (!$withDeleted && $f['deleted_at'])) throw new RuntimeException('Zložka neexistuje.');
+    if ((int)$f['user_id'] === $uid) return ['row' => $f, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
+    if ($f['deleted_at']) throw new RuntimeException('Zložka neexistuje.');
+    // hľadaj zdieľanie na tejto zložke alebo jej predkovi
+    $cur = $f; $guard = 0;
+    while ($cur && $guard++ < 100) {
+        $perm = q('SELECT permission FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id = ? AND target_id = ?", [$cur['id'], $uid])->fetchColumn();
+        if ($perm) return ['row' => $f, 'owner' => (int)$f['user_id'], 'perm' => $perm, 'share_root' => (int)$cur['id']];
+        $cur = $cur['parent_id'] ? q('SELECT id, parent_id FROM ' . P . 'folders WHERE id = ?', [$cur['parent_id']])->fetch() : null;
+    }
+    throw new RuntimeException('Zložka neexistuje alebo k nej nemáš prístup.');
+}
+function file_access(int $uid, int $id, bool $withDeleted = false): array {
+    $f = q('SELECT * FROM ' . P . 'files WHERE id = ?', [$id])->fetch();
+    if (!$f || (!$withDeleted && $f['deleted_at'])) throw new RuntimeException('Súbor neexistuje.');
+    if ((int)$f['user_id'] === $uid) return ['row' => $f, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
+    if ($f['deleted_at']) throw new RuntimeException('Súbor neexistuje.');
+    $perm = q('SELECT permission FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id = ? AND target_id = ?", [$id, $uid])->fetchColumn();
+    if ($perm) return ['row' => $f, 'owner' => (int)$f['user_id'], 'perm' => $perm, 'share_root' => null];
+    if ($f['folder_id']) {
+        $a = folder_access($uid, (int)$f['folder_id']);
+        return ['row' => $f, 'owner' => $a['owner'], 'perm' => $a['perm'], 'share_root' => $a['share_root']];
+    }
+    throw new RuntimeException('Súbor neexistuje alebo k nemu nemáš prístup.');
+}
+function need(array $acc, string $perm): array {
+    if (PERM_LEVEL[$acc['perm']] < PERM_LEVEL[$perm]) {
+        throw new RuntimeException($perm === 'owner' ? 'Túto akciu môže urobiť iba vlastník.' : 'Na túto akciu nemáš oprávnenie (iba na čítanie).');
+    }
+    return $acc;
+}
+
+/* ================== Strom zložiek ================== */
+function breadcrumbs(int $uid, ?int $id): array {
+    $crumbs = []; $guard = 0;
+    $acc = $id ? folder_access($uid, $id) : null;
+    while ($id && $guard++ < 100) {
+        $f = q('SELECT id, name, parent_id FROM ' . P . 'folders WHERE id = ?', [$id])->fetch();
+        if (!$f) break;
+        array_unshift($crumbs, ['id' => (int)$f['id'], 'name' => $f['name']]);
+        if ($acc && $acc['share_root'] && (int)$f['id'] === $acc['share_root']) break; // zdieľaný koreň
+        $id = $f['parent_id'] ? (int)$f['parent_id'] : null;
+    }
+    return $crumbs;
+}
+/** zložka + všetky podzložky (bez zmazaných, ak $withDeleted = false) */
+function descendants(int $owner, int $id, bool $withDeleted = false): array {
+    $all = [$id]; $queue = [$id];
+    while ($queue) {
+        $in = implode(',', array_map('intval', $queue));
+        $queue = array_map('intval', q('SELECT id FROM ' . P . "folders WHERE user_id = ? AND parent_id IN ($in)" . ($withDeleted ? '' : ' AND deleted_at IS NULL'), [$owner])->fetchAll(PDO::FETCH_COLUMN));
+        $all = array_merge($all, $queue);
+    }
+    return $all;
+}
+function name_exists(int $owner, ?int $folder, string $name, string $type, int $exceptId = 0): bool {
+    $sql = $type === 'd'
+        ? 'SELECT id FROM ' . P . 'folders WHERE user_id = ? AND parent_id <=> ? AND name = ? AND id <> ? AND deleted_at IS NULL'
+        : 'SELECT id FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND id <> ? AND deleted_at IS NULL';
+    return (bool)q($sql, [$owner, $folder, $name, $exceptId])->fetch();
+}
+function unique_name(int $owner, ?int $folder, string $name, string $type): string {
+    if (!name_exists($owner, $folder, $name, $type)) return $name;
+    $dot = $type === 'f' ? strrpos($name, '.') : false;
+    $base = $dot ? substr($name, 0, $dot) : $name;
+    $ext  = $dot ? substr($name, $dot) : '';
+    for ($i = 1; $i < 1000; $i++) { $n = "$base ($i)$ext"; if (!name_exists($owner, $folder, $n, $type)) return $n; }
+    return $base . ' ' . bin2hex(random_bytes(3)) . $ext;
+}
+/** vytvorí (alebo nájde) cestu podzložiek "A/B/C" pod $folder */
+function ensure_path(int $owner, ?int $folder, string $relDir): ?int {
+    foreach (array_filter(explode('/', trim(str_replace('\\', '/', $relDir), '/')), 'strlen') as $part) {
+        $part = clean_name($part);
+        $ex = q('SELECT id FROM ' . P . 'folders WHERE user_id = ? AND parent_id <=> ? AND name = ? AND deleted_at IS NULL', [$owner, $folder, $part])->fetchColumn();
+        if (!$ex) {
+            try { q('INSERT INTO ' . P . 'folders (user_id, parent_id, name) VALUES (?,?,?)', [$owner, $folder, $part]); $ex = db()->lastInsertId(); }
+            catch (Throwable $e) { $ex = q('SELECT id FROM ' . P . 'folders WHERE user_id = ? AND parent_id <=> ? AND name = ? AND deleted_at IS NULL', [$owner, $folder, $part])->fetchColumn(); }
+        }
+        $folder = (int)$ex;
+    }
+    return $folder;
+}
+
+/* ================== Formát pre klienta ================== */
+function owner_names(array $ids): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    $out = [];
+    foreach (q('SELECT id, name FROM ' . P . 'users WHERE id IN (' . implode(',', $ids) . ')') as $r) $out[(int)$r['id']] = $r['name'];
+    return $out;
+}
+function shared_flags(int $owner, array $fileIds, array $folderIds): array {
+    $out = ['f' => [], 'd' => []];
+    foreach (['f' => $fileIds, 'd' => $folderIds] as $t => $ids) {
+        if (!$ids) continue;
+        $in = implode(',', array_map('intval', $ids));
+        foreach (q('SELECT item_id FROM ' . P . "shares WHERE item_type = '$t' AND item_id IN ($in) AND (expires_at IS NULL OR expires_at > NOW())
+                    UNION SELECT item_id FROM " . P . "user_shares WHERE item_type = '$t' AND item_id IN ($in)") as $r) $out[$t][(int)$r['item_id']] = true;
+    }
+    return $out;
+}
+function rows_out(int $uid, array $folders, array $files, array $extra = []): array {
+    $owners = owner_names(array_merge(array_column($folders, 'user_id'), array_column($files, 'user_id')));
+    $sh = shared_flags($uid, array_map(fn($f) => (int)$f['id'], array_filter($files, fn($f) => (int)$f['user_id'] === $uid)),
+                             array_map(fn($f) => (int)$f['id'], array_filter($folders, fn($f) => (int)$f['user_id'] === $uid)));
+    $out = [];
+    foreach ($folders as $d) {
+        $out[] = ['type' => 'd', 'id' => (int)$d['id'], 'name' => $d['name'], 'starred' => (bool)$d['starred'], 'updated' => $d['updated_at'],
+                  'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
+                  'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
+                  'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
+                  'deleted' => $d['deleted_at'] ?? null];
+    }
+    foreach ($files as $f) {
+        $out[] = ['type' => 'f', 'id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'mime' => $f['mime'],
+                  'starred' => (bool)$f['starred'], 'updated' => $f['updated_at'], 'taken' => $f['taken_at'] ?? null,
+                  'folder_id' => $f['folder_id'] ? (int)$f['folder_id'] : null,
+                  'thumb' => is_thumbable($f['mime']), 'shared' => isset($sh['f'][(int)$f['id']]),
+                  'versions' => isset($f['vcnt']) ? (int)$f['vcnt'] : 0,
+                  'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
+                  'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
+                  'deleted' => $f['deleted_at'] ?? null];
+    }
+    return $out;
+}
+
+/* ================== Ukladanie súborov a verzie ================== */
+function photo_date(string $path, string $mime): ?string {
+    if ($mime !== 'image/jpeg' || !function_exists('exif_read_data')) return null;
+    $ex = @exif_read_data($path);
+    $d = $ex['DateTimeOriginal'] ?? $ex['DateTime'] ?? null;
+    if (!$d || !preg_match('/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/', $d, $m) || $m[1] < 1990) return null;
+    return "$m[1]-$m[2]-$m[3] $m[4]:$m[5]:$m[6]";
+}
+/**
+ * Presunie hotový súbor do úložiska vlastníka. Ak súbor s rovnakým názvom existuje, uloží sa nová verzia.
+ * @return array{id:int,name:string,versioned:bool}
+ */
+function store_file(int $owner, ?int $folder, string $name, string $src, bool $isUploaded): array {
+    $stored = bin2hex(random_bytes(20));
+    $dest = storage_dir($owner) . '/' . $stored;
+    $ok = $isUploaded ? move_uploaded_file($src, $dest) : rename($src, $dest);
+    if (!$ok) throw new RuntimeException('Nepodarilo sa uložiť súbor.');
+    $size = filesize($dest);
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($dest) ?: 'application/octet-stream';
+    $taken = photo_date($dest, $mime);
+
+    $ex = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$owner, $folder, $name])->fetch();
+    if ($ex) {
+        q('INSERT INTO ' . P . 'file_versions (file_id, user_id, stored_name, size, mime, created_at) VALUES (?,?,?,?,?,?)',
+          [$ex['id'], $owner, $ex['stored_name'], $ex['size'], $ex['mime'], $ex['updated_at']]);
+        q('UPDATE ' . P . 'files SET stored_name = ?, size = ?, mime = ?, taken_at = COALESCE(?, taken_at), updated_at = NOW() WHERE id = ?',
+          [$stored, $size, $mime, $taken, $ex['id']]);
+        @unlink(data_path('thumbs/' . $owner . '/' . $ex['stored_name'] . '.jpg'));
+        prune_versions((int)$ex['id'], $owner);
+        $id = (int)$ex['id'];
+        $versioned = true;
+    } else {
+        q('INSERT INTO ' . P . 'files (user_id, folder_id, name, stored_name, size, mime, taken_at) VALUES (?,?,?,?,?,?,?)',
+          [$owner, $folder, $name, $stored, $size, $mime, $taken]);
+        $id = (int)db()->lastInsertId();
+        $versioned = false;
+    }
+    if ($folder) q('UPDATE ' . P . 'folders SET updated_at = NOW() WHERE id = ?', [$folder]);
+    return ['id' => $id, 'name' => $name, 'versioned' => $versioned, 'size' => $size];
+}
+function prune_versions(int $fileId, int $owner): void {
+    $max = max(0, (int)setting('max_versions', '10'));
+    $old = q('SELECT id, stored_name FROM ' . P . 'file_versions WHERE file_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000 OFFSET ' . $max, [$fileId])->fetchAll();
+    foreach ($old as $v) {
+        @unlink(storage_dir($owner) . '/' . $v['stored_name']);
+        q('DELETE FROM ' . P . 'file_versions WHERE id = ?', [$v['id']]);
+    }
+}
+
+/* ================== Kôš ================== */
+function trash_folder(int $owner, int $id): void {
+    $ids = implode(',', descendants($owner, $id));
+    q('UPDATE ' . P . "folders SET deleted_at = NOW(), trash_root = (id = ?) WHERE user_id = ? AND id IN ($ids) AND deleted_at IS NULL", [$id, $owner]);
+    q('UPDATE ' . P . "files SET deleted_at = NOW(), trash_root = 0 WHERE user_id = ? AND folder_id IN ($ids) AND deleted_at IS NULL", [$owner]);
+}
+function trash_file(int $owner, int $id): void {
+    q('UPDATE ' . P . 'files SET deleted_at = NOW(), trash_root = 1 WHERE id = ? AND user_id = ?', [$id, $owner]);
+}
+function restore_item(int $owner, string $type, int $id): void {
+    if ($type === 'f') {
+        $f = q('SELECT * FROM ' . P . 'files WHERE id = ? AND user_id = ? AND trash_root = 1', [$id, $owner])->fetch();
+        if (!$f) throw new RuntimeException('Položka nie je v koši.');
+        $folder = $f['folder_id'] ? (int)$f['folder_id'] : null;
+        if ($folder && q('SELECT deleted_at FROM ' . P . 'folders WHERE id = ?', [$folder])->fetchColumn() !== null) $folder = null;
+        if ($folder && !q('SELECT id FROM ' . P . 'folders WHERE id = ?', [$folder])->fetch()) $folder = null;
+        q('UPDATE ' . P . 'files SET deleted_at = NULL, trash_root = 0, folder_id = ?, name = ? WHERE id = ?', [$folder, unique_name($owner, $folder, $f['name'], 'f'), $id]);
+        return;
+    }
+    $d = q('SELECT * FROM ' . P . 'folders WHERE id = ? AND user_id = ? AND trash_root = 1', [$id, $owner])->fetch();
+    if (!$d) throw new RuntimeException('Položka nie je v koši.');
+    // zbieraj podstrom zmazaný spolu s touto zložkou (nie samostatne zmazané podpoložky)
+    $all = [$id]; $queue = [$id];
+    while ($queue) {
+        $in = implode(',', $queue);
+        $queue = array_map('intval', q('SELECT id FROM ' . P . "folders WHERE user_id = ? AND parent_id IN ($in) AND deleted_at IS NOT NULL AND trash_root = 0", [$owner])->fetchAll(PDO::FETCH_COLUMN));
+        $all = array_merge($all, $queue);
+    }
+    $in = implode(',', $all);
+    $parent = $d['parent_id'] ? (int)$d['parent_id'] : null;
+    if ($parent) {
+        $pd = q('SELECT deleted_at FROM ' . P . 'folders WHERE id = ?', [$parent])->fetch();
+        if (!$pd || $pd['deleted_at']) $parent = null;
+    }
+    $newName = unique_name($owner, $parent, $d['name'], 'd'); // pred obnovením, aby nenašla sama seba
+    q('UPDATE ' . P . "files SET deleted_at = NULL WHERE user_id = ? AND folder_id IN ($in) AND trash_root = 0 AND deleted_at IS NOT NULL", [$owner]);
+    q('UPDATE ' . P . "folders SET deleted_at = NULL, trash_root = 0 WHERE user_id = ? AND id IN ($in)", [$owner]);
+    q('UPDATE ' . P . 'folders SET parent_id = ?, name = ? WHERE id = ?', [$parent, $newName, $id]);
+}
+/** Natrvalo zmaže súbor (aj verzie, miniatúry, zdieľania) */
+function purge_file(array $f): void {
+    $owner = (int)$f['user_id'];
+    @unlink(storage_dir($owner) . '/' . $f['stored_name']);
+    @unlink(data_path('thumbs/' . $owner . '/' . $f['stored_name'] . '.jpg'));
+    foreach (q('SELECT stored_name FROM ' . P . 'file_versions WHERE file_id = ?', [$f['id']])->fetchAll(PDO::FETCH_COLUMN) as $s) @unlink(storage_dir($owner) . '/' . $s);
+    q('DELETE FROM ' . P . "shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
+    q('DELETE FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
+    q('DELETE FROM ' . P . 'files WHERE id = ?', [$f['id']]);
+}
+function purge_folder(int $owner, int $id): void {
+    $ids = descendants($owner, $id, true);
+    $in = implode(',', $ids);
+    foreach (q('SELECT * FROM ' . P . "files WHERE user_id = ? AND folder_id IN ($in)", [$owner])->fetchAll() as $f) purge_file($f);
+    q('DELETE FROM ' . P . "shares WHERE item_type = 'd' AND item_id IN ($in)");
+    q('DELETE FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id IN ($in)");
+    q('DELETE FROM ' . P . 'folders WHERE id = ? AND user_id = ?', [$id, $owner]);
+}
+function purge_trash(int $owner, ?int $olderThanDays = null): int {
+    $cond = $olderThanDays !== null ? ' AND deleted_at < (NOW() - INTERVAL ' . (int)$olderThanDays . ' DAY)' : '';
+    $n = 0;
+    foreach (q('SELECT id FROM ' . P . "folders WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL$cond", [$owner])->fetchAll(PDO::FETCH_COLUMN) as $id) { purge_folder($owner, (int)$id); $n++; }
+    foreach (q('SELECT * FROM ' . P . "files WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL$cond", [$owner])->fetchAll() as $f) { purge_file($f); $n++; }
+    return $n;
+}
+
+/* ================== Denná údržba ================== */
+function housekeeping(): void {
+    setting_set('housekeeping_day', date('Y-m-d'));
+    $days = (int)setting('trash_days', '30');
+    if ($days > 0) {
+        $owners = q('SELECT DISTINCT user_id FROM ' . P . 'files WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)
+                     UNION SELECT DISTINCT user_id FROM ' . P . 'folders WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)')->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($owners as $o) purge_trash((int)$o, $days);
+    }
+    // nedokončené nahrávania starších ako 3 dni
+    foreach (q('SELECT id FROM ' . P . 'uploads WHERE updated_at < (NOW() - INTERVAL 3 DAY)')->fetchAll(PDO::FETCH_COLUMN) as $id) {
+        @unlink(data_path('tmp/chunks/' . $id));
+        q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
+    }
+    q('DELETE FROM ' . P . 'tokens WHERE expires_at < (NOW() - INTERVAL 7 DAY)');
+    q('DELETE FROM ' . P . 'password_resets WHERE expires_at < (NOW() - INTERVAL 7 DAY)');
+    q('DELETE FROM ' . P . 'sessions WHERE (revoked = 1 AND last_seen < (NOW() - INTERVAL 30 DAY)) OR last_seen < (NOW() - INTERVAL ' . (int)ceil(cfg('session_lifetime', 1209600) / 86400) . ' DAY)');
+    q('DELETE FROM ' . P . 'log WHERE created_at < (NOW() - INTERVAL 365 DAY)');
+    // denný snímok využitia (pre graf v administrácii)
+    $bytes = (int)q('SELECT COALESCE(SUM(size),0) FROM ' . P . 'files')->fetchColumn() + (int)q('SELECT COALESCE(SUM(size),0) FROM ' . P . 'file_versions')->fetchColumn();
+    q('INSERT INTO ' . P . 'usage_daily (day, bytes, files, users) VALUES (CURDATE(), ?, (SELECT COUNT(*) FROM ' . P . 'files), (SELECT COUNT(*) FROM ' . P . 'users))
+       ON DUPLICATE KEY UPDATE bytes = VALUES(bytes), files = VALUES(files), users = VALUES(users)', [$bytes]);
+}
+
+/* ================== Sťahovanie, miniatúry, ZIP ================== */
+function send_file(string $path, string $name, string $mime, bool $inline): never {
+    $size = filesize($path);
+    $start = 0; $end = $size - 1;
+    // PDF prehliadač v Chrome nefunguje v sandboxe; ostatné súbory izolujeme
+    if (!($inline && $mime === 'application/pdf')) {
+        header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'");
+    }
+    header('Accept-Ranges: bytes');
+    header('Content-Type: ' . ($inline ? $mime : 'application/octet-stream'));
+    $ascii = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', $name);
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    if (isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $m)) {
+        if ($m[1] === '' && $m[2] !== '') { $start = max(0, $size - (int)$m[2]); }
+        else { $start = (int)$m[1]; if ($m[2] !== '') $end = min((int)$m[2], $size - 1); }
+        if ($start > $end || $start >= $size) { http_response_code(416); header("Content-Range: bytes */$size"); exit; }
+        http_response_code(206);
+        header("Content-Range: bytes $start-$end/$size");
+    }
+    header('Content-Length: ' . ($end - $start + 1));
+    while (ob_get_level()) ob_end_clean();
+    $fp = fopen($path, 'rb');
+    fseek($fp, $start);
+    $left = $end - $start + 1;
+    while ($left > 0 && !feof($fp) && !connection_aborted()) {
+        $chunk = fread($fp, (int)min(1048576, $left));
+        echo $chunk; flush();
+        $left -= strlen($chunk);
+    }
+    fclose($fp);
+    exit;
+}
+function safe_inline(string $mime): bool {
+    return (bool)preg_match('#^(image/(jpeg|png|gif|webp|bmp)|video/|audio/|application/pdf$|text/plain$)#', $mime);
+}
+function make_thumb(string $src, string $dst, int $max): bool {
+    if (!function_exists('imagecreatefromstring') || !is_file($src) || filesize($src) > 40 * 1024 * 1024) return false;
+    $img = @imagecreatefromstring(file_get_contents($src));
+    if (!$img) return false;
+    if (function_exists('exif_read_data')) {
+        $o = (@exif_read_data($src))['Orientation'] ?? 1;
+        if ($o == 3) $img = imagerotate($img, 180, 0);
+        elseif ($o == 6) $img = imagerotate($img, -90, 0);
+        elseif ($o == 8) $img = imagerotate($img, 90, 0);
+    }
+    $w = imagesx($img); $h = imagesy($img);
+    $r = min(1, $max / max($w, $h));
+    $nw = max(1, (int)($w * $r)); $nh = max(1, (int)($h * $r));
+    $t = imagecreatetruecolor($nw, $nh);
+    imagefill($t, 0, 0, imagecolorallocate($t, 255, 255, 255));
+    imagecopyresampled($t, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    $ok = imagejpeg($t, $dst, 80);
+    imagedestroy($img); imagedestroy($t);
+    return $ok;
+}
+function send_thumb(array $f): never {
+    if (!is_thumbable($f['mime'])) { http_response_code(404); exit; }
+    $owner = (int)$f['user_id'];
+    $tdir = data_path('thumbs/' . $owner);
+    $tpath = $tdir . '/' . $f['stored_name'] . '.jpg';
+    if (!is_file($tpath)) {
+        if (!is_dir($tdir)) mkdir($tdir, 0750, true);
+        if (!make_thumb(storage_dir($owner) . '/' . $f['stored_name'], $tpath, 400)) { http_response_code(404); exit; }
+    }
+    header('Content-Type: image/jpeg');
+    header('Cache-Control: private, max-age=604800');
+    header('Content-Length: ' . filesize($tpath));
+    readfile($tpath);
+    exit;
+}
+/** Zabalí zložky/súbory (riadky z DB) do ZIP a pošle ho. */
+function send_zip(array $folders, array $files, string $zipName): never {
+    if (!class_exists('ZipArchive')) throw new RuntimeException('Na serveri chýba rozšírenie ZipArchive.');
+    $tmpDir = data_path('tmp');
+    if (!is_dir($tmpDir)) mkdir($tmpDir, 0750, true);
+    foreach (glob($tmpDir . '/*.zip') ?: [] as $old) if (filemtime($old) < time() - 3600) @unlink($old);
+    $tmp = $tmpDir . '/' . bin2hex(random_bytes(8)) . '.zip';
+    $zip = new ZipArchive();
+    $zip->open($tmp, ZipArchive::CREATE);
+    $add = function (array $d, string $prefix) use (&$add, $zip) {
+        $owner = (int)$d['user_id'];
+        $zip->addEmptyDir(rtrim($prefix, '/'));
+        foreach (q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id = ? AND deleted_at IS NULL', [$owner, $d['id']]) as $f)
+            $zip->addFile(storage_dir($owner) . '/' . $f['stored_name'], $prefix . $f['name']);
+        foreach (q('SELECT * FROM ' . P . 'folders WHERE user_id = ? AND parent_id = ? AND deleted_at IS NULL', [$owner, $d['id']]) as $c)
+            $add($c, $prefix . $c['name'] . '/');
+    };
+    foreach ($folders as $d) $add($d, $d['name'] . '/');
+    foreach ($files as $f) $zip->addFile(storage_dir((int)$f['user_id']) . '/' . $f['stored_name'], $f['name']);
+    if ($zip->numFiles === 0) $zip->addEmptyDir('prazdne');
+    $zip->close();
+    register_shutdown_function(fn() => @unlink($tmp));
+    send_file($tmp, $zipName . '.zip', 'application/zip', false);
+}

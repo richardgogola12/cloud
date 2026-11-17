@@ -1,0 +1,13 @@
+# server
+server/config.php
+server/storage/*
+!server/storage/.htaccess
+!server/storage/index.html
+# android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+.DS_Store

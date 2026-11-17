@@ -1,0 +1,56 @@
+name: Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kontrola syntaxe PHP
+        run: |
+          php -v | head -1
+          for f in $(find server -name '*.php'); do php -l "$f" > /dev/null || exit 1; done
+          echo "PHP OK"
+
+      - name: Verzia
+        id: ver
+        run: |
+          V=$(tr -d '[:space:]' < server/VERSION)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "server-v$V" >/dev/null 2>&1; then echo "exists=1" >> "$GITHUB_OUTPUT"; else echo "exists=0" >> "$GITHUB_OUTPUT"; fi
+          echo "Verzia servera: $V"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Balík
+        if: steps.ver.outputs.exists == '0'
+        run: |
+          cd server
+          zip -r -q ../cloud-server-${{ steps.ver.outputs.version }}.zip . -x 'config.php' -x 'storage/*' -x '*.DS_Store'
+          zip -q ../cloud-server-${{ steps.ver.outputs.version }}.zip storage/.htaccess storage/index.html
+          cd .. && unzip -l cloud-server-${{ steps.ver.outputs.version }}.zip | tail -1
+
+      - name: Vydanie (GitHub Release)
+        if: steps.ver.outputs.exists == '0'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: server-v${{ steps.ver.outputs.version }}
+          name: Server ${{ steps.ver.outputs.version }}
+          body: |
+            ${{ github.event.head_commit.message || 'Nová verzia webovej aplikácie' }}
+
+            Aktualizácia: Administrácia → Aktualizácia (automaticky), alebo rozbaľ ZIP na server (config.php a storage/ ponechaj).
+          make_latest: false
+          files: cloud-server-${{ steps.ver.outputs.version }}.zip

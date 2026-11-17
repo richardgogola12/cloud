@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cloud</string>
+    <string name="sync_title">Synchronizácia</string>
+    <string name="login_title">Prihlásenie</string>
+    <string name="login_subtitle">Vitaj späť v Cloud</string>
+    <string name="server">Adresa servera</string>
+    <string name="email">E-mail</string>
+    <string name="password">Heslo</string>
+    <string name="login">Prihlásiť sa</string>
+    <string name="forgot">Zabudnuté heslo?</string>
+    <string name="register">Nemáš účet? Zaregistruj sa</string>
+    <string name="unlock_title">Odomknúť Cloud</string>
+    <string name="unlock_subtitle">Overenie odtlačkom prsta</string>
+    <string name="use_password">Použiť heslo</string>
+    <string name="channel_sync">Synchronizácia</string>
+    <string name="channel_alerts">Upozornenia</string>
+</resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Cloud" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorPrimaryContainer">#D3E3FD</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="shapeAppearanceSmallComponent">@style/Shape.Cloud.Pill</item>
+    </style>
+    <style name="Shape.Cloud.Pill" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">14dp</item>
+    </style>
+    <style name="Cloud.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardBackgroundColor">@color/surface</item>
+        <item name="strokeColor">#1F000000</item>
+    </style>
+    <style name="Cloud.Section" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+</resources>

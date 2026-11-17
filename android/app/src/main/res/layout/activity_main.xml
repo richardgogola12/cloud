@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground">
+
+    <WebView
+        android:id="@+id/web"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100"
+        app:trackThickness="3dp" />
+
+    <!-- chyba pripojenia -->
+    <LinearLayout
+        android:id="@+id/offline"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_cloud"
+            app:tint="@color/ink_muted" />
+        <TextView
+            android:id="@+id/offlineText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text="Server je nedostupný. Skontroluj pripojenie."
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/retryBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Skúsiť znova"
+            app:cornerRadius="24dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/offlineSyncBtn"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Nastavenia synchronizácie" />
+    </LinearLayout>
+
+    <!-- zámok (odtlačok prsta) -->
+    <LinearLayout
+        android:id="@+id/lock"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+        <FrameLayout
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="@drawable/bg_brand">
+            <ImageView
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_cloud"
+                app:tint="@android:color/white" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/lockName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall"
+            android:textStyle="bold" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/unlockBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_marginTop="24dp"
+            android:paddingHorizontal="28dp"
+            android:text="Odomknúť odtlačkom"
+            app:cornerRadius="28dp"
+            app:icon="@drawable/ic_fingerprint" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/lockPasswordBtn"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/use_password" />
+    </LinearLayout>
+</FrameLayout>
