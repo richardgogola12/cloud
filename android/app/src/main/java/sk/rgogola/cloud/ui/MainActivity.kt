@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity() {
                 a.innerHTML = '<i class="bi ' + icon + (cls.indexOf('dropdown') >= 0 ? ' me-2' : '') + '"></i>' + label;
                 return a;
               }
-              var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['background','bi-shield-check','Beh na pozadí'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
+              var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['background','bi-shield-check','Beh na pozadí'], ['server','bi-hdd-network','Server'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
               var nav = document.querySelector('.side-nav');
               if (nav && !nav.querySelector('[href^="cloudapp:"]')) {
                 items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
@@ -141,6 +141,13 @@ class MainActivity : AppCompatActivity() {
     private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /** Nahrávanie na pozadí: výber súborov / zložky v systéme, nahráva UploadService. */
+    private val serverLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) {
+            Toast.makeText(this, "Pripájam sa na ${prefs.server}", Toast.LENGTH_SHORT).show()
+            b.web.clearHistory()
+            loadWeb()
+        }
+    }
     private var uploadTarget = 0
     private var seenUploadFinish = 0L
     private val pickFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -304,6 +311,18 @@ class MainActivity : AppCompatActivity() {
                 if (Uri.parse(url).path?.endsWith("/login.php") == true) relogin()
             }
 
+            @SuppressLint("WebViewClientOnReceivedSslError")
+            override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, error: android.net.http.SslError) {
+                // vlastný certifikát servera potvrdený v Nastaveniach servera
+                if (sk.rgogola.cloud.net.Trust.isTrusted(sk.rgogola.cloud.net.Trust.fromWebView(error.certificate))) { handler.proceed(); return }
+                handler.cancel()
+                if (Uri.parse(error.url).host == Uri.parse(prefs.server).host) {
+                    b.offlineText.text = "Certifikát servera nie je dôveryhodný.\nOver ho v menu → Server."
+                    b.offline.visibility = View.VISIBLE
+                    loaded = false
+                }
+            }
+
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
                     b.offlineText.text = "Server je nedostupný.\n${error.description}"
@@ -394,6 +413,7 @@ class MainActivity : AppCompatActivity() {
                     "logout" -> confirmLogout()
                     "open", "send" -> opener.handle(uri)
                     "background" -> startActivity(Intent(this, BackgroundActivity::class.java))
+                    "server" -> serverLauncher.launch(Intent(this, ServerActivity::class.java))
                     "upload-files" -> {
                         uploadTarget = uri.getQueryParameter("folder")?.toIntOrNull() ?: 0
                         try { pickFiles.launch(arrayOf("*/*")) } catch (e: Exception) { Toast.makeText(this, "Výber súborov nie je dostupný", Toast.LENGTH_LONG).show() }

@@ -28,6 +28,8 @@ class Api(private val prefs: Prefs) {
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(180, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            .sslSocketFactory(Trust.socketFactory, Trust.trustManager)
+            .hostnameVerifier(Trust.hostnameVerifier)
             .build()
         private val JSON = "application/json; charset=utf-8".toMediaType()
         private val OCTET = "application/octet-stream".toMediaType()
@@ -76,6 +78,23 @@ class Api(private val prefs: Prefs) {
     }
 
     fun me(): JSONObject = exec(builder("app.php?action=me").get().build())
+
+    /** Platí aktuálny token aj na inej adrese servera? */
+    fun meAt(server: String): JSONObject = exec(builder("app.php?action=me", server).get().build())
+
+    /** Overenie adresy servera bez prihlásenia. */
+    fun info(server: String): JSONObject {
+        val req = Request.Builder().url(url("app.php?action=info", server)).header("User-Agent", USER_AGENT).header("Accept", "application/json").get().build()
+        client.newCall(req).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            val json = try { JSONObject(body) } catch (e: Exception) {
+                throw ApiException("Na tejto adrese nie je Cloud server (HTTP ${resp.code}).", resp.code)
+            }
+            // starší server nepozná akciu info, ale odpovedá vo formáte Cloud
+            if (!json.optBoolean("ok")) return JSONObject().put("ok", true).put("app", "cloud").put("name", "Cloud").put("version", "").put("old", true)
+            return json
+        }
+    }
 
     fun logout() { try { exec(builder("app.php?action=logout").post(FormBody.Builder().build()).build()) } catch (_: Exception) {} }
 

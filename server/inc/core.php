@@ -27,9 +27,22 @@ header('Referrer-Policy: same-origin');
  * - väzba session na túto aplikáciu (APP_ID)
  */
 function app_base_path(): string {
-    $p = parse_url(cfg('app_url', ''), PHP_URL_PATH) ?: '';
+    // cesta podľa skutočnej požiadavky – aplikácia funguje aj cez inú adresu (napr. http://192.168.1.50/cloud)
+    static $base = null;
+    if ($base !== null) return $base;
+    $p = null;
+    if (PHP_SAPI !== 'cli' && !empty($_SERVER['SCRIPT_NAME']) && !empty($_SERVER['SCRIPT_FILENAME'])) {
+        $root = realpath(APP_ROOT);
+        $dir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
+        if ($root && $dir && str_starts_with($dir, $root)) {
+            $sub = str_replace('\\', '/', substr($dir, strlen($root)));          // '' alebo napr. '/install'
+            $sn = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+            if ($sub === '' || str_ends_with($sn, $sub)) $p = substr($sn, 0, strlen($sn) - strlen($sub));
+        }
+    }
+    if ($p === null) $p = parse_url(cfg('app_url', ''), PHP_URL_PATH) ?: '';
     $p = rtrim($p, '/');
-    return $p === '' ? '/' : $p . '/';
+    return $base = ($p === '' ? '/' : $p . '/');
 }
 function is_https(): bool {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')

@@ -78,6 +78,11 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("auth_error", false)
         set(v) = p.edit().putBoolean("auth_error", v).apply()
 
+    /** naposledy použité adresy servera (najnovšia prvá) */
+    var serverHistory: List<String>
+        get() = (p.getString("server_history", "") ?: "").split("\n").filter { it.isNotBlank() }
+        set(v) = p.edit().putString("server_history", v.distinct().take(6).joinToString("\n")).apply()
+
     /** ručne vybrané súbory nahrávať natívne na pozadí (pokračuje aj po zatvorení aplikácie) */
     var bgUpload: Boolean
         get() = p.getBoolean("bg_upload", true)

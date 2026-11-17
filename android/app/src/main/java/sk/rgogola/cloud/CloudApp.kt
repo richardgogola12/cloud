@@ -7,6 +7,7 @@ import sk.rgogola.cloud.sync.WatchdogWorker
 class CloudApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        sk.rgogola.cloud.net.Trust.init(this)
         Notif.createChannels(this)
         if (Prefs(this).loggedIn) {
             WatchdogWorker.schedule(this)

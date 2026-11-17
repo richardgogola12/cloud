@@ -14,6 +14,10 @@ if (!is_array($in)) $in = $_POST;
 
 try {
     switch ($action) {
+    case 'info': { // overenie adresy servera v aplikácii (bez prihlásenia)
+        json_out(['ok' => true, 'app' => 'cloud', 'name' => cfg('app_name', 'Cloud'), 'version' => APP_VERSION, 'https' => is_https()]);
+    }
+
     case 'login': {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'error' => 'Metóda nie je povolená'], 405);
         if (too_many_attempts()) throw new RuntimeException('Príliš veľa neúspešných pokusov. Skús to o 15 minút.');

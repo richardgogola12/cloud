@@ -31,18 +31,23 @@ class LoginActivity : AppCompatActivity() {
         b.email.setText(prefs.userEmail.ifBlank { intent.getStringExtra("email") ?: "" })
         intent.getStringExtra("message")?.let { showError(it) }
 
-        b.serverBtn.setOnClickListener { b.serverLayout.visibility = if (b.serverLayout.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
+        b.serverBtn.setOnClickListener {
+            prefs.server = serverUrl().ifBlank { prefs.server }
+            serverLauncher.launch(Intent(this, ServerActivity::class.java).putExtra(ServerActivity.EXTRA_FROM_LOGIN, true))
+        }
         b.loginBtn.setOnClickListener { doLogin() }
         b.password.setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_DONE) { doLogin(); true } else false }
         b.forgotBtn.setOnClickListener { openWeb("forgot.php") }
         b.registerBtn.setOnClickListener { openWeb("register.php") }
     }
 
-    private fun serverUrl(): String {
-        var s = b.server.text?.toString()?.trim().orEmpty().trimEnd('/')
-        if (s.isNotEmpty() && !s.startsWith("http")) s = "https://$s"
-        return s
+    private val serverLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) {
+        b.server.setText(prefs.server)
+        b.serverLayout.visibility = View.VISIBLE
+        showError(null)
     }
+
+    private fun serverUrl(): String = ServerActivity.normalize(b.server.text?.toString().orEmpty())
 
     private fun openWeb(path: String) {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(serverUrl() + "/" + path)))
@@ -57,7 +62,7 @@ class LoginActivity : AppCompatActivity() {
         val server = serverUrl()
         val email = b.email.text?.toString()?.trim().orEmpty()
         val pass = b.password.text?.toString().orEmpty()
-        if (!server.startsWith("https://")) { showError("Adresa servera musí začínať https://"); b.serverLayout.visibility = View.VISIBLE; return }
+        if (!Regex("^https?://[^/\\s]+").containsMatchIn(server)) { showError("Zadaj platnú adresu servera."); b.serverLayout.visibility = View.VISIBLE; return }
         if (email.isEmpty() || pass.isEmpty()) { showError("Vyplň e-mail a heslo."); return }
         showError(null)
         b.loginBtn.isEnabled = false
@@ -66,8 +71,16 @@ class LoginActivity : AppCompatActivity() {
             val res = withContext(Dispatchers.IO) { runCatching { Api(prefs).login(server, email, pass) } }
             b.loginBtn.isEnabled = true
             b.progress.visibility = View.INVISIBLE
-            res.onFailure { showError(it.message ?: "Prihlásenie zlyhalo.") }
+            res.onFailure { e ->
+                val ssl = generateSequence(e as Throwable?) { it.cause }.any { it is javax.net.ssl.SSLException || it is java.security.cert.CertificateException }
+                showError(when {
+                    ssl -> "Certifikát servera nie je dôveryhodný. Ťukni na „Server“ a over ho."
+                    e is java.net.UnknownHostException || e is java.net.ConnectException -> "Server je nedostupný. Skontroluj adresu (tlačidlo „Server“)."
+                    else -> e.message ?: "Prihlásenie zlyhalo."
+                })
+            }
             res.onSuccess { j ->
+                if (prefs.server != server) prefs.serverHistory = listOf(server, prefs.server) + prefs.serverHistory
                 prefs.server = server
                 prefs.token = j.getString("token")
                 val u = j.getJSONObject("user")
