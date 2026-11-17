@@ -290,20 +290,34 @@ function restore_item(int $owner, string $type, int $id): void {
     q('UPDATE ' . P . 'folders SET parent_id = ?, name = ? WHERE id = ?', [$parent, $newName, $id]);
 }
 /** Natrvalo zmaže súbor (aj verzie, miniatúry, zdieľania) */
-function purge_file(array $f): void {
-    $owner = (int)$f['user_id'];
-    @unlink(storage_dir($owner) . '/' . $f['stored_name']);
-    @unlink(data_path('thumbs/' . $owner . '/' . $f['stored_name'] . '.jpg'));
-    foreach (q('SELECT stored_name FROM ' . P . 'file_versions WHERE file_id = ?', [$f['id']])->fetchAll(PDO::FETCH_COLUMN) as $s) @unlink(storage_dir($owner) . '/' . $s);
-    q('DELETE FROM ' . P . "shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
-    q('DELETE FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
-    try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'f' AND item_id = ?", [$f['id']]); } catch (Throwable $e) {}
-    q('DELETE FROM ' . P . 'files WHERE id = ?', [$f['id']]);
+function purge_file(array $f): void { purge_files([$f]); }
+/** Natrvalé zmazanie viacerých súborov naraz (dávkovo – rýchle aj pre tisícky súborov). */
+function purge_files(array $files): void {
+    @set_time_limit(600);
+    foreach (array_chunk($files, 500) as $chunk) {
+        $ids = array_map(fn($f) => (int)$f['id'], $chunk);
+        $in = implode(',', $ids);
+        $owners = [];
+        foreach ($chunk as $f) {
+            $owner = (int)$f['user_id'];
+            $owners[(int)$f['id']] = $owner;
+            @unlink(storage_dir($owner) . '/' . $f['stored_name']);
+            @unlink(data_path('thumbs/' . $owner . '/' . $f['stored_name'] . '.jpg'));
+        }
+        foreach (q('SELECT file_id, stored_name FROM ' . P . "file_versions WHERE file_id IN ($in)")->fetchAll() as $v) {
+            @unlink(storage_dir($owners[(int)$v['file_id']]) . '/' . $v['stored_name']);
+        }
+        q('DELETE FROM ' . P . "file_versions WHERE file_id IN ($in)");
+        q('DELETE FROM ' . P . "shares WHERE item_type = 'f' AND item_id IN ($in)");
+        q('DELETE FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id IN ($in)");
+        try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'f' AND item_id IN ($in)"); } catch (Throwable $e) {}
+        q('DELETE FROM ' . P . "files WHERE id IN ($in)");
+    }
 }
 function purge_folder(int $owner, int $id): void {
     $ids = descendants($owner, $id, true);
     $in = implode(',', $ids);
-    foreach (q('SELECT * FROM ' . P . "files WHERE user_id = ? AND folder_id IN ($in)", [$owner])->fetchAll() as $f) purge_file($f);
+    purge_files(q('SELECT id, user_id, stored_name FROM ' . P . "files WHERE user_id = ? AND folder_id IN ($in)", [$owner])->fetchAll());
     q('DELETE FROM ' . P . "shares WHERE item_type = 'd' AND item_id IN ($in)");
     q('DELETE FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id IN ($in)");
     try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'd' AND item_id IN ($in)"); } catch (Throwable $e) {}
@@ -313,7 +327,8 @@ function purge_trash(int $owner, ?int $olderThanDays = null): int {
     $cond = $olderThanDays !== null ? ' AND deleted_at < (NOW() - INTERVAL ' . (int)$olderThanDays . ' DAY)' : '';
     $n = 0;
     foreach (q('SELECT id FROM ' . P . "folders WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL$cond", [$owner])->fetchAll(PDO::FETCH_COLUMN) as $id) { purge_folder($owner, (int)$id); $n++; }
-    foreach (q('SELECT * FROM ' . P . "files WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL$cond", [$owner])->fetchAll() as $f) { purge_file($f); $n++; }
+    $files = q('SELECT id, user_id, stored_name FROM ' . P . "files WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL$cond", [$owner])->fetchAll();
+    purge_files($files); $n += count($files);
     return $n;
 }
 
