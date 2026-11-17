@@ -87,6 +87,11 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
         writableDatabase.execSQL("UPDATE pairs SET initialized = 1 WHERE id = ?", arrayOf<Any>(id))
     }
 
+    fun setPairRemote(id: Long, remoteId: Int) {
+        writableDatabase.execSQL("UPDATE pairs SET remote_id = ? WHERE id = ?", arrayOf<Any>(remoteId, id))
+        writableDatabase.execSQL("UPDATE files SET state = ?, upload_id = NULL WHERE pair_id = ? AND state = ?", arrayOf<Any>(ST_PENDING, id, ST_ERROR))
+    }
+
     fun setPairError(id: Long, err: String?) {
         writableDatabase.execSQL("UPDATE pairs SET last_error = ? WHERE id = ?", arrayOf<Any?>(err, id))
     }

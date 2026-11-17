@@ -185,8 +185,9 @@ try {
         $name = clean_name((string)($_POST['name'] ?? ''));
         if (name_exists($acc['owner'], $parent, $name, 'd')) throw new RuntimeException('Zložka s týmto názvom už existuje.');
         q("INSERT INTO $D (user_id, parent_id, name) VALUES (?,?,?)", [$acc['owner'], $parent, $name]);
+        $newId = (int)db()->lastInsertId(); // ID treba prečítať hneď – log_action vkladá ďalší riadok
         log_action($uid, 'mkdir', $name);
-        json_out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+        json_out(['ok' => true, 'id' => $newId]);
     }
 
     case 'mkfile': { // nový textový súbor

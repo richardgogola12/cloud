@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 8.1+: svetlé/tmavé ikony navigačnej lišty -->
+    <style name="Theme.Cloud" parent="Theme.Cloud.Base">
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

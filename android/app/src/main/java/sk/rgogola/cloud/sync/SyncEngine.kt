@@ -131,8 +131,27 @@ object SyncEngine {
             if (!pair.initialized) db.setPairInitialized(pair.id)
         }
 
+        // 1b) cieľová zložka v cloude: overenie a oprava ID (staršie verzie servera mohli vrátiť zlé ID)
+        val remote = try { api.folders() } catch (e: ApiException) {
+            if (e.code == 401) { prefs.authError = true; Notif.authError(ctx); setStatus(ctx, "Prihlásenie vypršalo – prihlás sa znova"); return }
+            null
+        } catch (e: Exception) { null }
+        val validPairs = ArrayList<SyncPair>()
+        for (pair in pairs) {
+            if (remote == null || remote.any { it.id == pair.remoteId }) { validPairs += pair; continue }
+            val match = remote.firstOrNull { it.path == pair.remoteName }
+            if (match != null) {
+                db.setPairRemote(pair.id, match.id)
+                db.setPairError(pair.id, null)
+                db.log("Opravená cieľová zložka „${pair.remoteName}“")
+                validPairs += pair.copy(remoteId = match.id)
+            } else {
+                db.setPairError(pair.id, "Cieľová zložka „${pair.remoteName}“ v cloude neexistuje – odstráň túto zložku a pridaj ju znova.")
+            }
+        }
+
         // 2) nahrávanie
-        val todo = pairs.flatMap { p -> db.pendingFiles(p.id).map { p to it } }
+        val todo = validPairs.flatMap { p -> db.pendingFiles(p.id).map { p to it } }
         var n = 0; var ok = 0; var failed = 0
         for ((pair, row) in todo) {
             if (!prefs.syncEnabled || !prefs.loggedIn) break

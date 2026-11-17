@@ -116,12 +116,12 @@ ok(str_contains($r['headers'], 'login.php'), 'nesprávne heslo neprihlási');
 $web->loadCsrf($web->get('login.php')['body']);
 $r = $web->post('login.php', ['_csrf' => $web->csrf, 'email' => 'admin@test.sk', 'password' => 'Heslo1234', 'remember' => 1]);
 ok($r['code'] === 302 && str_contains($r['headers'], 'index.php'), 'prihlásenie heslom', $r['headers']);
+ok(str_contains($r['headers'], 'Set-Cookie: CLOUD_TEST='), 'vlastný názov session cookie (izolácia od iných webov)', $r['headers']);
 $r = $web->get('index.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'id="items"'), 'disk sa zobrazí');
 no_php_errors($r['body'], 'index.php');
 $web->loadCsrf($r['body']);
 ok((bool)$web->csrf, 'CSRF token v stránke');
-ok(str_contains($r['headers'], 'CLOUD_TEST='), 'vlastný názov session cookie (izolácia od iných webov)');
 
 section('Zložky a nahrávanie (web)');
 $j = $web->api('list', ['view' => 'folder', 'folder' => 0]);
@@ -187,7 +187,7 @@ ok(empty($web->api('move', ['items' => ["d:$folder"], 'target' => $sub])['ok']),
 ok(!empty($web->api('star', ['items' => ["f:$fileId"], 'value' => 1])['ok']), 'hviezdička');
 foreach (['search' => ['q' => 'fotka'], 'recent' => [], 'starred' => [], 'photos' => [], 'shared' => [], 'trash' => []] as $v => $extra) {
     $j = $web->api('list', ['view' => $v] + $extra);
-    ok(!empty($j['ok']), "pohľad „$v“", json_encode($j));
+    ok(!empty($j['ok']), "pohľad „{$v}“", json_encode($j));
 }
 $j = $web->api('list', ['view' => 'photos']);
 ok(count($j['items'] ?? []) >= 1, 'Fotky obsahujú obrázok');
