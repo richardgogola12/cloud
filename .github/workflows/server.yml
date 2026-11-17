@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Kontrola syntaxe PHP
         run: |
@@ -44,7 +44,7 @@ jobs:
 
       - name: Vydanie (GitHub Release)
         if: steps.ver.outputs.exists == '0'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: server-v${{ steps.ver.outputs.version }}
           name: Server ${{ steps.ver.outputs.version }}
