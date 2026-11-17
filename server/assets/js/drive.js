@@ -67,7 +67,7 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
-    const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
+    const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
     const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
       const t = state.crumbs[0] || {};
@@ -151,7 +151,7 @@
     $('#listHeader .c-date').textContent = state.view === 'trash' ? 'Zmazané' : 'Zmenené';
     $('#empty').classList.toggle('d-none', state.items.length > 0);
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
-      trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''],
+      trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''], byme: ['Zatiaľ nič nezdieľaš', 'Súbor alebo zložku zdieľaš cez ⋮ → Zdieľať.'],
       tag: ['S týmto štítkom zatiaľ nič nie je', 'Štítok pridáš cez ⋮ → Štítky a farba.'],
       photos: ['Zatiaľ žiadne fotky', 'Nahraj obrázky – zoradia sa podľa dátumu.'], recent: ['Žiadne nedávne súbory', ''] }[state.view] || ['Zatiaľ tu nič nie je', 'Pretiahni sem súbory alebo použi tlačidlo Nový.'];
     $('#empty h5').textContent = emptyTxt[0];
@@ -191,7 +191,9 @@
   }
 
   const badges = (it) => (it.starred ? '<i class="bi bi-star-fill text-warning small ms-1" title="S hviezdičkou"></i>' : '')
-    + (it.shared ? '<i class="bi bi-people-fill text-body-secondary small ms-1" title="Zdieľané"></i>' : '')
+    + (it.share_info ? ((it.share_info.users || []).length ? '<span class="share-badge ms-1" title="' + esc(shareSummary(it)) + '"><i class="bi bi-people-fill"></i>' + it.share_info.users.length + '</span>' : '')
+        + (it.share_info.link ? '<i class="bi bi-link-45deg small ms-1 ' + (it.share_info.link === 'expired' ? 'text-danger' : 'text-primary') + '" title="' + (it.share_info.link === 'expired' ? 'Verejný odkaz vypršal' : 'Verejný odkaz') + '"></i>' : '')
+      : (it.shared ? '<i class="bi bi-people-fill text-body-secondary small ms-1" title="Zdieľané"></i>' : ''))
     + (it.versions ? '<span class="badge text-bg-light border ms-1" title="Počet starších verzií">v' + (it.versions + 1) + '</span>' : '');
   function tagChips(it) {
     if (!it.tags || !it.tags.length) return '';
@@ -206,8 +208,16 @@
     if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'i\'),{className:\'bi ' + ic + ' ' + cls + '\'}))">';
     return '<i class="bi ' + ic + ' ' + cls + (big ? ' big' : '') + '"' + iconStyle(it) + '></i>';
   }
+  function shareSummary(it) {
+    const si = it.share_info; if (!si) return '';
+    const parts = [];
+    if (si.users && si.users.length) parts.push(si.users.join(', '));
+    if (si.link) parts.push(si.link === 'expired' ? 'odkaz (vypršal)' : 'verejný odkaz');
+    return parts.join(' · ');
+  }
   function subText(it) {
     if (state.view === 'trash') return 'zmazané ' + fmtDate(it.deleted);
+    if (state.view === 'byme' && it.share_info) return shareSummary(it);
     if (it.owner) return it.owner;
     return fmtDate(it.updated);
   }
@@ -280,7 +290,7 @@
   function route() {
     const h = decodeURIComponent(location.hash.slice(1));
     if (h.startsWith('folder/')) { state.view = 'folder'; state.folder = parseInt(h.slice(7)) || null; }
-    else if (['recent', 'starred', 'trash', 'shared', 'photos'].includes(h)) { state.view = h; state.folder = null; }
+    else if (['recent', 'starred', 'trash', 'shared', 'byme', 'photos'].includes(h)) { state.view = h; state.folder = null; }
     else if (h.startsWith('tag/')) { state.view = 'tag'; state.tagId = parseInt(h.slice(4)) || null; state.folder = null; }
     else if (h.startsWith('search/')) { state.view = 'search'; state.q = h.slice(7); $('#searchInput').value = state.q; }
     else { state.view = 'folder'; state.folder = null; }
@@ -867,7 +877,7 @@
   $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); state.dir = a.dataset.dir; localStorage.setItem('cloud-dir', state.dir); load(); });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
   $$('.side-nav [data-nav]').forEach(a => {
-    const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', photos: '#photos' };
+    const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', photos: '#photos' };
     if (map[a.dataset.nav] !== undefined) a.addEventListener('click', (e) => { e.preventDefault(); go(map[a.dataset.nav]); });
   });
 
@@ -884,7 +894,7 @@
     const explicit = files.every(f => f.folder !== undefined);
     if (!canEditHere() && !explicit) { toast('Sem nemôžeš nahrávať (iba na čítanie).', 'warning'); return; }
     const folder = curFolder();
-    if (['trash', 'shared', 'search', 'starred'].includes(state.view) && !explicit) go('#');
+    if (['trash', 'shared', 'byme', 'search', 'starred'].includes(state.view) && !explicit) go('#');
     files.forEach((job) => {
       job.folder = job.folder !== undefined ? job.folder : folder;
       job.name = job.name || job.file.name;

@@ -276,6 +276,9 @@ ok(!empty($j['results'][0]['disabled']), 'neznámy e-mail → vysvetlenie namies
 $j = $web->api('share_link_save', ['type' => 'd', 'id' => $folder]);
 ok(str_starts_with((string)($j['link']['url'] ?? $j['url'] ?? ''), BASE), 'verejný odkaz vedie na adresu, na ktorej je web otvorený', json_encode($j));
 ok(!empty($web->api('share_user_add', ['type' => 'd', 'id' => $folder, 'users' => [$bid2], 'permission' => 'view', 'notify' => ''])['ok']), 'zdieľanie zložky s používateľom (čítanie)');
+$j = $web->api('list', ['view' => 'byme']);
+$it = array_values(array_filter($j['items'] ?? [], fn($i) => $i['type'] === 'd' && $i['id'] === $folder))[0] ?? null;
+ok($it && in_array('Beáta Testová', $it['share_info']['users'] ?? [], true), 'Zdieľané mnou: zložka aj s menom, s kým je zdieľaná', json_encode($j['items'] ?? $j));
 $beata = new Client();
 $r = $beata->req('POST', 'app.php?action=login', ['json' => ['email' => 'beata@test.sk', 'password' => 'Heslo1234'], 'app' => true]);
 $beata->token = $r['json']['token'] ?? null;

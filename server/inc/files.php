@@ -162,7 +162,8 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
                   'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
-                  'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? []];
+                  'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? [],
+                  'share_info' => $extra['si']['d'][(int)$d['id']] ?? null];
     }
     foreach ($files as $f) {
         $out[] = ['type' => 'f', 'id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'mime' => $f['mime'],
@@ -172,7 +173,8 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'versions' => isset($f['vcnt']) ? (int)$f['vcnt'] : 0,
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
-                  'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? []];
+                  'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? [],
+                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null];
     }
     return $out;
 }

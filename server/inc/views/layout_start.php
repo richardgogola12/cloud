@@ -6,21 +6,32 @@ $pct   = $quota > 0 ? min(100, round($used / $quota * 100, 1)) : 0;
 $barCls = $pct >= 90 ? 'bg-danger' : ($pct >= 75 ? 'bg-warning' : 'bg-primary');
 $sharedCount = 0;
 try { $sharedCount = (int)q('SELECT COUNT(*) FROM ' . P . 'user_shares WHERE target_id = ?', [$user['id']])->fetchColumn(); } catch (Throwable $e) {}
-$nav = [
-    ['drive',   'index.php',            'bi-hdd-stack',    'Môj disk'],
-    ['shared',  'index.php#shared',     'bi-people',       'Zdieľané so mnou'],
-    ['photos',  'index.php#photos',     'bi-images',       'Fotky'],
-    ['recent',  'index.php#recent',     'bi-clock-history','Nedávne'],
-    ['starred', 'index.php#starred',    'bi-star',         'S hviezdičkou'],
-    ['trash',   'index.php#trash',      'bi-trash3',       'Kôš'],
-    ['profile', 'profile.php',          'bi-person-gear',  'Môj účet'],
+// menu po skupinách: [nadpis skupiny alebo null, položky, zbaliteľná?]
+$navGroups = [
+    [null, [
+        ['drive',   'index.php',         'bi-hdd-stack',     'Môj disk'],
+        ['recent',  'index.php#recent',  'bi-clock-history', 'Nedávne'],
+        ['starred', 'index.php#starred', 'bi-star',          'S hviezdičkou'],
+        ['photos',  'index.php#photos',  'bi-images',        'Fotky'],
+    ], false],
+    ['Zdieľanie', [
+        ['shared',  'index.php#shared',  'bi-people',        'Zdieľané so mnou'],
+        ['byme',    'index.php#byme',    'bi-share',         'Zdieľané mnou'],
+    ], false],
+    [null, [
+        ['trash',   'index.php#trash',   'bi-trash3',        'Kôš'],
+    ], false],
 ];
-if ($user['role'] === 'admin') $nav[] = ['admin', 'admin.php', 'bi-shield-lock', 'Administrácia'];
+$more = [['profile', 'profile.php', 'bi-person-gear', 'Môj účet']];
+if ($user['role'] === 'admin') $more[] = ['admin', 'admin.php', 'bi-shield-lock', 'Administrácia'];
 $inApp = is_android_app();
 if ($inApp) { // položky natívnej Android aplikácie
-    $nav[] = ['app-sync', 'cloudapp://sync', 'bi-arrow-repeat', 'Synchronizácia telefónu'];
-    $nav[] = ['app-update', 'cloudapp://update', 'bi-box-arrow-in-down', 'Aktualizácia aplikácie'];
+    $more[] = ['app-sync', 'cloudapp://sync', 'bi-arrow-repeat', 'Synchronizácia telefónu'];
+    $more[] = ['app-background', 'cloudapp://background', 'bi-shield-check', 'Beh na pozadí'];
+    $more[] = ['app-server', 'cloudapp://server', 'bi-hdd-network', 'Server'];
+    $more[] = ['app-update', 'cloudapp://update', 'bi-box-arrow-in-down', 'Aktualizácia aplikácie'];
 }
+$navGroups[] = ['Nastavenia', $more, true];
 require __DIR__ . '/head.php';
 ?>
 <body class="app">
@@ -87,8 +98,21 @@ require __DIR__ . '/head.php';
       <a href="<?= e(url('index.php')) ?>" class="btn btn-new shadow-sm mb-3"><i class="bi bi-arrow-left me-2"></i>Späť na disk</a>
       <?php endif; ?>
       <nav class="nav flex-column side-nav">
-        <?php foreach ($nav as [$key, $href, $icon, $label]): ?>
-          <a class="nav-link <?= ($active ?? '') === $key ? 'active' : '' ?>" href="<?= e(str_starts_with($href, 'cloudapp:') ? $href : url($href)) ?>" data-nav="<?= e($key) ?>"><i class="bi <?= $icon ?>"></i><?= e($label) ?><?= $key === 'shared' && $sharedCount ? '<span class="badge rounded-pill text-bg-light ms-auto">' . $sharedCount . '</span>' : '' ?></a>
+        <?php foreach ($navGroups as $gi => [$glabel, $gitems, $collapsible]):
+            $openGroup = $collapsible && in_array($active ?? '', array_column($gitems, 0), true); ?>
+          <?php if ($collapsible): ?>
+            <button class="side-label side-toggle <?= $openGroup ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#sideGroup<?= $gi ?>" aria-expanded="<?= $openGroup ? 'true' : 'false' ?>" data-remember="cloud-side-<?= $gi ?>">
+              <span><?= e($glabel) ?></span><i class="bi bi-chevron-down"></i></button>
+            <div class="collapse <?= $openGroup ? 'show' : '' ?>" id="sideGroup<?= $gi ?>">
+          <?php elseif ($glabel): ?>
+            <div class="side-label"><?= e($glabel) ?></div>
+          <?php elseif ($gi > 0): ?>
+            <div class="side-sep"></div>
+          <?php endif; ?>
+          <?php foreach ($gitems as [$key, $href, $icon, $label]): ?>
+            <a class="nav-link <?= ($active ?? '') === $key ? 'active' : '' ?>" href="<?= e(str_starts_with($href, 'cloudapp:') ? $href : url($href)) ?>" data-nav="<?= e($key) ?>"><i class="bi <?= $icon ?>"></i><?= e($label) ?><?= $key === 'shared' && $sharedCount ? '<span class="badge rounded-pill text-bg-light ms-auto">' . $sharedCount . '</span>' : '' ?></a>
+          <?php endforeach; ?>
+          <?php if ($collapsible): ?></div><?php endif; ?>
         <?php endforeach; ?>
       </nav>
       <?php if (($active ?? '') === 'drive'): ?>

@@ -145,6 +145,20 @@ try {
                 }));
             }
             $crumbs = [['id' => (int)$tag['id'], 'name' => $tag['name'], 'color' => $tag['color']]];
+        } elseif ($view === 'byme') { // Zdieľané mnou: s ľuďmi aj verejným odkazom
+            $dIds = []; $fIds = [];
+            foreach (q('SELECT s.item_type, s.item_id, s.permission, u.name FROM ' . P . 'user_shares s JOIN ' . P . 'users u ON u.id = s.target_id WHERE s.owner_id = ? ORDER BY u.name', [$uid]) as $s) {
+                $t = $s['item_type']; $id = (int)$s['item_id'];
+                $extra['si'][$t][$id]['users'][] = $s['name'] . ($s['permission'] === 'edit' ? ' (úpravy)' : '');
+                $t === 'd' ? $dIds[$id] = 1 : $fIds[$id] = 1;
+            }
+            foreach (q('SELECT item_type, item_id, expires_at FROM ' . P . 'shares WHERE user_id = ?', [$uid]) as $s) {
+                $t = $s['item_type']; $id = (int)$s['item_id'];
+                $extra['si'][$t][$id]['link'] = $s['expires_at'] && strtotime($s['expires_at']) < time() ? 'expired' : 'on';
+                $t === 'd' ? $dIds[$id] = 1 : $fIds[$id] = 1;
+            }
+            if ($dIds) $folders = q("SELECT * FROM $D WHERE user_id = ? AND id IN (" . implode(',', array_keys($dIds)) . ") AND deleted_at IS NULL ORDER BY $orderD", [$uid])->fetchAll();
+            if ($fIds) $files = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND id IN (" . implode(',', array_keys($fIds)) . ") AND deleted_at IS NULL ORDER BY $orderF", [$uid])->fetchAll();
         } elseif ($view === 'shared') {
             $root = 'shared';
             $sh = q('SELECT * FROM ' . P . 'user_shares WHERE target_id = ?', [$uid])->fetchAll();

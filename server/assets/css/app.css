@@ -320,3 +320,12 @@ a.share-row:hover { background: var(--c-hover); }
 .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .disk-bar { border-radius: 8px; background: var(--c-hover); }
 .disk-bar .progress-bar + .progress-bar { border-left: 2px solid var(--c-surface); }
+
+/* skupiny v bočnom menu */
+.side-label { display: flex; align-items: center; width: 100%; padding: .9rem 1rem .25rem; font-size: .75rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--bs-secondary-color); background: none; border: 0; text-align: left; }
+.side-toggle { cursor: pointer; border-radius: 12px; padding-top: .6rem; padding-bottom: .6rem; margin-top: .35rem; }
+.side-toggle:hover { background: var(--c-hover); }
+.side-toggle .bi { margin-left: auto; transition: transform .2s; font-size: .8rem; }
+.side-toggle.collapsed .bi { transform: rotate(-90deg); }
+.side-sep { height: 1px; background: var(--c-border); margin: .5rem 1rem; opacity: .7; }
+.share-badge { display: inline-flex; align-items: center; gap: 3px; font-size: .75rem; color: var(--bs-secondary-color); flex-shrink: 0; }

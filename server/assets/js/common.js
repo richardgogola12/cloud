@@ -92,6 +92,14 @@ window.Cloud = (function () {
       e.preventDefault();
       if (await confirmBox('Si si istý?', f.dataset.confirm, 'Potvrdiť')) { f.dataset.ok = 1; f.submit(); }
     }));
+    // zbaliteľné skupiny v menu si pamätajú stav
+    document.querySelectorAll('[data-remember]').forEach(b => {
+      const k = b.dataset.remember, el = document.querySelector(b.dataset.bsTarget);
+      if (!el) return;
+      try { if (localStorage.getItem(k) === '1' && !el.classList.contains('show')) { el.classList.add('show'); b.classList.remove('collapsed'); b.setAttribute('aria-expanded', 'true'); } } catch (e) {}
+      el.addEventListener('shown.bs.collapse', () => { try { localStorage.setItem(k, '1'); } catch (e) {} });
+      el.addEventListener('hidden.bs.collapse', () => { try { localStorage.setItem(k, '0'); } catch (e) {} });
+    });
     // Select2
     if (window.jQuery && jQuery.fn.select2) {
       jQuery('select.select2').each(function () {

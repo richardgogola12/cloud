@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
               }
               var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['background','bi-shield-check','Beh na pozadí'], ['server','bi-hdd-network','Server'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
               var nav = document.querySelector('.side-nav');
-              if (nav && !nav.querySelector('[href^="cloudapp:"]')) {
+              if (nav && !document.querySelector('.side-nav [href^="cloudapp:"]')) {
                 items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
               }
               var dd = document.querySelector('.app-topbar .dropdown-menu');
