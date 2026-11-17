@@ -40,7 +40,7 @@ try {
                 '<p>Ahoj ' . e($u['name']) . ', do tvojho účtu sa práve prihlásila mobilná aplikácia.</p>'
                 . '<p><b>Zariadenie:</b> ' . e($device) . '<br><b>IP adresa:</b> ' . e(client_ip()) . '<br><b>Čas:</b> ' . date('d.m.Y H:i') . '</p>'
                 . '<p>Ak si to nebol(a) ty, zmeň si heslo – tým sa odhlásia všetky zariadenia aj aplikácie.</p>',
-                'Skontrolovať zariadenia', cfg('app_url') . '/profile.php#sessions');
+                'Skontrolovať zariadenia', public_url() . '/profile.php#sessions');
         }
         json_out(['ok' => true, 'token' => $token, 'user' => ['name' => $u['name'], 'email' => $u['email']]]);
     }

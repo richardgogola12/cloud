@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($active) {
             send_mail($email, 'Vitaj v ' . cfg('app_name'), 'Vitaj, ' . $name . '!',
                 '<p>Tvoj účet bol úspešne vytvorený. Máš k dispozícii <b>' . e($quota ? format_bytes($quota) : 'neobmedzené') . '</b> miesta na súbory.</p>',
-                'Otvoriť môj disk', cfg('app_url') . '/index.php');
+                'Otvoriť môj disk', public_url() . '/index.php');
         }
         if (!$active) {
             send_mail($email, 'Registrácia prijatá – ' . cfg('app_name'), 'Ďakujeme za registráciu',
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (admin_emails() as $a) {
                 send_mail($a, 'Nový používateľ: ' . $name, 'Nová registrácia',
                     '<p><b>' . e($name) . '</b> (' . e($email) . ') sa práve zaregistroval(a).' . ($active ? '' : ' <br>Účet <b>čaká na schválenie</b>.') . '</p>',
-                    'Spravovať používateľov', cfg('app_url') . '/admin.php?tab=users');
+                    'Spravovať používateľov', public_url() . '/admin.php?tab=users');
             }
         }
         if ($needVerify) {

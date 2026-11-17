@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     send_mail($email, 'Účet v ' . cfg('app_name'), 'Bol ti vytvorený účet',
                         '<p>Ahoj ' . e($name) . ', administrátor ti vytvoril účet.</p><p>E-mail: <b>' . e($email) . '</b><br>Heslo: <b>' . e($pass) . '</b></p>'
                         . '<p>Po prihlásení si heslo zmeň v nastaveniach účtu. Kvóta: <b>' . ($quota ? format_bytes($quota) : 'bez limitu') . '</b>.</p>',
-                        'Prihlásiť sa', cfg('app_url') . '/login.php');
+                        'Prihlásiť sa', public_url() . '/login.php');
                 }
                 flash('success', 'Používateľ bol vytvorený.');
             } else {
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if (!$old['is_active'] && $activeFlag) {
                     send_mail($email, 'Účet bol aktivovaný – ' . cfg('app_name'), 'Tvoj účet je aktívny',
-                        '<p>Ahoj ' . e($name) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', cfg('app_url') . '/login.php');
+                        '<p>Ahoj ' . e($name) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', public_url() . '/login.php');
                 }
                 if ((int)$old['quota'] !== $quota) {
                     notify($id, 'quota', 'Kvóta úložiska bola zmenená', 'Nová kvóta: ' . ($quota ? format_bytes($quota) : 'bez limitu'));
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q("UPDATE $U SET is_active = 1 - is_active WHERE id = ?", [$id]);
             if ($u && !$u['is_active']) {
                 send_mail($u['email'], 'Účet bol aktivovaný – ' . cfg('app_name'), 'Tvoj účet je aktívny',
-                    '<p>Ahoj ' . e($u['name']) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', cfg('app_url') . '/login.php');
+                    '<p>Ahoj ' . e($u['name']) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', public_url() . '/login.php');
             }
             log_action($me, 'admin_user_toggle', $u['email'] ?? '');
             flash('success', $u && $u['is_active'] ? 'Účet bol deaktivovaný.' : 'Účet bol aktivovaný.');
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q('INSERT INTO ' . P . 'password_resets (user_id, token_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 24 HOUR)', [$u['id'], hash('sha256', $token)]);
             $ok = send_mail($u['email'], 'Nastavenie hesla – ' . cfg('app_name'), 'Nastav si nové heslo',
                 '<p>Ahoj ' . e($u['name']) . ', administrátor ti poslal odkaz na nastavenie nového hesla. Platí 24 hodín.</p>',
-                'Nastaviť heslo', cfg('app_url') . '/reset.php?token=' . $token, $err);
+                'Nastaviť heslo', public_url() . '/reset.php?token=' . $token, $err);
             $ok ? flash('success', 'Odkaz na obnovu hesla bol odoslaný na ' . $u['email'] . '.') : flash('danger', 'E-mail sa nepodarilo odoslať: ' . $err);
         } elseif ($act === 'user_delete') {
             $id = (int)$_POST['id'];
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rows = q("SELECT * FROM $U WHERE id IN ($in) AND is_active = 0")->fetchAll();
                 q("UPDATE $U SET is_active = 1 WHERE id IN ($in)");
                 foreach ($rows as $r) send_mail($r['email'], 'Účet bol aktivovaný – ' . cfg('app_name'), 'Tvoj účet je aktívny',
-                    '<p>Ahoj ' . e($r['name']) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', cfg('app_url') . '/login.php');
+                    '<p>Ahoj ' . e($r['name']) . ', administrátor schválil tvoj účet. Môžeš sa prihlásiť.</p>', 'Prihlásiť sa', public_url() . '/login.php');
                 flash('success', 'Aktivovaní: ' . count($rows));
             } elseif ($op === 'deactivate') {
                 q("UPDATE $U SET is_active = 0 WHERE id IN ($others)");
@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: text/plain; charset=utf-8');
             header('Content-Disposition: attachment; filename="cloud-sifrovaci-kluc-' . date('Y-m-d') . '.txt"');
             echo "HLAVNÝ ŠIFROVACÍ KĽÚČ CLOUDU\r\n============================\r\n\r\n";
-            echo "Server: " . cfg('app_url') . "\r\nOdtlačok kľúča: " . crypto_fingerprint() . "\r\nStiahnuté: " . date('d.m.Y H:i') . "\r\n\r\n";
+            echo "Server: " . public_url() . "\r\nOdtlačok kľúča: " . crypto_fingerprint() . "\r\nStiahnuté: " . date('d.m.Y H:i') . "\r\n\r\n";
             echo "Kľúč (base64):\r\n" . base64_encode(crypto_master_key()) . "\r\n\r\n";
             echo "Obnova: do config.php pridaj riadok\r\n    'encryption_key' => '" . base64_encode(crypto_master_key()) . "',\r\n\r\n";
             echo "Ulož tento súbor na bezpečné miesto (mimo servera). Bez kľúča sa zašifrované súbory nedajú prečítať.\r\n";
@@ -235,8 +235,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setting_set('notify_new_device', !empty($_POST['notify_new_device']) ? '1' : '0');
             setting_set('trash_days', (string)max(0, min(3650, (int)($_POST['trash_days'] ?? 30))));
             setting_set('max_versions', (string)max(0, min(100, (int)($_POST['max_versions'] ?? 10))));
+            $pu = rtrim(trim((string)($_POST['public_url'] ?? '')), '/');
+            if ($pu !== '' && !preg_match('#^https?://[^\s/]+(/[^\s]*)?$#i', $pu)) throw new RuntimeException('Verejná adresa musí začínať http:// alebo https://');
+            setting_set('public_url', $pu);
             log_action($me, 'admin_settings');
             flash('success', 'Nastavenia boli uložené.');
+        } elseif ($act === 'use_current_url') {
+            setting_set('public_url', request_base_url());
+            log_action($me, 'admin_settings', 'public_url');
+            flash('success', 'Odkazy v e-mailoch budú smerovať na ' . request_base_url() . '.');
         } elseif ($act === 'smtp') {
             foreach (['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_from', 'smtp_from_name'] as $k) setting_set($k, trim((string)($_POST[$k] ?? '')));
             if (($_POST['smtp_pass'] ?? '') !== '') setting_set('smtp_pass', (string)$_POST['smtp_pass']);
@@ -334,6 +341,15 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
 </ul>
 
 <?php if ($tab === 'dashboard'): ?>
+<?php if (request_base_url() !== '' && strcasecmp(public_url(), request_base_url()) !== 0): ?>
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+  <i class="bi bi-envelope-exclamation fs-5"></i>
+  <div class="me-auto">Odkazy v e-mailoch vedú na <b><?= e(public_url()) ?></b>, ale web máš otvorený na <b><?= e(request_base_url()) ?></b>.</div>
+  <form method="post" class="m-0"><?= csrf_field() ?><input type="hidden" name="act" value="use_current_url"><input type="hidden" name="tab" value="dashboard">
+    <button class="btn btn-warning btn-sm rounded-pill px-3">Používať túto adresu</button></form>
+  <a class="btn btn-link btn-sm" href="?tab=settings">Nastaviť inú</a>
+</div>
+<?php endif; ?>
 <div class="row g-3 mb-4">
   <?php foreach ([['bi-people', 'Používatelia', $stats['users'], $stats['pending'] ? $stats['pending'] . ' čaká na schválenie' : 'všetci aktívni'],
                   ['bi-files', 'Súbory', number_format($stats['files'], 0, ',', ' '), $stats['folders'] . ' zložiek'],
@@ -501,6 +517,13 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
 <div class="card card-soft" style="max-width:720px"><div class="card-body p-4">
 <form method="post">
   <?= csrf_field() ?><input type="hidden" name="act" value="settings"><input type="hidden" name="tab" value="settings">
+  <div class="mb-4">
+    <label class="form-label fw-semibold" for="publicUrl">Verejná adresa webu</label>
+    <input class="form-control" id="publicUrl" name="public_url" value="<?= e(setting('public_url', '')) ?>" placeholder="<?= e(rtrim((string)cfg('app_url', ''), '/') ?: request_base_url()) ?>">
+    <div class="form-text">Použije sa v odkazoch v e-mailoch (overenie e-mailu, obnova hesla, schválenie účtu) a v zdieľaných odkazoch.
+      Prázdne = <code><?= e(rtrim((string)cfg('app_url', ''), '/') ?: '—') ?></code> z config.php.
+      <a href="#" onclick="document.getElementById('publicUrl').value = <?= e(json_encode(request_base_url())) ?>; return false">Použiť aktuálnu adresu (<?= e(request_base_url()) ?>)</a></div>
+  </div>
   <div class="mb-4">
     <label class="form-label fw-semibold">Registrácia nových používateľov</label>
     <select class="form-select select2" name="registration" data-search="false">

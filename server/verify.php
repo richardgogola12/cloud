@@ -27,7 +27,7 @@ if ($row['type'] === 'verify') {
     log_action((int)$row['user_id'], 'email_verified', $row['email']);
     if ($row['is_active']) {
         send_mail($row['email'], 'Vitaj v ' . cfg('app_name'), 'Vitaj, ' . $row['name'] . '!',
-            '<p>Tvoj e-mail je overený a účet je pripravený. Môžeš nahrávať súbory.</p>', 'Otvoriť môj disk', cfg('app_url') . '/index.php');
+            '<p>Tvoj e-mail je overený a účet je pripravený. Môžeš nahrávať súbory.</p>', 'Otvoriť môj disk', public_url() . '/index.php');
         flash('success', 'E-mail bol overený. Teraz sa môžeš prihlásiť.');
     } else {
         flash('success', 'E-mail bol overený. Účet ešte musí schváliť administrátor – dáme ti vedieť e-mailom.');

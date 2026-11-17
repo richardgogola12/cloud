@@ -57,11 +57,13 @@ final class Cbor {
 }
 
 final class WebAuthn {
+    /** adresa, na ktorej je otvorený web (passkey je viazaný na doménu, ktorú vidí prehliadač) */
+    private static function base(): string { return request_base_url() ?: public_url(); }
     public static function rpId(): string {
-        return parse_url(cfg('app_url'), PHP_URL_HOST) ?: ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        return parse_url(self::base(), PHP_URL_HOST) ?: 'localhost';
     }
     public static function origin(): string {
-        $u = parse_url(cfg('app_url'));
+        $u = parse_url(self::base());
         return $u['scheme'] . '://' . $u['host'] . (isset($u['port']) ? ':' . $u['port'] : '');
     }
     public static function challenge(string $purpose): string {

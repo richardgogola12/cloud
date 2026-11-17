@@ -52,7 +52,7 @@ class SmtpMailer {
         stream_set_timeout($this->sock, 20);
 
         $this->read();
-        $ehloHost = parse_url(cfg('app_url', ''), PHP_URL_HOST) ?: 'localhost';
+        $ehloHost = parse_url(public_url(), PHP_URL_HOST) ?: 'localhost';
         $ehlo = $this->cmd('EHLO ' . $ehloHost, [250]);
 
         if ($secure === 'tls') {

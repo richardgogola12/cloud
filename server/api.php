@@ -41,12 +41,12 @@ function check_quota_warning(int $owner): void {
         send_mail($u['email'], 'Úložisko je takmer plné – ' . cfg('app_name'), 'Dochádza ti miesto',
             '<p>Ahoj ' . e($u['name']) . ', využívaš <b>' . format_bytes($used) . '</b> z <b>' . format_bytes($u['quota']) . '</b> (' . round($pct * 100) . ' %).</p>'
             . '<p>Uvoľni miesto zmazaním nepotrebných súborov (nezabudni vysypať kôš a staré verzie) alebo požiadaj administrátora o navýšenie kvóty.</p>',
-            'Otvoriť disk', cfg('app_url') . '/index.php');
+            'Otvoriť disk', public_url() . '/index.php');
     } elseif ($pct < 0.8 && $u['quota_warned']) {
         q('UPDATE ' . P . 'users SET quota_warned = 0 WHERE id = ?', [$owner]);
     }
 }
-function share_url(string $token): string { return cfg('app_url') . '/s.php?t=' . $token; }
+function share_url(string $token): string { return public_url() . '/s.php?t=' . $token; }
 
 /* ==================================================================
  *  GET: sťahovanie, náhľad, miniatúry, ZIP
@@ -563,7 +563,7 @@ try {
                 send_mail($t['email'], $user['name'] . ' s tebou zdieľa „' . $a['row']['name'] . '“', 'Niekto s tebou zdieľa ' . ($type === 'd' ? 'zložku' : 'súbor'),
                     '<p><b>' . e($user['name']) . '</b> s tebou zdieľa ' . ($type === 'd' ? 'zložku' : 'súbor') . ' <b>' . e($a['row']['name']) . '</b>'
                     . ' (' . ($perm === 'edit' ? 'môžeš upravovať' : 'iba na čítanie') . ').</p><p>Nájdeš ju v sekcii <b>Zdieľané so mnou</b>.</p>',
-                    'Otvoriť', cfg('app_url') . '/index.php#shared');
+                    'Otvoriť', public_url() . '/index.php#shared');
             }
             log_action($uid, 'share_user', "$type:$id → " . $t['email']);
         }

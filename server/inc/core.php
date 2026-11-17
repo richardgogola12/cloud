@@ -130,6 +130,18 @@ function setting_set(string $k, ?string $v): void {
 
 /* ---------- Pomocné ---------- */
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+/** Adresa webu tak, ako ju otvoril prehliadač (napr. https://moj-server.ts.net/cloud). */
+function request_base_url(): string {
+    if (empty($_SERVER['HTTP_HOST'])) return '';
+    return (is_https() ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(app_base_path(), '/');
+}
+/** Verejná adresa do e-mailov a zdieľaných odkazov: nastavenie v administrácii, inak app_url z config.php. */
+function public_url(): string {
+    $u = trim((string)setting('public_url', ''));
+    if ($u === '') $u = trim((string)cfg('app_url', ''));
+    if ($u === '') $u = request_base_url();
+    return rtrim($u, '/');
+}
 function url(string $path = ''): string { return app_base_path() . ltrim($path, '/'); }
 function redirect(string $path): never { header('Location: ' . url($path)); exit; }
 function client_ip(): string { return substr($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 0, 45); }
@@ -288,7 +300,7 @@ function check_new_device(array $user, string $method): void {
                 . '<p><b>Zariadenie:</b> ' . e(ua_label($_SERVER['HTTP_USER_AGENT'] ?? '')) . '<br><b>IP adresa:</b> ' . e(client_ip())
                 . '<br><b>Čas:</b> ' . date('d.m.Y H:i') . '<br><b>Spôsob:</b> ' . e($method) . '</p>'
                 . '<p>Ak si to bol(a) ty, nemusíš nič robiť. Ak nie, okamžite si zmeň heslo a odhlás neznáme zariadenia.</p>',
-                'Skontrolovať zariadenia', cfg('app_url') . '/profile.php#sessions');
+                'Skontrolovať zariadenia', public_url() . '/profile.php#sessions');
         }
     } catch (Throwable $e) { error_log('[cloud] device check: ' . $e->getMessage()); }
 }
@@ -331,7 +343,7 @@ function send_verify_mail(array $u): bool {
     $t = create_token((int)$u['id'], 'verify', $u['email'], 48);
     return send_mail($u['email'], 'Over svoj e-mail – ' . cfg('app_name'), 'Potvrď svoju e-mailovú adresu',
         '<p>Ahoj ' . e($u['name']) . ', ďakujeme za registráciu. Na dokončenie klikni na tlačidlo nižšie (platí 48 hodín).</p>',
-        'Overiť e-mail', cfg('app_url') . '/verify.php?token=' . $t);
+        'Overiť e-mail', public_url() . '/verify.php?token=' . $t);
 }
 
 /* ---------- Kvóty ---------- */

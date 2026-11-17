@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $t = create_token($uid, 'email_change', $email, 24);
                 $ok = send_mail($email, 'Potvrď nový e-mail – ' . cfg('app_name'), 'Potvrď zmenu e-mailu',
                     '<p>Ahoj ' . e($name) . ', požiadal(a) si o zmenu e-mailu účtu na túto adresu. Potvrď ju kliknutím (platí 24 hodín).</p>',
-                    'Potvrdiť nový e-mail', cfg('app_url') . '/verify.php?token=' . $t);
+                    'Potvrdiť nový e-mail', public_url() . '/verify.php?token=' . $t);
                 send_mail($user['email'], 'Žiadosť o zmenu e-mailu – ' . cfg('app_name'), 'Žiadosť o zmenu e-mailu',
                     '<p>Bola podaná žiadosť o zmenu e-mailu tvojho účtu na <b>' . e($email) . '</b>. Ak si to nebol(a) ty, zmeň si heslo a kontaktuj administrátora.</p>');
                 $ok ? flash('info', 'Na ' . $email . ' sme poslali potvrdzovací odkaz. E-mail sa zmení po jeho potvrdení.')

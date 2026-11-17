@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         send_mail($u['email'], 'Obnova hesla – ' . cfg('app_name'), 'Obnova hesla',
             '<p>Ahoj ' . e($u['name']) . ',</p><p>dostali sme žiadosť o obnovu hesla k tvojmu účtu. Odkaz platí <b>1 hodinu</b>.</p>'
             . '<p>Ak si o obnovu nežiadal(a), tento e-mail ignoruj – heslo zostane nezmenené.</p>',
-            'Nastaviť nové heslo', cfg('app_url') . '/reset.php?token=' . $token);
+            'Nastaviť nové heslo', public_url() . '/reset.php?token=' . $token);
         log_action((int)$u['id'], 'reset_request', client_ip());
     }
     // rovnaká odpoveď vždy – neprezrádzame, či e-mail existuje
