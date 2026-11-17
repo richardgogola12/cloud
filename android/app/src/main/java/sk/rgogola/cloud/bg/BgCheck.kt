@@ -33,8 +33,8 @@ object BgCheck {
         val desc: String,
         val state: State,
         val actionLabel: String?,
-        val action: ((Activity) -> Unit)?,
         val confirmKey: String? = null,
+        val action: ((Activity) -> Unit)?,
     )
 
     private val maker get() = Build.MANUFACTURER.lowercase()
@@ -86,19 +86,19 @@ object BgCheck {
             val ok = p.bgConfirmed("autostart")
             out += Item("autostart", "Automatické spustenie",
                 if (ok) "Potvrdené – aplikácia sa môže spustiť sama (aj po reštarte)." else "Tento telefón (${Build.MANUFACTURER}) bráni aplikáciám spúšťať sa samé. Zapni pre Cloud „Autoštart“ a potom ťukni na „Mám zapnuté“.",
-                if (ok) State.OK else State.CONFIRM, "Otvoriť autoštart", { a -> openAutostart(a) }, "autostart")
+                if (ok) State.OK else State.CONFIRM, "Otvoriť autoštart", "autostart") { a -> openAutostart(a) }
         }
         if (isXiaomi) {
             val ok = p.bgConfirmed("miui_battery")
             out += Item("miui_battery", "Šetrič batérie Xiaomi",
                 if (ok) "Potvrdené – nastavené „Bez obmedzení“." else "Xiaomi má vlastný šetrič batérie. V Nastaveniach aplikácie → Šetrič batérie zvoľ „Bez obmedzení“ a potom ťukni na „Mám zapnuté“.",
-                if (ok) State.OK else State.CONFIRM, "Otvoriť šetrič", { a -> openMiuiBattery(a) }, "miui_battery")
+                if (ok) State.OK else State.CONFIRM, "Otvoriť šetrič", "miui_battery") { a -> openMiuiBattery(a) }
         }
         if (isSamsung) {
             val ok = p.bgConfirmed("samsung_sleep")
             out += Item("samsung_sleep", "Uspávanie aplikácií Samsung",
                 if (ok) "Potvrdené – Cloud nie je medzi uspanými aplikáciami." else "V Starostlivosti o zariadenie → Batéria → Obmedzenia na pozadí pridaj Cloud do „Nikdy neuspávané aplikácie“.",
-                if (ok) State.OK else State.CONFIRM, "Otvoriť", { a -> openSamsung(a) }, "samsung_sleep")
+                if (ok) State.OK else State.CONFIRM, "Otvoriť", "samsung_sleep") { a -> openSamsung(a) }
         }
 
         // 6. prístup k sledovaným zložkám
