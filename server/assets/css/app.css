@@ -50,7 +50,7 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 /* ---- rozloženie aplikácie ---- */
 .app-topbar { position: sticky; top: 0; z-index: 1030; height: var(--topbar-h); display: flex; align-items: center; gap: .5rem; padding: 0 12px; padding-top: env(safe-area-inset-top); background: var(--c-bg); }
 .app-topbar .brand { width: calc(var(--sidebar-w) - 24px); }
-.search-box { flex: 1; max-width: 720px; position: relative; }
+.search-box { flex: 1; min-width: 0; position: relative; margin-right: .5rem; }
 .search-box i { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--bs-secondary-color); }
 .search-box .form-control { height: 46px; border-radius: 24px; padding-left: 48px; background: var(--c-hover); border: 1px solid transparent; }
 .search-box .form-control:focus { background: var(--c-surface); border-color: var(--c-border); box-shadow: 0 1px 6px rgba(0,0,0,.12); }
