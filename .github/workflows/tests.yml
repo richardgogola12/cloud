@@ -1,0 +1,93 @@
+name: Testy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'tests/**'
+      - 'android/**'
+      - '.github/workflows/tests.yml'
+  workflow_dispatch:
+
+jobs:
+  server-e2e:
+    name: Server end-to-end (PHP + MySQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: cloud
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, gd, zip, mbstring, openssl, fileinfo, exif, curl
+          coverage: none
+
+      - name: Príprava databázy a konfigurácie
+        run: php tests/setup.php
+
+      - name: Spustenie servera
+        run: |
+          PHP_CLI_SERVER_WORKERS=4 nohup php -d upload_max_filesize=2M -d post_max_size=8M \
+            -d display_errors=0 -d log_errors=1 -d error_log=/tmp/php-errors.log -d error_reporting=E_ALL \
+            -S 127.0.0.1:8080 -t server > /tmp/php-server.log 2>&1 &
+          sleep 2
+          curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8080/login.php
+
+      - name: End-to-end testy
+        run: php tests/e2e.php
+
+      - name: Denná údržba
+        run: php -d error_reporting=E_ALL -d display_errors=1 tests/housekeeping.php
+
+      - name: PHP varovania a chyby
+        if: always()
+        run: |
+          touch /tmp/php-errors.log
+          echo "---- PHP error log ----"; cat /tmp/php-errors.log
+          if grep -E "PHP (Warning|Notice|Deprecated|Fatal|Parse)" /tmp/php-errors.log; then echo "Našli sa PHP chyby"; exit 1; fi
+          echo "Žiadne PHP varovania ani chyby"
+
+  android-lint:
+    name: Android Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Lint
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon lintRelease
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET, glob
+          f = glob.glob('app/build/reports/lint-results-release.xml')[0]
+          issues = ET.parse(f).getroot().findall('issue')
+          sev = {}
+          for i in issues:
+              sev.setdefault(i.get('severity'), []).append(i)
+          for s in ('Fatal', 'Error', 'Warning'):
+              for i in sev.get(s, []):
+                  loc = i.find('location')
+                  print(f"{s}: {i.get('id')}: {i.get('message')} @ {loc.get('file').split('/src/main/')[-1] if loc is not None else ''}:{loc.get('line') if loc is not None else ''}")
+          print({k: len(v) for k, v in sev.items()})
+          PY
