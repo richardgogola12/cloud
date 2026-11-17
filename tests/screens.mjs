@@ -38,6 +38,19 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-2b-cesta-3-urovne.png` });
   await page.goto(base + 'index.php#'); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-3-moj-disk.png` });
+  if (name === 'pc') {
+    // zdieľanie: hľadanie používateľa podľa e-mailu v Select2
+    const card = page.locator('[data-key="d:' + ids[0] + '"]').first();
+    await card.click({ button: 'right' }); await page.waitForTimeout(400);
+    await page.click('[data-ctx="share"]'); await page.waitForTimeout(800);
+    await page.click('#shareModal .select2-selection'); await page.waitForTimeout(300);
+    await page.keyboard.type('beata@test.sk', { delay: 40 });
+    await page.waitForTimeout(1500);
+    const txt = await page.locator('.select2-results').innerText().catch(() => '(žiadne výsledky)');
+    console.log('[zdieľanie] výsledky hľadania: ' + txt.replace(/\n/g, ' | '));
+    await page.screenshot({ path: `screens/${name}-5-zdielanie.png` });
+    await page.keyboard.press('Escape');
+  }
   if (name === 'mobil') {
     await page.click('button[data-bs-target="#sidebar"]'); await page.waitForTimeout(800);
     await page.screenshot({ path: `screens/${name}-4-menu.png` });
