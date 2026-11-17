@@ -83,6 +83,16 @@ class MainActivity : AppCompatActivity() {
                   dd.insertBefore(li, hr ? hr.parentNode.nextSibling : null);
                 });
               }
+              if (!window.__cloudFolderHook) {
+                window.__cloudFolderHook = 1;
+                document.addEventListener('click', function(e){
+                  var a = e.target.closest && e.target.closest('[data-action="upload-folder"]');
+                  if (!a) return;
+                  e.preventDefault(); e.stopImmediatePropagation();
+                  var m = location.hash.match(/^#folder\/(\d+)/);
+                  location.href = 'cloudapp://upload-folder?folder=' + (m ? m[1] : 0);
+                }, true);
+              }
               document.querySelectorAll('form[action$="logout.php"]').forEach(function(f){
                 var li = f.parentNode, a = link('logout', 'bi-box-arrow-right', 'Odhlásiť sa z aplikácie', 'dropdown-item text-danger');
                 li.replaceChild(a, f);
@@ -112,8 +122,11 @@ class MainActivity : AppCompatActivity() {
         val cb = fileCallback ?: return@registerForActivityResult
         fileCallback = null
         val data = res.data
+        val cam = cameraUri
+        cameraUri = null
         val uris: Array<Uri>? = when {
             res.resultCode != RESULT_OK -> null
+            cam != null && data?.data == null && data?.clipData == null -> arrayOf(cam)
             data?.clipData != null -> Array(data.clipData!!.itemCount) { data.clipData!!.getItemAt(it).uri }
             data?.data != null -> arrayOf(data.data!!)
             else -> null
@@ -122,6 +135,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Nahratie celej zložky z telefónu (systémový výber zložky). */
+    private val folderUploader = FolderUploader(this) {
+        if (::b.isInitialized) b.web.evaluateJavascript("window.cloudReload ? cloudReload() : location.reload()", null)
+    }
+    private var cameraUri: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -250,6 +269,22 @@ class MainActivity : AppCompatActivity() {
             override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = callback
+                if (params.isCaptureEnabled) { // „Odfotiť a nahrať“
+                    try {
+                        val dir = java.io.File(cacheDir, "camera").apply { mkdirs() }
+                        dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 86_400_000L) it.delete() }
+                        val video = params.acceptTypes.any { it.startsWith("video") } && params.acceptTypes.none { it.startsWith("image") }
+                        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                        val f = java.io.File(dir, (if (video) "VID_" else "IMG_") + stamp + (if (video) ".mp4" else ".jpg"))
+                        val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.files", f)
+                        cameraUri = uri
+                        val cam = Intent(if (video) android.provider.MediaStore.ACTION_VIDEO_CAPTURE else android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+                            .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+                            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        fileChooser.launch(cam)
+                        return true
+                    } catch (e: Exception) { cameraUri = null }
+                }
                 val intent = try { params.createIntent() } catch (e: Exception) { Intent(Intent.ACTION_GET_CONTENT).setType("*/*") }
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
                 if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
@@ -309,6 +344,7 @@ class MainActivity : AppCompatActivity() {
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
                     "open", "send" -> opener.handle(uri)
+                    "upload-folder" -> folderUploader.pick(uri.getQueryParameter("folder")?.toIntOrNull() ?: 0)
                 }
                 return true
             }

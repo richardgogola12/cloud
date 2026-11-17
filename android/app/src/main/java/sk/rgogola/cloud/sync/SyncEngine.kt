@@ -38,7 +38,7 @@ object SyncEngine {
 
     const val ACTION_CHANGED = "sk.rgogola.cloud.SYNC_CHANGED"
 
-    private data class LocalFile(val rel: String, val docUri: String, val size: Long, val mtime: Long)
+    internal data class LocalFile(val rel: String, val docUri: String, val size: Long, val mtime: Long)
 
     private val IGNORED_SUFFIX = listOf(".tmp", ".part", ".crdownload", ".partial", "~")
 
@@ -207,7 +207,7 @@ object SyncEngine {
         })
     }
 
-    private fun scanTree(ctx: Context, tree: Uri): List<LocalFile> {
+    internal fun scanTree(ctx: Context, tree: Uri): List<LocalFile> {
         val out = ArrayList<LocalFile>()
         val cols = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,

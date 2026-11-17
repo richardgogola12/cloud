@@ -790,6 +790,7 @@
     const a = e.target.closest('[data-action]'); if (!a) return;
     e.preventDefault();
     if (!canEditHere()) return toast('Táto zložka je iba na čítanie.', 'warning');
+    if (IN_APP && a.dataset.action === 'upload-folder') { location.href = 'cloudapp://upload-folder?folder=' + curFolder(); return; }
     ({ 'new-folder': newFolder, 'new-text': newText, 'upload-files': () => $('#fileInput').click(), 'upload-folder': () => $('#folderInput').click(), 'upload-camera': () => $('#cameraInput').click() })[a.dataset.action]?.();
   });
 
@@ -833,6 +834,7 @@
     if (files.length) { toast('Nahrávam ' + files.length + ' zdieľaných súborov do Môj disk'); enqueue(files.map(f => ({ ...f, folder: 0 }))); }
   }
 
+  window.cloudReload = () => load(true); // volá Android aplikácia po nahratí zložky
   route();
   importShared();
 })();
