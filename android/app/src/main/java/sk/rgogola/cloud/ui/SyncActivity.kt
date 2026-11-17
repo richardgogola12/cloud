@@ -178,7 +178,7 @@ class SyncActivity : AppCompatActivity() {
             val st = db.stats(id)
             val ib = ItemPairBinding.bind(v)
             ib.stats.text = "Nahraté ${st.done}" + (if (st.pending > 0) " · čaká ${st.pending}" else "") +
-                (if (st.errors > 0) " · chyby ${st.errors}" else "") + (if (st.skipped > 0) " · nenahraté staršie ${st.skipped}" else "")
+                (if (st.errors > 0) " · chyby ${st.errors} (ťukni pre detail)" else "") + (if (st.skipped > 0) " · nenahraté staršie ${st.skipped}" else "")
             ib.pairRequeue.text = if (st.skipped > 0) "Nahrať aj ${st.skipped} starších súborov" else "Nahrať všetky súbory znova"
             ib.pairRequeue.visibility = if (st.pending == 0) View.VISIBLE else View.GONE
         }
@@ -197,6 +197,7 @@ class SyncActivity : AppCompatActivity() {
             ib.pairError.visibility = if (p.lastError.isNullOrBlank()) View.GONE else View.VISIBLE
             ib.pairEnabled.isChecked = p.enabled
             ib.pairEnabled.setOnCheckedChangeListener { _, on -> db.setPairEnabled(p.id, on); CloudApp.kick(applicationContext, on) }
+            ib.root.setOnClickListener { showErrors(p.id, p.localName) }
             ib.pairRequeue.setOnClickListener {
                 MaterialAlertDialogBuilder(this)
                     .setTitle("Nahrať všetky súbory?")
@@ -224,6 +225,29 @@ class SyncActivity : AppCompatActivity() {
             }
             b.pairs.addView(ib.root)
         }
+    }
+
+    /** Zoznam súborov, ktoré sa nepodarilo nahrať, s presnou chybou. */
+    private fun showErrors(pairId: Long, name: String) {
+        val errs = db.errorFiles(pairId)
+        if (errs.isEmpty()) { Toast.makeText(this, "V zložke „$name“ nie sú žiadne chyby.", Toast.LENGTH_SHORT).show(); return }
+        val text = errs.joinToString("\n\n") { (rel, err) -> "• $rel\n   ${err.ifBlank { "neznáma chyba" }}" }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Chyby v „$name“ (${errs.size})")
+            .setMessage(text)
+            .setPositiveButton("Skúsiť znova") { _, _ ->
+                db.retryErrors(pairId)
+                prefs.authError = false
+                CloudApp.kick(applicationContext, syncNow = true)
+                refreshStatus()
+            }
+            .setNeutralButton("Kopírovať") { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("Chyby Cloud", text))
+                Toast.makeText(this, "Skopírované", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Zavrieť", null)
+            .show()
     }
 
     private fun requestBattery() {

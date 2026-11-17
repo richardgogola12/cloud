@@ -591,5 +591,9 @@ try {
     if (db()->inTransaction()) db()->rollBack();
     $msg = $ex instanceof PDOException ? 'Chyba databázy.' : $ex->getMessage();
     if ($ex instanceof PDOException) error_log('[cloud] ' . $ex->getMessage());
+    // chyby nahrávania zapíš do záznamov (Administrácia → Záznamy), aby sa dali dohľadať
+    if (str_starts_with($action, 'upload') || in_array($action, ['copy', 'save_text', 'mkfile'], true)) {
+        log_action($uid, 'error_' . $action, ($ex instanceof PDOException ? 'DB: ' . $ex->getMessage() : $msg) . ' @ ' . basename($ex->getFile()) . ':' . $ex->getLine());
+    }
     json_out(['ok' => false, 'error' => $msg], 400);
 }

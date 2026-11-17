@@ -165,6 +165,18 @@ class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicatio
         "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state IN (?, ?)", arrayOf(ST_PENDING.toString(), ST_ERROR.toString())
     ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
+    /** Súbory s chybou a jej popisom. */
+    fun errorFiles(pairId: Long, limit: Int = 100): List<kotlin.Pair<String, String>> {
+        val out = ArrayList<kotlin.Pair<String, String>>()
+        readableDatabase.rawQuery("SELECT rel, COALESCE(err, '') FROM files WHERE pair_id = ? AND state = ? ORDER BY updated DESC LIMIT $limit",
+            arrayOf(pairId.toString(), ST_ERROR.toString())).use { c -> while (c.moveToNext()) out += kotlin.Pair(c.getString(0), c.getString(1)) }
+        return out
+    }
+
+    fun retryErrors(pairId: Long) {
+        writableDatabase.execSQL("UPDATE files SET state = ?, upload_id = NULL WHERE pair_id = ? AND state = ?", arrayOf<Any>(ST_PENDING, pairId, ST_ERROR))
+    }
+
     fun totalErrors(): Int = readableDatabase.rawQuery(
         "SELECT COUNT(*) FROM files f JOIN pairs p ON p.id = f.pair_id WHERE p.enabled = 1 AND f.state = ?", arrayOf(ST_ERROR.toString())
     ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }

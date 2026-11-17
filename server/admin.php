@@ -552,7 +552,7 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <?php endif; ?>
     <?php if ($fp): ?>
     <hr>
-    <div class="small mb-2"><b>Hlavný kľúč</b> · odtlačok <code><?= e($fp) ?></code> · <?= $keyFromConfig ? 'z config.php' : 'súbor <code>secret.key.php</code>' ?></div>
+    <div class="small mb-2"><b>Hlavný kľúč</b> · odtlačok <code><?= e($fp) ?></code> · <?= $keyFromConfig ? 'z config.php' : 'súbor <code>' . e(str_replace(APP_ROOT . '/', '', crypto_master_file())) . '</code>' ?></div>
     <div class="alert alert-warning small mb-2"><i class="bi bi-exclamation-triangle me-1"></i><b>Kľúč si zálohuj mimo servera.</b> Ak ho stratíš (napr. pri sťahovaní na nový hosting bez neho), zašifrované súbory sa už nebudú dať otvoriť.</div>
     <form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="download_key"><input type="hidden" name="tab" value="maintenance">
       <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="bi bi-key me-1"></i>Stiahnuť záložný kľúč</button></form>

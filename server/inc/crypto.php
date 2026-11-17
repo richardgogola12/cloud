@@ -16,7 +16,14 @@ const ENC_HEADER = 14;          // magic (6) + nonce prefix (8)
 const ENC_BLOCK = 65536;        // veľkosť bloku otvoreného textu
 const ENC_TAG = 16;
 
-function crypto_master_file(): string { return APP_ROOT . '/secret.key.php'; }
+/** Umiestnenie súboru s kľúčom: priečinok aplikácie, a ak doň PHP nemôže zapisovať, priečinok úložiska. */
+function crypto_master_file(): string {
+    $app = APP_ROOT . '/secret.key.php';
+    $store = data_path('secret.key.php');
+    if (is_file($app)) return $app;
+    if (is_file($store)) return $store;
+    return is_writable(APP_ROOT) ? $app : $store;
+}
 
 /** Hlavný kľúč (32 B). Ak neexistuje, vytvorí sa. */
 function crypto_master_key(): string {
@@ -36,7 +43,7 @@ function crypto_master_key(): string {
     }
     $k = random_bytes(32);
     $php = "<?php\n// Hlavný šifrovací kľúč Cloudu – ZÁLOHUJ HO! Bez neho sa súbory nedajú prečítať.\nreturn '" . base64_encode($k) . "';\n";
-    if (@file_put_contents($f, $php, LOCK_EX) === false) throw new RuntimeException('Nedá sa vytvoriť secret.key.php – priečinok aplikácie nie je zapisovateľný.');
+    if (@file_put_contents($f, $php, LOCK_EX) === false) throw new RuntimeException('Nedá sa vytvoriť šifrovací kľúč (' . $f . ') – priečinok nie je zapisovateľný. Vypni šifrovanie v Administrácia → Údržba alebo nastav práva.');
     @chmod($f, 0640);
     log_action(null, 'crypto_key_created', 'Vytvorený nový hlavný šifrovací kľúč');
     return $key = $k;
