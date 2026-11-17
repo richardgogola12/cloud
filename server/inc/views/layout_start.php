@@ -91,6 +91,15 @@ require __DIR__ . '/head.php';
           <a class="nav-link <?= ($active ?? '') === $key ? 'active' : '' ?>" href="<?= e(str_starts_with($href, 'cloudapp:') ? $href : url($href)) ?>" data-nav="<?= e($key) ?>"><i class="bi <?= $icon ?>"></i><?= e($label) ?><?= $key === 'shared' && $sharedCount ? '<span class="badge rounded-pill text-bg-light ms-auto">' . $sharedCount . '</span>' : '' ?></a>
         <?php endforeach; ?>
       </nav>
+      <?php if (($active ?? '') === 'drive'): ?>
+      <div class="side-tags mt-3">
+        <div class="d-flex align-items-center px-3 mb-1">
+          <span class="small fw-semibold text-body-secondary me-auto">Štítky</span>
+          <button class="btn btn-icon btn-sm" id="tagManageBtn" title="Spravovať štítky"><i class="bi bi-gear"></i></button>
+        </div>
+        <nav class="nav flex-column side-nav" id="sideTags"></nav>
+      </div>
+      <?php endif; ?>
       <div class="quota-box mt-auto">
         <div class="d-flex align-items-center gap-2 mb-2 small fw-semibold"><i class="bi bi-cloud"></i>Úložisko</div>
         <?php if ($quota > 0): ?>

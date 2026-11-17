@@ -48,6 +48,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <span class="fw-semibold me-auto" id="selCount">0 vybraté</span>
   <button class="btn btn-icon" data-sel="restore" data-in="trash" title="Obnoviť"><i class="bi bi-arrow-counterclockwise"></i></button>
   <button class="btn btn-icon text-danger" data-sel="purge" data-in="trash" title="Zmazať natrvalo"><i class="bi bi-x-octagon"></i></button>
+  <button class="btn btn-icon" data-sel="tags" data-not="trash" title="Štítky a farba"><i class="bi bi-tags"></i></button>
   <button class="btn btn-icon" data-sel="download" data-not="trash" title="Stiahnuť"><i class="bi bi-download"></i></button>
   <button class="btn btn-icon" data-sel="move" data-not="trash" data-perm="edit" title="Presunúť"><i class="bi bi-folder-symlink"></i></button>
   <button class="btn btn-icon" data-sel="copy" data-not="trash" title="Kopírovať"><i class="bi bi-copy"></i></button>
@@ -105,6 +106,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="edit"><i class="bi bi-pencil-square me-2"></i>Upraviť text</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="download"><i class="bi bi-download me-2"></i>Stiahnuť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="share"><i class="bi bi-person-plus me-2"></i>Zdieľať</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="tags"><i class="bi bi-tags me-2"></i>Štítky a farba…</a></li>
   <li data-sep><hr class="dropdown-divider"></li>
   <li><a class="dropdown-item" href="#" data-ctx="rename"><i class="bi bi-input-cursor-text me-2"></i>Premenovať</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="move"><i class="bi bi-folder-symlink me-2"></i>Presunúť</a></li>
@@ -201,6 +203,56 @@ require __DIR__ . '/inc/views/layout_start.php';
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- štítky a farba vybraných položiek -->
+<div class="modal fade" id="tagsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title text-truncate" id="tagsTitle">Štítky a farba</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3" id="colorBlock">
+          <label class="form-label small text-body-secondary mb-1" id="colorLabel">Farba</label>
+          <div class="color-palette" id="itemColors"></div>
+        </div>
+        <div class="mb-3" id="tagBlockD">
+          <label class="form-label small text-body-secondary mb-1"><i class="bi bi-folder me-1"></i>Štítky zložiek</label>
+          <select id="tagSelD" multiple></select>
+        </div>
+        <div class="mb-1" id="tagBlockF">
+          <label class="form-label small text-body-secondary mb-1"><i class="bi bi-file-earmark me-1"></i>Štítky súborov</label>
+          <select id="tagSelF" multiple></select>
+        </div>
+        <div class="form-text">Nový štítok vytvoríš tak, že napíšeš jeho názov a stlačíš Enter. Štítky sú osobné – vidíš ich iba ty.</div>
+      </div>
+      <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button><button class="btn btn-primary rounded-pill px-4" id="tagsSave">Uložiť</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- správa štítkov -->
+<div class="modal fade" id="tagManageModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="bi bi-tags me-2"></i>Štítky</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <form class="tag-new mb-3" id="tagNewForm">
+          <div class="d-flex gap-2 mb-2">
+            <input class="form-control" id="tagNewName" maxlength="50" placeholder="Nový štítok, napr. Faktúry" required>
+            <select class="form-select" id="tagNewScope" style="max-width:130px"><option value="f">pre súbory</option><option value="d">pre zložky</option></select>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="color-palette flex-grow-1" id="tagNewColors"></div>
+            <button class="btn btn-primary rounded-pill px-3">Pridať</button>
+          </div>
+        </form>
+        <div class="small fw-semibold text-body-secondary mb-1"><i class="bi bi-folder me-1"></i>Štítky zložiek</div>
+        <ul class="list-group list-group-flush mb-3" id="tagListD"></ul>
+        <div class="small fw-semibold text-body-secondary mb-1"><i class="bi bi-file-earmark me-1"></i>Štítky súborov</div>
+        <ul class="list-group list-group-flush" id="tagListF"></ul>
       </div>
     </div>
   </div>

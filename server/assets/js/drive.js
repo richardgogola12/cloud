@@ -5,10 +5,13 @@
   const { api, toast, esc, formatBytes, base } = Cloud;
   const PERM = { view: 1, edit: 2, owner: 3 };
   const IN_APP = navigator.userAgent.includes('CloudAndroid/');
+  const PALETTE = ['#d93025', '#e8710a', '#f9ab00', '#188038', '#12b5cb', '#1a73e8', '#6c4cf5', '#e52592', '#795548', '#5f6368'];
+  const textOn = (hex) => { const n = parseInt(String(hex).slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) > 170 ? '#202124' : '#fff'; };
+  const safeColor = (c) => /^#[0-9a-f]{6}$/i.test(c || '') ? c : null;
   const appUrl = (act, it) => 'cloudapp://' + act + '?id=' + it.id + '&name=' + encodeURIComponent(it.name) + '&mime=' + encodeURIComponent(it.mime || '') + '&size=' + (it.size || 0);
 
   const state = {
-    view: 'folder', folder: null, q: '', items: [], crumbs: [], perm: 'owner', root: 'drive', trashDays: 30,
+    view: 'folder', folder: null, q: '', items: [], tags: [], tagId: null, crumbs: [], perm: 'owner', root: 'drive', trashDays: 30,
     sel: new Set(),
     layout: localStorage.getItem('cloud-layout') || (innerWidth < 576 ? 'list' : 'grid'),
     limit: 300, // koľko položiek sa vykreslí (pri posúvaní sa pridávajú ďalšie)
@@ -53,7 +56,7 @@
   /* ---------------- načítanie ---------------- */
   async function load(keepSel) {
     $('#loading').classList.remove('d-none');
-    const r = await api('api.php?action=list', { view: state.view, folder: state.folder || 0, q: state.q, sort: state.sort, dir: state.dir });
+    const r = await api('api.php?action=list', { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir });
     $('#loading').classList.add('d-none');
     if (!r.ok) { toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
     Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days });
@@ -65,6 +68,11 @@
   function renderCrumbs() {
     const c = $('#crumbs');
     const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
+    if (state.view === 'tag') {
+      const t = state.crumbs[0] || {};
+      c.innerHTML = '<li class="breadcrumb-item active"><span class="tag-chip me-1" style="background:' + (safeColor(t.color) || '#5f6368') + ';color:' + textOn(safeColor(t.color) || '#5f6368') + '">' + esc(t.name || 'Štítok') + '</span></li>';
+      return;
+    }
     if (state.view !== 'folder') { c.innerHTML = '<li class="breadcrumb-item active">' + esc(titles[state.view]) + '</li>'; return; }
     const rootLi = state.root === 'shared'
       ? '<li class="breadcrumb-item"><a href="#shared">Zdieľané so mnou</a></li>'
@@ -89,6 +97,7 @@
     $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
     $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
     $$('.side-nav [data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
+    $$('#sideTags [data-tag]').forEach(a => a.classList.toggle('active', state.view === 'tag' && +a.dataset.tag === state.tagId));
     document.body.classList.toggle('readonly', !canEditHere());
 
     // pruhy nad zoznamom
@@ -107,6 +116,7 @@
     $('#empty').classList.toggle('d-none', state.items.length > 0);
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
       trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''],
+      tag: ['S týmto štítkom zatiaľ nič nie je', 'Štítok pridáš cez ⋮ → Štítky a farba.'],
       photos: ['Zatiaľ žiadne fotky', 'Nahraj obrázky – zoradia sa podľa dátumu.'], recent: ['Žiadne nedávne súbory', ''] }[state.view] || ['Zatiaľ tu nič nie je', 'Pretiahni sem súbory alebo použi tlačidlo Nový.'];
     $('#empty h5').textContent = emptyTxt[0];
     $('#empty p').textContent = emptyTxt[1];
@@ -147,10 +157,18 @@
   const badges = (it) => (it.starred ? '<i class="bi bi-star-fill text-warning small ms-1" title="S hviezdičkou"></i>' : '')
     + (it.shared ? '<i class="bi bi-people-fill text-body-secondary small ms-1" title="Zdieľané"></i>' : '')
     + (it.versions ? '<span class="badge text-bg-light border ms-1" title="Počet starších verzií">v' + (it.versions + 1) + '</span>' : '');
+  function tagChips(it) {
+    if (!it.tags || !it.tags.length) return '';
+    return '<span class="tag-chips">' + it.tags.map(t => '<span class="tag-chip" style="background:' + safeColor(t.color) + ';color:' + textOn(t.color) + '" title="' + esc(t.name) + '">' + esc(t.name) + '</span>').join('') + '</span>'
+      + '<span class="tag-dots">' + it.tags.map(t => '<span style="background:' + safeColor(t.color) + '"></span>').join('') + '</span>';
+  }
+  const colorAttr = (it) => safeColor(it.color) ? ' style="--item-color:' + it.color + '"' : '';
+  const colorCls = (it) => safeColor(it.color) ? ' has-color' : '';
+  const iconStyle = (it) => safeColor(it.color) ? ' style="color:' + it.color + '"' : '';
   function thumbHtml(it, big) {
     const [ic, cls] = fileIcon(it);
     if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'i\'),{className:\'bi ' + ic + ' ' + cls + '\'}))">';
-    return '<i class="bi ' + ic + ' ' + cls + (big ? ' big' : '') + '"></i>';
+    return '<i class="bi ' + ic + ' ' + cls + (big ? ' big' : '') + '"' + iconStyle(it) + '></i>';
   }
   function subText(it) {
     if (state.view === 'trash') return 'zmazané ' + fmtDate(it.deleted);
@@ -159,9 +177,9 @@
   }
   function listItem(it) {
     const k = key(it);
-    return '<div class="item row-item" data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
+    return '<div class="item row-item' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
       + '<div class="c-check"><input type="checkbox" class="form-check-input item-check" tabindex="-1"></div>'
-      + '<div class="c-name"><span class="item-icon">' + thumbHtml(it) + '</span><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + '</div>'
+      + '<div class="c-name"><span class="item-icon">' + thumbHtml(it) + '</span><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + tagChips(it) + '</div>'
       + '<div class="c-date d-none d-md-block text-truncate">' + esc(subText(it)) + '</div>'
       + '<div class="c-size d-none d-sm-block">' + (it.type === 'f' ? formatBytes(it.size) : (it.count != null ? it.count + ' pol.' : '—')) + '</div>'
       + '<div class="c-act"><button class="btn btn-icon btn-sm item-menu" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div></div>';
@@ -169,18 +187,18 @@
   function gridItem(it) {
     const k = key(it);
     if (it.type === 'd') {
-      return '<div class="item folder-card" data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.deleted ? '' : ' data-drop-folder="' + it.id + '"') + '>'
-        + '<input type="checkbox" class="form-check-input item-check" tabindex="-1"><i class="bi ' + (it.shared || it.owner ? 'bi-folder-symlink-fill' : 'bi-folder-fill') + ' ic-folder"></i>'
-        + '<span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it)
+      return '<div class="item folder-card' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.deleted ? '' : ' data-drop-folder="' + it.id + '"') + '>'
+        + '<input type="checkbox" class="form-check-input item-check" tabindex="-1"><i class="bi ' + (it.shared || it.owner ? 'bi-folder-symlink-fill' : 'bi-folder-fill') + ' ic-folder"' + iconStyle(it) + '></i>'
+        + '<span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + tagChips(it)
         + '<button class="btn btn-icon btn-sm item-menu ms-auto" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div>';
     }
     const [ic, cls] = fileIcon(it);
-    return '<div class="item file-card" data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '">'
+    return '<div class="item file-card' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '">'
       + '<input type="checkbox" class="form-check-input item-check" tabindex="-1">'
       + '<div class="file-thumb">' + thumbHtml(it, true) + '</div>'
-      + '<div class="file-meta"><i class="bi ' + ic + ' ' + cls + '"></i><span class="item-name text-truncate">' + esc(it.name) + '</span>'
+      + '<div class="file-meta"><i class="bi ' + ic + ' ' + cls + '"' + iconStyle(it) + '></i><span class="item-name text-truncate">' + esc(it.name) + '</span>'
       + '<button class="btn btn-icon btn-sm item-menu ms-auto" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div>'
-      + '<div class="file-sub text-truncate">' + formatBytes(it.size) + ' · ' + esc(subText(it)) + ' ' + badges(it) + '</div></div>';
+      + '<div class="file-sub text-truncate">' + formatBytes(it.size) + ' · ' + esc(subText(it)) + ' ' + badges(it) + '</div>' + tagChips(it) + '</div>';
   }
 
   function updateQuota(q) {
@@ -227,6 +245,7 @@
     const h = decodeURIComponent(location.hash.slice(1));
     if (h.startsWith('folder/')) { state.view = 'folder'; state.folder = parseInt(h.slice(7)) || null; }
     else if (['recent', 'starred', 'trash', 'shared', 'photos'].includes(h)) { state.view = h; state.folder = null; }
+    else if (h.startsWith('tag/')) { state.view = 'tag'; state.tagId = parseInt(h.slice(4)) || null; state.folder = null; }
     else if (h.startsWith('search/')) { state.view = 'search'; state.q = h.slice(7); $('#searchInput').value = state.q; }
     else { state.view = 'folder'; state.folder = null; }
     if (state.view !== 'search') $('#searchInput').value = '';
@@ -427,6 +446,134 @@
   $('#shCopy').onclick = async () => { try { await navigator.clipboard.writeText($('#shUrl').value); toast('Skopírované', 'success'); } catch (e) { $('#shUrl').select(); document.execCommand('copy'); toast('Skopírované', 'success'); } };
   $('#shNative').onclick = () => navigator.share({ title: shareIt.name, url: $('#shUrl').value }).catch(() => {});
 
+  /* ---------------- štítky a farby ---------------- */
+  async function loadTags() {
+    const r = await api('api.php?action=tags');
+    if (!r.ok) return;
+    state.tags = r.tags;
+    const nav = $('#sideTags');
+    if (!nav) return;
+    nav.innerHTML = state.tags.length ? state.tags.map(t => '<a class="nav-link' + (state.view === 'tag' && state.tagId === t.id ? ' active' : '') + '" href="#tag/' + t.id + '" data-tag="' + t.id + '">'
+      + '<span class="tag-dot" style="background:' + safeColor(t.color) + '"></span><span class="text-truncate">' + esc(t.name) + '</span>'
+      + '<i class="bi ' + (t.scope === 'd' ? 'bi-folder' : 'bi-file-earmark') + ' small opacity-50" title="' + (t.scope === 'd' ? 'pre zložky' : 'pre súbory') + '"></i>'
+      + '<span class="tag-count">' + t.count + '</span></a>').join('')
+      : '<span class="small text-body-secondary px-3 d-block">Zatiaľ žiadne štítky</span>';
+  }
+  function palette(box, current, withNone, onPick) {
+    box.innerHTML = (withNone ? '<button type="button" class="color-swatch none" data-c="" title="Bez farby"><i class="bi bi-slash-lg"></i></button>' : '')
+      + PALETTE.map(c => '<button type="button" class="color-swatch" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>').join('');
+    const mark = (c) => $$('.color-swatch', box).forEach(b => { const on = b.dataset.c === (c ?? '\u0000'); b.classList.toggle('active', on); b.innerHTML = on && b.dataset.c ? '<i class="bi bi-check-lg"></i>' : (b.dataset.c ? '' : '<i class="bi bi-slash-lg"></i>'); });
+    mark(current);
+    box.onclick = (e) => { const b = e.target.closest('.color-swatch'); if (!b) return; mark(b.dataset.c); onPick(b.dataset.c); };
+  }
+  const tagOpt = (o) => {
+    if (o.loading || !o.text) return o.text;
+    const t = state.tags.find(x => String(x.id) === String(o.id));
+    const c = t ? t.color : '#5f6368';
+    return jQuery('<span><span class="tag-dot d-inline-block me-2" style="width:10px;height:10px;border-radius:3px;background:' + safeColor(c) + '"></span>' + esc(o.text) + (o.newTag ? ' <span class="text-body-secondary small">(nový)</span>' : '') + '</span>');
+  };
+  let tagCtx = null, pickedColor;
+  async function tagsDialog(items) {
+    await loadTags();
+    tagCtx = { items, common: {} };
+    pickedColor = undefined;
+    $('#tagsTitle').textContent = items.length === 1 ? 'Štítky a farba „' + items[0].name + '“' : 'Štítky a farba (' + items.length + ' položiek)';
+    const canColor = items.every(i => PERM[i.perm] >= 2);
+    $('#colorBlock').classList.toggle('d-none', !canColor);
+    const colors = [...new Set(items.map(i => i.color || ''))];
+    $('#colorLabel').textContent = items.some(i => i.type === 'd') && items.some(i => i.type === 'f') ? 'Farba zložiek a súborov' : items[0].type === 'd' ? 'Farba zložky' : 'Farba súboru';
+    palette($('#itemColors'), colors.length === 1 ? colors[0] : null, true, (c) => { pickedColor = c; });
+    ['d', 'f'].forEach(scope => {
+      const its = items.filter(i => i.type === scope);
+      $('#tagBlock' + scope.toUpperCase()).classList.toggle('d-none', !its.length);
+      if (!its.length) return;
+      const common = its.map(i => (i.tags || []).map(t => t.id)).reduce((a, b) => a.filter(x => b.includes(x)));
+      tagCtx.common[scope] = common;
+      const $sel = jQuery('#tagSel' + scope.toUpperCase());
+      if ($sel.data('select2')) $sel.select2('destroy');
+      $sel.empty();
+      state.tags.filter(t => t.scope === scope).forEach(t => $sel.append(new Option(t.name, t.id, false, common.includes(t.id))));
+      $sel.select2({
+        theme: 'bootstrap-5', width: '100%', dropdownParent: jQuery('#tagsModal'), tags: true,
+        placeholder: 'Vyber štítky alebo napíš nový…',
+        createTag: (p) => { const t = (p.term || '').trim(); return t ? { id: 'new:' + t, text: t, newTag: true } : null; },
+        templateResult: tagOpt,
+        templateSelection: (o, li) => { const t = state.tags.find(x => String(x.id) === String(o.id)); const c = t ? t.color : PALETTE[5]; jQuery(li).css({ background: c, color: textOn(c) }); return o.text; },
+        language: { noResults: () => 'Napíš názov nového štítka a stlač Enter' },
+      });
+    });
+    bootstrap.Modal.getOrCreateInstance($('#tagsModal')).show();
+  }
+  $('#tagsSave').addEventListener('click', async () => {
+    const btn = $('#tagsSave'); btn.disabled = true;
+    try {
+      for (const scope of ['d', 'f']) {
+        const its = tagCtx.items.filter(i => i.type === scope);
+        if (!its.length) continue;
+        const ids = [];
+        for (const v of (jQuery('#tagSel' + scope.toUpperCase()).val() || [])) {
+          if (String(v).startsWith('new:')) {
+            const r = await api('api.php?action=tag_save', { name: v.slice(4), scope, color: PALETTE[(state.tags.length + ids.length) % PALETTE.length] });
+            if (!r.ok) { toast(r.error, 'danger'); continue; }
+            ids.push(r.id);
+          } else ids.push(parseInt(v));
+        }
+        const remove = (tagCtx.common[scope] || []).filter(x => !ids.includes(x));
+        const r = await api('api.php?action=tags_apply', { items: keysOf(its), add: ids, remove });
+        if (!r.ok) toast(r.error, 'danger');
+      }
+      if (pickedColor !== undefined) {
+        const r = await api('api.php?action=color_set', { items: keysOf(tagCtx.items), color: pickedColor });
+        if (!r.ok) toast(r.error, 'danger');
+      }
+      bootstrap.Modal.getInstance($('#tagsModal')).hide();
+      toast('Uložené', 'success');
+      await loadTags(); load(true);
+    } finally { btn.disabled = false; }
+  });
+
+  // správa štítkov
+  let newTagColor = PALETTE[5];
+  async function manageTags() {
+    await loadTags();
+    ['d', 'f'].forEach(scope => {
+      const ul = $('#tagList' + scope.toUpperCase());
+      const list = state.tags.filter(t => t.scope === scope);
+      ul.innerHTML = list.length ? '' : '<li class="list-group-item px-0 small text-body-secondary">Žiadne</li>';
+      list.forEach(t => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item px-0 d-flex align-items-center gap-2 tag-row';
+        li.innerHTML = '<input type="color" class="form-control form-control-color p-1" style="width:38px;height:34px" title="Farba"><input class="form-control form-control-sm" maxlength="50"><span class="small text-body-secondary text-nowrap">' + t.count + '×</span><button class="btn btn-icon btn-sm text-danger" title="Zmazať štítok"><i class="bi bi-trash3"></i></button>';
+        const [col, name] = li.querySelectorAll('input');
+        col.value = t.color; name.value = t.name;
+        const save = async () => {
+          const r = await api('api.php?action=tag_save', { id: t.id, name: name.value, color: col.value });
+          if (!r.ok) { toast(r.error, 'danger'); name.value = t.name; return; }
+          t.name = name.value; t.color = col.value; loadTags(); load(true);
+        };
+        col.addEventListener('change', save);
+        name.addEventListener('change', save);
+        li.querySelector('button').onclick = async () => {
+          if (!await Cloud.confirm('Zmazať štítok „' + t.name + '“?', 'Štítok zmizne zo všetkých položiek. Súbory a zložky zostanú.', 'Zmazať')) return;
+          const r = await api('api.php?action=tag_delete', { id: t.id });
+          if (r.ok) { li.remove(); await loadTags(); if (state.view === 'tag' && state.tagId === t.id) go('#'); else load(true); } else toast(r.error, 'danger');
+        };
+        ul.appendChild(li);
+      });
+    });
+    palette($('#tagNewColors'), newTagColor, false, (c) => { newTagColor = c; });
+    bootstrap.Modal.getOrCreateInstance($('#tagManageModal')).show();
+  }
+  $('#tagNewForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const r = await api('api.php?action=tag_save', { name: $('#tagNewName').value, scope: $('#tagNewScope').value, color: newTagColor });
+    if (!r.ok) return toast(r.error, 'danger');
+    $('#tagNewName').value = '';
+    toast('Štítok pridaný', 'success');
+    manageTags();
+  });
+  $('#tagManageBtn')?.addEventListener('click', () => { bootstrap.Offcanvas.getInstance($('#sidebar'))?.hide(); manageTags(); });
+
   /* ---------------- verzie ---------------- */
   let verIt = null;
   async function versions(it) {
@@ -587,7 +734,7 @@
       open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && isText(single) && minPerm >= 2, download: !trash,
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
-      info: single && !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
+      info: single && !trash, tags: !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
     };
     Object.entries(vis).forEach(([k, v]) => $('[data-ctx="' + k + '"]', ctx).parentElement.classList.toggle('d-none', !v));
     $('[data-sep]', ctx).classList.toggle('d-none', trash);
@@ -607,7 +754,7 @@
     const it = ctxItems[0], items = ctxItems;
     ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
-       info: () => info(it), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items) })[a.dataset.ctx]();
+       info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items) })[a.dataset.ctx]();
   });
 
   /* ---------------- udalosti v zozname ---------------- */
@@ -665,7 +812,7 @@
     const b = e.target.closest('[data-sel]'); if (!b) return;
     const items = selItems();
     ({ clear: () => { state.sel.clear(); updateSel(); }, download: () => download(items), move: () => moveDialog(items, 'move'),
-       copy: () => moveDialog(items, 'copy'), star: () => star(items), delete: () => del(items), restore: () => restore(items),
+       copy: () => moveDialog(items, 'copy'), star: () => star(items), delete: () => del(items), restore: () => restore(items), tags: () => tagsDialog(items),
        purge: () => purge(items), leave: () => leave(items) })[b.dataset.sel]();
   });
   document.addEventListener('keydown', (e) => {
@@ -849,5 +996,6 @@
 
   window.cloudReload = () => load(true); // volá Android aplikácia po nahratí zložky
   route();
+  loadTags();
   importShared();
 })();

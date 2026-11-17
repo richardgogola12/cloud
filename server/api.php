@@ -105,8 +105,9 @@ try {
 
         if ($view === 'search') {
             $s = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], trim((string)($_POST['q'] ?? ''))) . '%';
-            $folders = q("SELECT * FROM $D WHERE user_id = ? AND deleted_at IS NULL AND name LIKE ? ORDER BY $orderD LIMIT 100", [$uid, $s])->fetchAll();
-            $files   = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND name LIKE ? ORDER BY $orderF LIMIT 300", [$uid, $s])->fetchAll();
+            $tagged = "SELECT it.item_id FROM " . P . "item_tags it JOIN " . P . "tags tg ON tg.id = it.tag_id WHERE tg.user_id = ? AND tg.name LIKE ? AND it.item_type = ";
+            $folders = q("SELECT * FROM $D WHERE user_id = ? AND deleted_at IS NULL AND (name LIKE ? OR id IN ($tagged'd')) ORDER BY $orderD LIMIT 100", [$uid, $s, $uid, $s])->fetchAll();
+            $files   = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND (name LIKE ? OR id IN ($tagged'f')) ORDER BY $orderF LIMIT 300", [$uid, $s, $uid, $s])->fetchAll();
         } elseif ($view === 'recent') {
             $files = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 60", [$uid])->fetchAll();
         } elseif ($view === 'starred') {
@@ -120,6 +121,26 @@ try {
                         ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 3000", [$uid])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
+        } elseif ($view === 'tag') {
+            $tag = q('SELECT * FROM ' . P . 'tags WHERE id = ? AND user_id = ?', [(int)($_POST['tag'] ?? 0), $uid])->fetch();
+            if (!$tag) throw new RuntimeException('Štítok neexistuje.');
+            $ids = q('SELECT item_id FROM ' . P . 'item_tags WHERE tag_id = ? AND item_type = ?', [$tag['id'], $tag['scope']])->fetchAll(PDO::FETCH_COLUMN);
+            $root = 'tag';
+            if ($ids) {
+                $in = implode(',', array_map('intval', $ids));
+                if ($tag['scope'] === 'd') $folders = q("SELECT * FROM $D WHERE id IN ($in) AND deleted_at IS NULL ORDER BY $orderD")->fetchAll();
+                else $files = q("SELECT f.*, $vcnt FROM $F f WHERE id IN ($in) AND deleted_at IS NULL ORDER BY $orderF")->fetchAll();
+                // iba položky, ku ktorým má používateľ stále prístup (vlastné alebo zdieľané)
+                $folders = array_values(array_filter($folders, function ($d) use ($uid, &$extra) {
+                    if ((int)$d['user_id'] === $uid) return true;
+                    try { $a = folder_access($uid, (int)$d['id']); $extra['perm'][$d['id']] = $a['perm']; return true; } catch (Throwable $e) { return false; }
+                }));
+                $files = array_values(array_filter($files, function ($f) use ($uid, &$extra) {
+                    if ((int)$f['user_id'] === $uid) return true;
+                    try { $a = file_access($uid, (int)$f['id']); $extra['fperm'][$f['id']] = $a['perm']; return true; } catch (Throwable $e) { return false; }
+                }));
+            }
+            $crumbs = [['id' => (int)$tag['id'], 'name' => $tag['name'], 'color' => $tag['color']]];
         } elseif ($view === 'shared') {
             $root = 'shared';
             $sh = q('SELECT * FROM ' . P . 'user_shares WHERE target_id = ?', [$uid])->fetchAll();
@@ -374,8 +395,8 @@ try {
     case 'star': {
         $items = parse_items();
         $val = !empty($_POST['value']) ? 1 : 0;
-        foreach ($items['d'] as $id) q("UPDATE $D SET starred = ? WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
-        foreach ($items['f'] as $id) q("UPDATE $F SET starred = ? WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
+        foreach ($items['d'] as $id) q("UPDATE $D SET starred = ?, updated_at = updated_at WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
+        foreach ($items['f'] as $id) q("UPDATE $F SET starred = ?, updated_at = updated_at WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
         json_out(['ok' => true]);
     }
 
@@ -556,6 +577,62 @@ try {
 
     case 'share_user_remove': {
         q('DELETE FROM ' . P . 'user_shares WHERE id = ? AND owner_id = ?', [(int)($_POST['sid'] ?? 0), $uid]);
+        json_out(['ok' => true]);
+    }
+
+    /* ---------------- štítky a farby ---------------- */
+    case 'tags': {
+        $rows = q('SELECT t.*, (SELECT COUNT(*) FROM ' . P . 'item_tags it WHERE it.tag_id = t.id) AS cnt FROM ' . P . 'tags t WHERE t.user_id = ? ORDER BY t.scope DESC, t.name', [$uid])->fetchAll();
+        json_out(['ok' => true, 'tags' => array_map(fn($t) => ['id' => (int)$t['id'], 'name' => $t['name'], 'color' => $t['color'], 'scope' => $t['scope'], 'count' => (int)$t['cnt']], $rows)]);
+    }
+
+    case 'tag_save': {
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim(preg_replace('/\s+/u', ' ', (string)($_POST['name'] ?? '')));
+        if ($name === '' || mb_strlen($name) > 50) throw new RuntimeException('Názov štítka musí mať 1 až 50 znakov.');
+        $color = valid_color((string)($_POST['color'] ?? '')) ?? '#1a73e8';
+        try {
+            if ($id) {
+                $st = q('UPDATE ' . P . 'tags SET name = ?, color = ? WHERE id = ? AND user_id = ?', [$name, $color, $id, $uid]);
+            } else {
+                $scope = ($_POST['scope'] ?? '') === 'd' ? 'd' : 'f';
+                q('INSERT INTO ' . P . 'tags (user_id, name, color, scope) VALUES (?,?,?,?)', [$uid, $name, $color, $scope]);
+                $id = (int)db()->lastInsertId();
+            }
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') throw new RuntimeException('Štítok s týmto názvom už existuje.');
+            throw $e;
+        }
+        json_out(['ok' => true, 'id' => $id]);
+    }
+
+    case 'tag_delete': {
+        q('DELETE FROM ' . P . 'tags WHERE id = ? AND user_id = ?', [(int)($_POST['id'] ?? 0), $uid]);
+        json_out(['ok' => true]);
+    }
+
+    case 'tags_apply': { // pridá/odoberie štítky vybraným položkám (štítky sú osobné – stačí prístup na čítanie)
+        $items = parse_items();
+        $add = array_map('intval', (array)($_POST['add'] ?? []));
+        $remove = array_map('intval', (array)($_POST['remove'] ?? []));
+        $mine = [];
+        foreach (q('SELECT id, scope FROM ' . P . 'tags WHERE user_id = ?', [$uid]) as $t) $mine[(int)$t['id']] = $t['scope'];
+        $n = 0;
+        foreach (['d' => $items['d'], 'f' => $items['f']] as $type => $ids) {
+            foreach ($ids as $id) {
+                $type === 'd' ? folder_access($uid, $id) : file_access($uid, $id);
+                foreach ($add as $tid) if (($mine[$tid] ?? null) === $type) { q('INSERT IGNORE INTO ' . P . 'item_tags (tag_id, item_type, item_id) VALUES (?,?,?)', [$tid, $type, $id]); $n++; }
+                foreach ($remove as $tid) if (($mine[$tid] ?? null) === $type) q('DELETE FROM ' . P . 'item_tags WHERE tag_id = ? AND item_type = ? AND item_id = ?', [$tid, $type, $id]);
+            }
+        }
+        json_out(['ok' => true, 'applied' => $n]);
+    }
+
+    case 'color_set': {
+        $items = parse_items();
+        $color = valid_color((string)($_POST['color'] ?? ''));
+        foreach ($items['d'] as $id) { need(folder_access($uid, $id), 'edit'); q("UPDATE $D SET color = ?, updated_at = updated_at WHERE id = ?", [$color, $id]); }
+        foreach ($items['f'] as $id) { need(file_access($uid, $id), 'edit'); q("UPDATE $F SET color = ?, updated_at = updated_at WHERE id = ?", [$color, $id]); }
         json_out(['ok' => true]);
     }
 

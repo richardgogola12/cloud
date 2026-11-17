@@ -135,7 +135,24 @@ function shared_flags(int $owner, array $fileIds, array $folderIds): array {
     }
     return $out;
 }
+/** Štítky používateľa pre dané položky: ['f' => [id => [tag,..]], 'd' => [...]] */
+function item_tags_for(int $uid, array $fileIds, array $folderIds): array {
+    $out = ['f' => [], 'd' => []];
+    foreach (['f' => $fileIds, 'd' => $folderIds] as $t => $ids) {
+        if (!$ids) continue;
+        foreach (array_chunk(array_map('intval', $ids), 1000) as $chunk) {
+            $rows = q('SELECT it.item_id, tg.id, tg.name, tg.color FROM ' . P . 'item_tags it JOIN ' . P . "tags tg ON tg.id = it.tag_id
+                       WHERE tg.user_id = ? AND it.item_type = '$t' AND it.item_id IN (" . implode(',', $chunk) . ') ORDER BY tg.name', [$uid])->fetchAll();
+            foreach ($rows as $r) $out[$t][(int)$r['item_id']][] = ['id' => (int)$r['id'], 'name' => $r['name'], 'color' => $r['color']];
+        }
+    }
+    return $out;
+}
+function valid_color(?string $c): ?string { return $c !== null && preg_match('/^#[0-9a-f]{6}$/i', $c) ? strtolower($c) : null; }
+
 function rows_out(int $uid, array $folders, array $files, array $extra = []): array {
+    try { $tags = item_tags_for($uid, array_map(fn($f) => (int)$f['id'], $files), array_map(fn($f) => (int)$f['id'], $folders)); }
+    catch (Throwable $e) { $tags = ['f' => [], 'd' => []]; }
     $owners = owner_names(array_merge(array_column($folders, 'user_id'), array_column($files, 'user_id')));
     $sh = shared_flags($uid, array_map(fn($f) => (int)$f['id'], array_filter($files, fn($f) => (int)$f['user_id'] === $uid)),
                              array_map(fn($f) => (int)$f['id'], array_filter($folders, fn($f) => (int)$f['user_id'] === $uid)));
@@ -145,7 +162,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
                   'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
-                  'deleted' => $d['deleted_at'] ?? null];
+                  'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? []];
     }
     foreach ($files as $f) {
         $out[] = ['type' => 'f', 'id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'mime' => $f['mime'],
@@ -155,7 +172,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'versions' => isset($f['vcnt']) ? (int)$f['vcnt'] : 0,
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
-                  'deleted' => $f['deleted_at'] ?? null];
+                  'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? []];
     }
     return $out;
 }
@@ -280,6 +297,7 @@ function purge_file(array $f): void {
     foreach (q('SELECT stored_name FROM ' . P . 'file_versions WHERE file_id = ?', [$f['id']])->fetchAll(PDO::FETCH_COLUMN) as $s) @unlink(storage_dir($owner) . '/' . $s);
     q('DELETE FROM ' . P . "shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
     q('DELETE FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id = ?", [$f['id']]);
+    try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'f' AND item_id = ?", [$f['id']]); } catch (Throwable $e) {}
     q('DELETE FROM ' . P . 'files WHERE id = ?', [$f['id']]);
 }
 function purge_folder(int $owner, int $id): void {
@@ -288,6 +306,7 @@ function purge_folder(int $owner, int $id): void {
     foreach (q('SELECT * FROM ' . P . "files WHERE user_id = ? AND folder_id IN ($in)", [$owner])->fetchAll() as $f) purge_file($f);
     q('DELETE FROM ' . P . "shares WHERE item_type = 'd' AND item_id IN ($in)");
     q('DELETE FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id IN ($in)");
+    try { q('DELETE FROM ' . P . "item_tags WHERE item_type = 'd' AND item_id IN ($in)"); } catch (Throwable $e) {}
     q('DELETE FROM ' . P . 'folders WHERE id = ? AND user_id = ?', [$id, $owner]);
 }
 function purge_trash(int $owner, ?int $olderThanDays = null): int {

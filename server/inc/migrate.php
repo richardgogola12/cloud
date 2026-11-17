@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -25,6 +25,7 @@ function migrate(): void {
         if ($v < 3) migrate_v3();
         if ($v < 4) migrate_v4();
         if ($v < 5) migrate_v5();
+        if ($v < 6) migrate_v6();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -193,4 +194,29 @@ function migrate_v5(): void {
         ["{$p}notifications", 'idx_cloud_notif_unread', '(user_id, read_at)'],
     ];
     foreach ($idx as [$t, $name, $cols]) if (!idx_exists($t, $name)) db()->exec("CREATE INDEX $name ON $t $cols");
+}
+
+/* v6: štítky (zvlášť pre zložky a súbory) a farby položiek */
+function migrate_v6(): void {
+    $p = P;
+    add_col("{$p}files", 'color', 'VARCHAR(7) NULL');
+    add_col("{$p}folders", 'color', 'VARCHAR(7) NULL');
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}tags (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        name VARCHAR(50) NOT NULL,
+        color VARCHAR(7) NOT NULL DEFAULT '#1a73e8',
+        scope ENUM('d','f') NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cloud_tag (user_id, scope, name),
+        CONSTRAINT fk_cloud_tags_user FOREIGN KEY (user_id) REFERENCES {$p}users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}item_tags (
+        tag_id INT UNSIGNED NOT NULL,
+        item_type ENUM('d','f') NOT NULL,
+        item_id INT UNSIGNED NOT NULL,
+        PRIMARY KEY (tag_id, item_type, item_id),
+        INDEX idx_cloud_item_tags_item (item_type, item_id),
+        CONSTRAINT fk_cloud_item_tags_tag FOREIGN KEY (tag_id) REFERENCES {$p}tags(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
