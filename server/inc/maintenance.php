@@ -8,8 +8,10 @@ declare(strict_types=1);
 /** Spoločný zoznam uložených objektov: súbory aj staršie verzie. */
 function maint_rows(string $where, int $afterKey, int $limit): array {
     // kľúč = id * 2 (+1 pre verzie) – jednoduché stránkovanie cez obe tabuľky
-    $f = q('SELECT id, user_id, name, stored_name, size, mime, enc_key, sha256, \'f\' AS kind, id AS fid FROM ' . P . "files WHERE $where AND id * 2 > ? ORDER BY id LIMIT $limit", [$afterKey])->fetchAll();
-    $v = q('SELECT v.id, v.user_id, f.name, v.stored_name, v.size, v.mime, v.enc_key, v.sha256, \'v\' AS kind, v.file_id AS fid FROM ' . P . 'file_versions v JOIN ' . P . "files f ON f.id = v.file_id WHERE " . str_replace(['enc_key', 'sha256'], ['v.enc_key', 'v.sha256'], $where) . " AND v.id * 2 + 1 > ? ORDER BY v.id LIMIT $limit", [$afterKey])->fetchAll();
+    $fAfter = intdiv($afterKey, 2);                                  // súbory: kľúč 2*id
+    $vAfter = $afterKey % 2 === 1 ? intdiv($afterKey, 2) : intdiv($afterKey, 2) - 1; // verzie: kľúč 2*id+1
+    $f = q('SELECT id, user_id, name, stored_name, size, mime, enc_key, sha256, \'f\' AS kind, id AS fid FROM ' . P . "files WHERE $where AND id > ? ORDER BY id LIMIT $limit", [$fAfter])->fetchAll();
+    $v = q('SELECT v.id, v.user_id, f.name, v.stored_name, v.size, v.mime, v.enc_key, v.sha256, \'v\' AS kind, v.file_id AS fid FROM ' . P . 'file_versions v JOIN ' . P . "files f ON f.id = v.file_id WHERE " . str_replace(['enc_key', 'sha256'], ['v.enc_key', 'v.sha256'], $where) . " AND v.id > ? ORDER BY v.id LIMIT $limit", [$vAfter])->fetchAll();
     foreach ($f as &$r) $r['_k'] = (int)$r['id'] * 2;
     foreach ($v as &$r) $r['_k'] = (int)$r['id'] * 2 + 1;
     unset($r);

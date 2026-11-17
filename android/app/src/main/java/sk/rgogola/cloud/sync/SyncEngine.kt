@@ -53,7 +53,7 @@ object SyncEngine {
     private fun setStatus(ctx: Context, s: String) {
         status = s
         ctx.sendBroadcast(Intent(ACTION_CHANGED).setPackage(ctx.packageName))
-        widget(ctx, force = true)
+        widget(ctx, force = !busy) // počas nahrávania tisícok súborov aktualizuj widget najviac raz za 1,5 s
     }
 
     private fun widget(ctx: Context, force: Boolean = false) {

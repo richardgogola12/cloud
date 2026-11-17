@@ -368,6 +368,48 @@ $j = $web->api('notifications');
 ok(!empty($j['ok']), 'zoznam upozornení', json_encode($j));
 ok(!empty($web->api('notifications_read')['ok']) && ($web->api('notifications_unread')['unread'] ?? 1) === 0, 'označenie ako prečítané');
 
+section('Tisícky súborov a zložiek');
+$pdo = new PDO('mysql:host=127.0.0.1;dbname=cloud', 'root', 'root', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$uidA = (int)$pdo->query("SELECT id FROM cloud_users WHERE email = 'admin@test.sk'")->fetchColumn();
+$j = $web->api('mkdir', ['parent' => 0, 'name' => 'Hromadne']);
+$bulk = (int)$j['id'];
+$t0 = microtime(true);
+$pdo->beginTransaction();
+$insF = $pdo->prepare('INSERT INTO cloud_files (user_id, folder_id, name, stored_name, size, mime) VALUES (?,?,?,?,?,?)');
+for ($i = 0; $i < 5000; $i++) $insF->execute([$uidA, $bulk, sprintf('subor_%05d.jpg', $i), bin2hex(random_bytes(20)), 1000 + $i, 'image/jpeg']);
+$insD = $pdo->prepare('INSERT INTO cloud_folders (user_id, parent_id, name) VALUES (?,?,?)');
+$parents = [$bulk];
+for ($i = 0; $i < 1000; $i++) { // 1000 zložiek v strome
+    $p = $parents[array_rand($parents)];
+    $insD->execute([$uidA, $p, "Zlozka $i"]);
+    $parents[] = (int)$pdo->lastInsertId();
+    if ($i % 4 === 0) for ($k = 0; $k < 5; $k++) $insF->execute([$uidA, end($parents), "f$k.txt", bin2hex(random_bytes(20)), 10, 'text/plain']);
+}
+$pdo->commit();
+echo "    (vložených 6250 súborov a 1000 zložiek za " . round(microtime(true) - $t0, 1) . " s)\n";
+$t = microtime(true); $j = $web->api('list', ['view' => 'folder', 'folder' => $bulk]); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && count($j['items']) >= 5000, 'výpis zložky s 5000+ položkami za ' . round($dt, 2) . ' s', json_encode(array_slice($j, 0, 2)));
+ok($dt < 5, 'výpis je dostatočne rýchly (< 5 s)');
+$t = microtime(true); $j = $web->api('list', ['view' => 'search', 'q' => 'subor_04']); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && count($j['items']) > 0 && $dt < 3, 'hľadanie v tisíckach súborov za ' . round($dt, 2) . ' s');
+$t = microtime(true); $j = $web->api('list', ['view' => 'photos']); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && $dt < 5, 'Fotky s tisíckami obrázkov za ' . round($dt, 2) . ' s');
+$t = microtime(true); $j = $web->api('folders'); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && count($j['results']) > 1000 && $dt < 5, 'zoznam 1000+ zložiek pre presun za ' . round($dt, 2) . ' s');
+$t = microtime(true); $j = $web->api('info', ['type' => 'd', 'id' => $bulk]); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && $dt < 5, 'informácie o veľkej zložke (rekurzívne) za ' . round($dt, 2) . ' s', json_encode($j));
+$t = microtime(true); $j = $web->api('delete', ['items' => ["d:$bulk"]]); $dt = microtime(true) - $t;
+ok(!empty($j['ok']) && $dt < 10, 'presun stromu 1000 zložiek a 6250 súborov do koša za ' . round($dt, 2) . ' s', json_encode($j));
+$t = microtime(true); $j = $web->api('restore', ['items' => ["d:$bulk"]]); $dt = microtime(true) - $t;
+$cnt = (int)$pdo->query("SELECT COUNT(*) FROM cloud_files WHERE user_id = $uidA AND deleted_at IS NULL AND name LIKE 'subor_%'")->fetchColumn();
+ok(!empty($j['ok']) && $cnt === 5000 && $dt < 10, 'obnovenie celého stromu za ' . round($dt, 2) . ' s');
+$web->api('delete', ['items' => ["d:$bulk"]]);
+$t = microtime(true); $j = $web->api('empty_trash'); $dt = microtime(true) - $t;
+$left = (int)$pdo->query("SELECT COUNT(*) FROM cloud_files WHERE user_id = $uidA AND name LIKE 'subor_%'")->fetchColumn();
+ok(!empty($j['ok']) && $left === 0 && $dt < 30, 'natrvalé zmazanie celého stromu za ' . round($dt, 2) . ' s', json_encode($j));
+$r = $web->get('index.php');
+ok($r['code'] === 200, 'disk sa po hromadných operáciách zobrazí');
+
 section('Odhlásenie');
 $r = $app->req('POST', 'app.php?action=logout', ['ajax' => true]);
 $r = $app->api('folders');

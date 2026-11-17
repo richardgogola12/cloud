@@ -461,6 +461,7 @@ function send_thumb(array $f): never {
 /** Zabalí zložky/súbory (riadky z DB) do ZIP a pošle ho. */
 function send_zip(array $folders, array $files, string $zipName): never {
     if (!class_exists('ZipArchive')) throw new RuntimeException('Na serveri chýba rozšírenie ZipArchive.');
+    @set_time_limit(0); // veľké zložky s tisíckami súborov
     $tmpDir = data_path('tmp');
     if (!is_dir($tmpDir)) mkdir($tmpDir, 0750, true);
     foreach (glob($tmpDir . '/*.zip') ?: [] as $old) if (filemtime($old) < time() - 3600) @unlink($old);

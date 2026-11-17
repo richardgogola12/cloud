@@ -63,6 +63,8 @@ class SyncService : Service() {
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private var observer: ContentObserver? = null
     private var netCb: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var manual = false
+    private var lastRun = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -92,7 +94,7 @@ class SyncService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startFg(Notif.service(this, idleText(), null))
-        if (intent?.action == ACTION_SYNC_NOW) trigger.trySend(Unit)
+        if (intent?.action == ACTION_SYNC_NOW) { manual = true; trigger.trySend(Unit) }
         return START_STICKY
     }
 
@@ -110,6 +112,11 @@ class SyncService : Service() {
             withTimeoutOrNull(prefs.intervalMin.coerceAtLeast(1) * 60_000L) { trigger.receive() }
             delay(4000) // zoskup viac zmien naraz
             while (trigger.tryReceive().isSuccess) { /* vyprázdni */ }
+            // pri tisíckach súborov neprehľadávaj pri každej zmene v galérii – najviac raz za minútu (ručné spustenie hneď)
+            val since = System.currentTimeMillis() - lastRun
+            if (!manual && lastRun > 0 && since < 60_000) delay(60_000 - since)
+            manual = false
+            lastRun = System.currentTimeMillis()
             if (!shouldRun(this)) { stopSelf(); return }
             SyncEngine.run(this) { text, pct -> Notif.updateService(this, text, pct) }
             Notif.updateService(this, idleText(), null)

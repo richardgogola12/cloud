@@ -11,6 +11,7 @@
     view: 'folder', folder: null, q: '', items: [], crumbs: [], perm: 'owner', root: 'drive', trashDays: 30,
     sel: new Set(),
     layout: localStorage.getItem('cloud-layout') || (innerWidth < 576 ? 'list' : 'grid'),
+    limit: 300, // koľko položiek sa vykreslí (pri posúvaní sa pridávajú ďalšie)
     sort: localStorage.getItem('cloud-sort') || 'name',
     dir: localStorage.getItem('cloud-dir') || 'asc',
   };
@@ -56,6 +57,7 @@
     $('#loading').classList.add('d-none');
     if (!r.ok) { toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
     Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days });
+    if (!keepSel) state.limit = 300;
     if (!keepSel) state.sel.clear(); else state.sel = new Set([...state.sel].filter(byKey));
     render(); updateQuota(r.quota);
   }
@@ -110,7 +112,8 @@
     $('#empty p').textContent = emptyTxt[1];
     $('#empty .btn').classList.toggle('d-none', !canEditHere() || !['folder', 'photos'].includes(state.view));
 
-    const folders = state.items.filter(i => i.type === 'd'), files = state.items.filter(i => i.type === 'f');
+    const visible = state.items.slice(0, state.limit);
+    const folders = visible.filter(i => i.type === 'd'), files = visible.filter(i => i.type === 'f');
     let h = '';
     if (layout === 'photos') {
       let month = '';
@@ -125,9 +128,19 @@
       if (folders.length) h += '<div class="section-title">Zložky</div><div class="grid grid-folders">' + folders.map(gridItem).join('') + '</div>';
       if (files.length) h += '<div class="section-title">Súbory</div><div class="grid grid-files">' + files.map(gridItem).join('') + '</div>';
     } else {
-      h = state.items.map(listItem).join('');
+      h = visible.map(listItem).join('');
+    }
+    if (state.items.length > visible.length) {
+      h += '<div id="moreItems" class="text-center text-body-secondary small py-4"><div class="spinner-border spinner-border-sm me-2"></div>Zobrazených ' + visible.length + ' z ' + state.items.length + '</div>';
     }
     box.innerHTML = h;
+    const more = document.getElementById('moreItems');
+    if (more) {
+      const io = new IntersectionObserver((en) => {
+        if (en.some(x => x.isIntersecting)) { io.disconnect(); state.limit += 300; render(); }
+      }, { rootMargin: '600px' });
+      io.observe(more);
+    }
     updateSel();
   }
 

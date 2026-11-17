@@ -56,7 +56,9 @@ class FolderUploader(private val act: AppCompatActivity, private val onDone: () 
             .setNegativeButton("Zrušiť") { _, _ -> job?.cancel() }
             .show()
 
+        act.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // nahrávanie tisícok súborov – obrazovka nezhasne
         job = act.lifecycleScope.launch {
+          try {
             val api = Api(Prefs(act))
             var ok = 0; var unchanged = 0
             val errors = ArrayList<String>()
@@ -102,6 +104,9 @@ class FolderUploader(private val act: AppCompatActivity, private val onDone: () 
                 .setMessage(msg)
                 .setPositiveButton("OK", null)
                 .show()
+          } finally {
+            act.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          }
         }
     }
 

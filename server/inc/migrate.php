@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -24,6 +24,7 @@ function migrate(): void {
         if ($v < 2) migrate_v2();
         if ($v < 3) migrate_v3();
         if ($v < 4) migrate_v4();
+        if ($v < 5) migrate_v5();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -178,4 +179,18 @@ function migrate_v4(): void {
         CONSTRAINT fk_cloud_notif_user FOREIGN KEY (user_id) REFERENCES {$p}users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     if (setting('encrypt_files') === null) setting_set('encrypt_files', '1');
+}
+
+/* v5: indexy pre tisícky súborov (Nedávne, Fotky, kôš, údržba) */
+function migrate_v5(): void {
+    $p = P;
+    $idx = [
+        ["{$p}files", 'idx_cloud_files_updated', '(user_id, updated_at)'],
+        ["{$p}files", 'idx_cloud_files_mime', '(user_id, mime(20))'],
+        ["{$p}files", 'idx_cloud_files_trash', '(user_id, trash_root, deleted_at)'],
+        ["{$p}folders", 'idx_cloud_folders_trash', '(user_id, trash_root, deleted_at)'],
+        ["{$p}uploads", 'idx_cloud_uploads_updated', '(updated_at)'],
+        ["{$p}notifications", 'idx_cloud_notif_unread', '(user_id, read_at)'],
+    ];
+    foreach ($idx as [$t, $name, $cols]) if (!idx_exists($t, $name)) db()->exec("CREATE INDEX $name ON $t $cols");
 }
