@@ -14,6 +14,7 @@ import android.os.Environment
 import android.os.SystemClock
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -49,6 +50,15 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_UNLOCKED = "unlocked"
         const val EXTRA_CHECK_UPDATE = "check_update"
         private const val LOCK_AFTER_MS = 3 * 60 * 1000L
+
+        /** Obnovenie potiahnutím nadol: v disku znovu načíta aktuálnu zložku, inde obnoví stránku. */
+        private const val REFRESH_JS = "(function(){ if (document.getElementById('items')) { window.dispatchEvent(new HashChangeEvent('hashchange')); } else { location.reload(); } })();"
+
+        /** Hlási aplikácii, či je otvorené okno/menu (vtedy potiahnutie nadol neobnovuje). */
+        private const val WATCH_JS = "(function(){ if (window.__cloudWatch) return; window.__cloudWatch = 1;" +
+            " var f = function(){ var b = document.body.classList.contains('modal-open') || !!document.querySelector('.offcanvas.show, .offcanvas-lg.show, .dropdown-menu.show, .ctx-menu.show');" +
+            " if (window.CloudAndroid) CloudAndroid.setRefreshBlocked(b); };" +
+            " new MutationObserver(f).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] }); f(); })();"
 
         /** Doplní do webového menu položky aplikácie (funguje s každou verziou servera). */
         private val INJECT_JS = """
@@ -88,6 +98,12 @@ class MainActivity : AppCompatActivity() {
     private var loaded = false
     private var reloginTimes = ArrayList<Long>()
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    @Volatile private var refreshBlocked = false
+
+    inner class JsBridge {
+        @JavascriptInterface
+        fun setRefreshBlocked(blocked: Boolean) { refreshBlocked = blocked }
+    }
 
     private val fileChooser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         val cb = fileCallback ?: return@registerForActivityResult
@@ -190,6 +206,14 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
+        w.addJavascriptInterface(JsBridge(), "CloudAndroid")
+        b.swipe.setColorSchemeResources(sk.rgogola.cloud.R.color.brand)
+        b.swipe.setOnChildScrollUpCallback { _, _ -> refreshBlocked || w.scrollY > 0 }
+        b.swipe.setOnRefreshListener {
+            if (!loaded || b.offline.visibility == View.VISIBLE) { b.swipe.isRefreshing = false; loadWeb(); return@setOnRefreshListener }
+            w.evaluateJavascript(REFRESH_JS, null)
+            w.postDelayed({ b.swipe.isRefreshing = false }, 900)
+        }
         w.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = handleUrl(request.url)
 
@@ -199,7 +223,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 b.progress.visibility = View.GONE
-                if (Uri.parse(url).host == Uri.parse(prefs.server).host) view.evaluateJavascript(INJECT_JS, null)
+                b.swipe.isRefreshing = false
+                if (Uri.parse(url).host == Uri.parse(prefs.server).host) {
+                    view.evaluateJavascript(INJECT_JS, null)
+                    view.evaluateJavascript(WATCH_JS, null)
+                }
                 if (Uri.parse(url).path?.endsWith("/login.php") == true) relogin()
             }
 
