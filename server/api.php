@@ -46,7 +46,11 @@ function check_quota_warning(int $owner): void {
         q('UPDATE ' . P . 'users SET quota_warned = 0 WHERE id = ?', [$owner]);
     }
 }
-function share_url(string $token): string { return public_url() . '/s.php?t=' . $token; }
+/** Zdieľaný odkaz: nastavená verejná adresa, inak adresa, na ktorej je web práve otvorený. */
+function share_url(string $token): string {
+    $base = trim((string)setting('public_url', '')) ?: request_base_url() ?: public_url();
+    return rtrim($base, '/') . '/s.php?t=' . $token;
+}
 
 /* ==================================================================
  *  GET: sťahovanie, náhľad, miniatúry, ZIP
@@ -537,12 +541,21 @@ try {
         json_out(['ok' => true]);
     }
 
-    case 'user_search': { // Select2 – hľadanie používateľov na zdieľanie
+    case 'user_search': { // Select2 – hľadanie používateľov na zdieľanie (meno alebo e-mail)
         $s = trim((string)($_POST['q'] ?? ''));
         if (mb_strlen($s) < 2) json_out(['ok' => true, 'results' => []]);
-        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s) . '%';
-        $rows = q('SELECT id, name, email, avatar_key, avatar_v FROM ' . P . 'users WHERE is_active = 1 AND id <> ? AND (email LIKE ? OR name LIKE ?) ORDER BY name LIMIT 10', [$uid, $like, $like])->fetchAll();
-        json_out(['ok' => true, 'results' => array_map(fn($r) => ['id' => (int)$r['id'], 'text' => $r['name'] . ' (' . $r['email'] . ')', 'name' => $r['name'], 'email' => $r['email'], 'avatar' => avatar_url($r)], $rows)]);
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], mb_strtolower($s)) . '%';
+        $rows = q('SELECT id, name, email, is_active, avatar_key, avatar_v FROM ' . P . 'users WHERE id <> ? AND (LOWER(email) LIKE ? OR LOWER(name) LIKE ?) ORDER BY is_active DESC, name LIMIT 10', [$uid, $like, $like])->fetchAll();
+        $out = array_map(fn($r) => ['id' => (int)$r['id'], 'text' => $r['name'] . ' (' . $r['email'] . ')', 'name' => $r['name'],
+            'email' => $r['email'] . ($r['is_active'] ? '' : ' · účet čaká na schválenie'), 'avatar' => avatar_url($r)], $rows);
+        if (!$out) {
+            $me = mb_strtolower($user['email'] ?? '');
+            if ($me !== '' && (str_contains($me, mb_strtolower($s)) || str_contains(mb_strtolower($user['name'] ?? ''), mb_strtolower($s))))
+                $out[] = ['id' => '', 'text' => 'To je tvoj vlastný účet – zdieľať môžeš s inými používateľmi.', 'disabled' => true];
+            elseif (filter_var($s, FILTER_VALIDATE_EMAIL))
+                $out[] = ['id' => '', 'text' => 'Nikto s e-mailom ' . $s . ' tu nemá účet. Nech sa zaregistruje, alebo mu pošli verejný odkaz.', 'disabled' => true];
+        }
+        json_out(['ok' => true, 'results' => $out]);
     }
 
     case 'share_user_add': {
@@ -553,7 +566,7 @@ try {
         $notify = !empty($_POST['notify']);
         foreach ((array)($_POST['users'] ?? []) as $tid) {
             $tid = (int)$tid;
-            $t = q('SELECT * FROM ' . P . 'users WHERE id = ? AND is_active = 1', [$tid])->fetch();
+            $t = q('SELECT * FROM ' . P . 'users WHERE id = ?', [$tid])->fetch();
             if (!$t || $tid === $uid) continue;
             q('INSERT INTO ' . P . 'user_shares (owner_id, item_type, item_id, target_id, permission) VALUES (?,?,?,?,?)
                ON DUPLICATE KEY UPDATE permission = VALUES(permission)', [$uid, $type, $id, $tid, $perm]);
