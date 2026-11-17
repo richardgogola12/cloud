@@ -78,6 +78,31 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("auth_error", false)
         set(v) = p.edit().putBoolean("auth_error", v).apply()
 
+    /** ručne vybrané súbory nahrávať natívne na pozadí (pokračuje aj po zatvorení aplikácie) */
+    var bgUpload: Boolean
+        get() = p.getBoolean("bg_upload", true)
+        set(v) = p.edit().putBoolean("bg_upload", v).apply()
+
+    var uploadTrees: Set<String>
+        get() = p.getStringSet("upload_trees", emptySet())?.toSet() ?: emptySet()
+        set(v) = p.edit().putStringSet("upload_trees", v).apply()
+
+    var uploadReport: String
+        get() = p.getString("upload_report", "") ?: ""
+        set(v) = p.edit().putString("upload_report", v).apply()
+
+    /** ručne potvrdené nastavenia výrobcu (autoštart, šetrič batérie) – systém ich nevie overiť */
+    fun bgConfirmed(key: String) = p.getBoolean("bg_ok_$key", false)
+    fun setBgConfirmed(key: String, v: Boolean) = p.edit().putBoolean("bg_ok_$key", v).apply()
+
+    var bgPromptTs: Long
+        get() = p.getLong("bg_prompt_ts", 0)
+        set(v) = p.edit().putLong("bg_prompt_ts", v).apply()
+
+    var bgPromptNever: Boolean
+        get() = p.getBoolean("bg_prompt_never", false)
+        set(v) = p.edit().putBoolean("bg_prompt_never", v).apply()
+
     val loggedIn get() = !token.isNullOrBlank()
 
     fun logout() {

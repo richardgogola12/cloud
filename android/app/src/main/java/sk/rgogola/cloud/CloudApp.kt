@@ -8,7 +8,10 @@ class CloudApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Notif.createChannels(this)
-        if (Prefs(this).loggedIn) WatchdogWorker.schedule(this)
+        if (Prefs(this).loggedIn) {
+            WatchdogWorker.schedule(this)
+            sk.rgogola.cloud.sync.UploadService.resumeIfPending(this)
+        }
     }
 
     companion object {

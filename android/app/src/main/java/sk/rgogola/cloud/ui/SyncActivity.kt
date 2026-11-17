@@ -11,7 +11,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
@@ -93,7 +92,7 @@ class SyncActivity : AppCompatActivity() {
         b.interval.setText(intervals.firstOrNull { it.first == prefs.intervalMin }?.second ?: "${prefs.intervalMin} minút", false)
         b.interval.setOnItemClickListener { _, _, pos, _ -> prefs.intervalMin = intervals[pos].first; SyncService.start(applicationContext) }
 
-        b.batteryBtn.setOnClickListener { requestBattery() }
+        b.batteryBtn.setOnClickListener { startActivity(Intent(this, BackgroundActivity::class.java)) }
         b.appSettingsBtn.setOnClickListener {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         }
@@ -149,8 +148,18 @@ class SyncActivity : AppCompatActivity() {
     private fun refreshAll() {
         refreshPairs()
         refreshStatus()
-        val pm = getSystemService(PowerManager::class.java)
-        b.batteryCard.visibility = if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) View.VISIBLE else View.GONE
+        val n = sk.rgogola.cloud.bg.BgCheck.problems(this)
+        if (n == 0) {
+            b.bgTitle.text = "✓ Beh na pozadí je nastavený"
+            b.bgDesc.text = "Nahrávanie pobeží aj pri zatvorenej aplikácii a po reštarte telefónu."
+            b.batteryBtn.text = "Spravovať"
+            b.batteryCard.setCardBackgroundColor(0x1A188038)
+        } else {
+            b.bgTitle.text = "Beh na pozadí – treba nastaviť: $n"
+            b.bgDesc.text = "Aby sa súbory nahrávali aj keď je aplikácia zatvorená, povoľ v telefóne potrebné nastavenia (batéria, autoštart, upozornenia…)."
+            b.batteryBtn.text = "Nastaviť"
+            b.batteryCard.setCardBackgroundColor(0x1AE37400)
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -248,16 +257,6 @@ class SyncActivity : AppCompatActivity() {
             }
             .setNegativeButton("Zavrieť", null)
             .show()
-    }
-
-    private fun requestBattery() {
-        try {
-            @SuppressLint("BatteryLife")
-            val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-            startActivity(i)
-        } catch (e: Exception) {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-        }
     }
 
     // ---------------- pridanie zložky ----------------

@@ -47,6 +47,22 @@
             android:label="@string/sync_title"
             android:parentActivityName=".ui.MainActivity" />
 
+        <activity
+            android:name=".ui.BackgroundActivity"
+            android:exported="false"
+            android:label="Beh na pozadí"
+            android:parentActivityName=".ui.SyncActivity" />
+
+        <!-- Nahrávanie ručne vybraných súborov na pozadí -->
+        <service
+            android:name=".sync.UploadService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Nahrávanie súborov vybraných používateľom do jeho súkromného cloudu, pokračuje aj po zatvorení aplikácie" />
+        </service>
+
         <!-- Nepretržitá synchronizácia (beží stále, aj po reštarte) -->
         <service
             android:name=".sync.SyncService"

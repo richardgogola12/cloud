@@ -83,7 +83,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:visibility="gone"
                 app:cardBackgroundColor="#1AE37400">
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -91,15 +90,16 @@
                     android:orientation="vertical"
                     android:padding="18dp">
                     <TextView
+                        android:id="@+id/bgTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Povoľ beh na pozadí"
+                        android:text="Beh na pozadí"
                         android:textStyle="bold" />
                     <TextView
+                        android:id="@+id/bgDesc"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Aby synchronizácia bežala stále a spustila sa aj po reštarte, vypni pre Cloud optimalizáciu batérie. Na telefónoch Xiaomi, Huawei či Samsung povoľ v nastaveniach aplikácie aj „Automatické spustenie“." />
+                        android:layout_marginTop="4dp" />
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -109,7 +109,7 @@
                             android:id="@+id/batteryBtn"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Povoliť"
+                            android:text="Nastaviť"
                             app:cornerRadius="24dp" />
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/appSettingsBtn"

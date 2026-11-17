@@ -72,6 +72,35 @@ object Notif {
         try { NotificationManagerCompat.from(ctx).notify(SyncService.NOTIF_ID, service(ctx, text, progress)) } catch (_: Exception) {}
     }
 
+    /** Notifikácia nahrávania ručne vybraných súborov (služba v popredí). */
+    fun upload(ctx: Context, title: String, text: String?, progress: Int?): Notification {
+        val cancel = PendingIntent.getService(ctx, 11,
+            Intent(ctx, sk.rgogola.cloud.sync.UploadService::class.java).setAction(sk.rgogola.cloud.sync.UploadService.ACTION_CANCEL),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val b = NotificationCompat.Builder(ctx, CH_SYNC)
+            .setSmallIcon(R.drawable.ic_stat_cloud)
+            .setContentTitle(title)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setContentIntent(activityPi(ctx, MainActivity::class.java, 3))
+            .addAction(0, "Zrušiť", cancel)
+        if (text != null) b.setContentText(text)
+        if (progress != null) b.setProgress(100, progress.coerceIn(0, 100), false) else b.setProgress(0, 0, true)
+        return b.build()
+    }
+
+    @SuppressLint("MissingPermission")
+    fun updateUpload(ctx: Context, title: String, text: String?, progress: Int?) {
+        if (!canPost(ctx)) return
+        try { NotificationManagerCompat.from(ctx).notify(sk.rgogola.cloud.sync.UploadService.NOTIF_ID, upload(ctx, title, text, progress)) } catch (_: Exception) {}
+    }
+
+    fun uploadDone(ctx: Context, title: String, text: String) =
+        alert(ctx, 5, title, text, MainActivity::class.java, MainActivity.EXTRA_UPLOAD_REPORT)
+
     @SuppressLint("MissingPermission")
     fun alert(ctx: Context, id: Int, title: String, text: String, target: Class<*> = SyncActivity::class.java, extra: String? = null) {
         if (!canPost(ctx)) return

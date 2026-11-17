@@ -39,6 +39,7 @@ import sk.rgogola.cloud.databinding.ActivityMainBinding
 import sk.rgogola.cloud.net.Api
 import sk.rgogola.cloud.sync.SyncDb
 import sk.rgogola.cloud.sync.SyncService
+import sk.rgogola.cloud.sync.UploadService
 
 /**
  * Hlavná obrazovka: webové rozhranie Cloudu (rovnaké ako v prehliadači) vo WebView.
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_UNLOCKED = "unlocked"
         const val EXTRA_CHECK_UPDATE = "check_update"
         const val EXTRA_OPEN_LINK = "open_link"
+        const val EXTRA_UPLOAD_REPORT = "upload_report"
         private const val LOCK_AFTER_MS = 3 * 60 * 1000L
 
         /** Obnovenie potiahnutím nadol: v disku znovu načíta aktuálnu zložku, inde obnoví stránku. */
@@ -70,7 +72,7 @@ class MainActivity : AppCompatActivity() {
                 a.innerHTML = '<i class="bi ' + icon + (cls.indexOf('dropdown') >= 0 ? ' me-2' : '') + '"></i>' + label;
                 return a;
               }
-              var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
+              var items = [['sync','bi-arrow-repeat','Synchronizácia telefónu'], ['background','bi-shield-check','Beh na pozadí'], ['update','bi-box-arrow-in-down','Aktualizácia aplikácie']];
               var nav = document.querySelector('.side-nav');
               if (nav && !nav.querySelector('[href^="cloudapp:"]')) {
                 items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
@@ -86,11 +88,13 @@ class MainActivity : AppCompatActivity() {
               if (!window.__cloudFolderHook) {
                 window.__cloudFolderHook = 1;
                 document.addEventListener('click', function(e){
-                  var a = e.target.closest && e.target.closest('[data-action="upload-folder"]');
+                  var a = e.target.closest && e.target.closest('[data-action="upload-folder"], [data-action="upload-files"]');
                   if (!a) return;
+                  var files = a.getAttribute('data-action') === 'upload-files';
+                  if (files && !window.__cloudBgUpload) return; // nahrávanie cez web
                   e.preventDefault(); e.stopImmediatePropagation();
                   var m = location.hash.match(/^#folder\/(\d+)/);
-                  location.href = 'cloudapp://upload-folder?folder=' + (m ? m[1] : 0);
+                  location.href = 'cloudapp://' + (files ? 'upload-files' : 'upload-folder') + '?folder=' + (m ? m[1] : 0);
                 }, true);
               }
               document.querySelectorAll('form[action$="logout.php"]').forEach(function(f){
@@ -136,9 +140,18 @@ class MainActivity : AppCompatActivity() {
 
     private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-    /** Nahratie celej zložky z telefónu (systémový výber zložky). */
-    private val folderUploader = FolderUploader(this) {
-        if (::b.isInitialized) b.web.evaluateJavascript("window.cloudReload ? cloudReload() : location.reload()", null)
+    /** Nahrávanie na pozadí: výber súborov / zložky v systéme, nahráva UploadService. */
+    private var uploadTarget = 0
+    private var seenUploadFinish = 0L
+    private val pickFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNullOrEmpty()) return@registerForActivityResult
+        UploadService.enqueueFiles(applicationContext, uploadTarget, uris)
+        Toast.makeText(this, "Nahrávam ${uris.size} ${if (uris.size == 1) "súbor" else if (uris.size in 2..4) "súbory" else "súborov"} na pozadí – priebeh je v notifikácii", Toast.LENGTH_LONG).show()
+    }
+    private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        UploadService.enqueueTree(applicationContext, uploadTarget, uri)
+        Toast.makeText(this, "Zložka sa nahráva na pozadí – priebeh je v notifikácii. Aplikáciu môžeš zavrieť.", Toast.LENGTH_LONG).show()
     }
     private var cameraUri: Uri? = null
 
@@ -169,6 +182,8 @@ class MainActivity : AppCompatActivity() {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         CloudApp.kick(applicationContext)
+        if (intent.getBooleanExtra(EXTRA_UPLOAD_REPORT, false)) showUploadReport()
+        seenUploadFinish = UploadService.finishedAt
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -177,6 +192,34 @@ class MainActivity : AppCompatActivity() {
         if (intent.getBooleanExtra(EXTRA_UNLOCKED, false)) { unlocked = true; loaded = false }
         intent.getStringExtra(EXTRA_OPEN_LINK)?.let { pendingLink = it; loaded = false }
         if (intent.getBooleanExtra(EXTRA_CHECK_UPDATE, false)) updater.check(manual = true)
+        if (intent.getBooleanExtra(EXTRA_UPLOAD_REPORT, false)) showUploadReport()
+    }
+
+    private fun showUploadReport() {
+        val r = prefs.uploadReport
+        if (r.isBlank()) return
+        val title = r.substringBefore("\n")
+        MaterialAlertDialogBuilder(this).setTitle(title).setMessage(r.substringAfter("\n").trim()).setPositiveButton("OK", null).show()
+    }
+
+    private fun reloadListing() {
+        if (::b.isInitialized && loaded) b.web.evaluateJavascript(REFRESH_JS, null)
+    }
+
+    /** Raz za čas upozorní, ak niečo bráni behu na pozadí (napr. optimalizácia batérie). */
+    private fun maybeAskBackground() {
+        if (prefs.bgPromptNever || System.currentTimeMillis() - prefs.bgPromptTs < 3 * 86_400_000L) return
+        if (sk.rgogola.cloud.sync.SyncDb.get(this).pairs().isEmpty() && UploadService.finishedAt == 0L) return
+        val n = sk.rgogola.cloud.bg.BgCheck.problems(this)
+        if (n == 0) return
+        prefs.bgPromptTs = System.currentTimeMillis()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Nahrávanie na pozadí")
+            .setMessage("Aby sa súbory nahrávali aj pri zatvorenej aplikácii, treba v telefóne nastaviť ešte $n ${if (n == 1) "vec" else if (n in 2..4) "veci" else "vecí"}.")
+            .setPositiveButton("Nastaviť") { _, _ -> startActivity(Intent(this, BackgroundActivity::class.java)) }
+            .setNegativeButton("Neskôr", null)
+            .setNeutralButton("Nepýtať sa") { _, _ -> prefs.bgPromptNever = true }
+            .show()
     }
 
     override fun onResume() {
@@ -193,12 +236,17 @@ class MainActivity : AppCompatActivity() {
             if (!loaded) loadWeb()
         }
         updater.resume()
+        UploadService.onFinished = { runOnUiThread { seenUploadFinish = UploadService.finishedAt; reloadListing() } }
+        if (UploadService.finishedAt > seenUploadFinish) { seenUploadFinish = UploadService.finishedAt; reloadListing() }
+        if (loaded) b.web.evaluateJavascript("window.__cloudBgUpload = ${prefs.bgUpload};", null)
+        if (unlocked && loaded) maybeAskBackground()
         if (System.currentTimeMillis() - prefs.lastUpdateCheck > 6 * 3600 * 1000L) updater.check(manual = false)
     }
 
     override fun onPause() {
         super.onPause()
         pausedAt = SystemClock.elapsedRealtime()
+        UploadService.onFinished = null
         CookieManager.getInstance().flush()
     }
 
@@ -249,6 +297,7 @@ class MainActivity : AppCompatActivity() {
                 b.progress.visibility = View.GONE
                 b.swipe.isRefreshing = false
                 if (Uri.parse(url).host == Uri.parse(prefs.server).host) {
+                    view.evaluateJavascript("window.__cloudBgUpload = ${prefs.bgUpload};", null)
                     view.evaluateJavascript(INJECT_JS, null)
                     view.evaluateJavascript(WATCH_JS, null)
                 }
@@ -344,7 +393,16 @@ class MainActivity : AppCompatActivity() {
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
                     "open", "send" -> opener.handle(uri)
-                    "upload-folder" -> folderUploader.pick(uri.getQueryParameter("folder")?.toIntOrNull() ?: 0)
+                    "background" -> startActivity(Intent(this, BackgroundActivity::class.java))
+                    "upload-files" -> {
+                        uploadTarget = uri.getQueryParameter("folder")?.toIntOrNull() ?: 0
+                        try { pickFiles.launch(arrayOf("*/*")) } catch (e: Exception) { Toast.makeText(this, "Výber súborov nie je dostupný", Toast.LENGTH_LONG).show() }
+                    }
+                    "upload-folder" -> {
+                        uploadTarget = uri.getQueryParameter("folder")?.toIntOrNull() ?: 0
+                        Toast.makeText(this, "Vyber zložku a ťukni na „Použiť túto zložku“", Toast.LENGTH_LONG).show()
+                        try { pickFolder.launch(null) } catch (e: Exception) { Toast.makeText(this, "Výber zložky nie je dostupný", Toast.LENGTH_LONG).show() }
+                    }
                 }
                 return true
             }
