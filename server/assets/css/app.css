@@ -84,10 +84,10 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 .drive-head { display: flex; align-items: center; gap: 4px; min-height: 48px; margin-bottom: 8px; }
 .drive-crumbs { font-size: 1.35rem; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; min-width: 0; align-items: center; }
 /* každá časť cesty sa skráti s „…“ – nikdy sa neprekrývajú */
-.drive-crumbs .breadcrumb-item { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; padding-left: 0; }
+.drive-crumbs .breadcrumb-item { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; padding-left: 0; overflow: hidden; }
 .drive-crumbs .breadcrumb-item + .breadcrumb-item::before { float: none; flex-shrink: 0; padding: 0 .35rem; }
-.drive-crumbs .breadcrumb-item:not(:last-child) { flex-shrink: 4; max-width: 40%; }
-.drive-crumbs .crumb-root, .drive-crumbs .crumb-more { flex-shrink: 0; max-width: none; }
+.drive-crumbs .breadcrumb-item:not(:last-child) { flex-shrink: 4; max-width: 40%; min-width: 4.5em; }
+.drive-crumbs .breadcrumb-item.crumb-root, .drive-crumbs .breadcrumb-item.crumb-more { flex-shrink: 0; max-width: none; min-width: auto; }
 .drive-crumbs .breadcrumb-item.active { color: var(--bs-body-color); font-weight: 500; flex-shrink: 1; }
 .drive-crumbs .crumb-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drive-crumbs a { display: flex; align-items: center; min-width: 0; max-width: 100%; color: var(--bs-secondary-color); text-decoration: none; border-radius: 8px; padding: 2px 6px; }

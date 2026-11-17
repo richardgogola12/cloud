@@ -76,14 +76,14 @@
       return;
     }
     if (state.view !== 'folder') { c.innerHTML = '<li class="breadcrumb-item active">' + txt(titles[state.view]) + '</li>'; return; }
-    // na mobile: ikona namiesto „Môj disk“, zo stredu cesty iba „…“ (posledné 2 úrovne)
+    // na mobile: ikona namiesto „Môj disk“, „…“ (= o úroveň vyššie) a aktuálna zložka
     const rootLabel = state.root === 'shared' ? 'Zdieľané so mnou' : 'Môj disk';
     const rootInner = mobile && state.crumbs.length ? '<i class="bi ' + (state.root === 'shared' ? 'bi-people' : 'bi-hdd-stack') + '" title="' + rootLabel + '"></i>' : txt(rootLabel);
     const rootLi = state.root === 'shared'
       ? '<li class="breadcrumb-item crumb-root"><a href="#shared">' + rootInner + '</a></li>'
       : '<li class="breadcrumb-item crumb-root' + (state.crumbs.length ? '' : ' active') + '"><a href="#" data-drop-folder="0">' + rootInner + '</a></li>';
     let list = state.crumbs.map((cr, i) => ({ ...cr, last: i === state.crumbs.length - 1 }));
-    const keep = mobile ? 2 : 4;
+    const keep = mobile ? 1 : 4;
     let h = rootLi;
     if (list.length > keep) {
       const hidden = list.slice(0, list.length - keep);
