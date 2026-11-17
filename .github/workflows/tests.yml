@@ -10,6 +10,9 @@ on:
       - '.github/workflows/tests.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   server-e2e:
     name: Server end-to-end (PHP + MySQL)
@@ -65,6 +68,16 @@ jobs:
           name: screens
           path: tests/screens/
           if-no-files-found: ignore
+
+      - name: Snímky do vetvy „screens“ (na kontrolu vzhľadu)
+        if: always()
+        run: |
+          [ -d tests/screens ] || exit 0
+          cd tests/screens
+          git init -q -b screens
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add -A && git commit -q -m "Snímky obrazovky ${{ github.sha }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screens
 
       - name: Denná údržba
         run: php -d error_reporting=E_ALL -d display_errors=1 tests/housekeeping.php
