@@ -49,7 +49,8 @@ for (const [name, opts] of sizes) {
     const txt = await page.locator('.select2-results').innerText().catch(() => '(žiadne výsledky)');
     console.log('[zdieľanie] výsledky hľadania: ' + txt.replace(/\n/g, ' | '));
     await page.screenshot({ path: `screens/${name}-5-zdielanie.png` });
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(500);
     await page.goto(base + 'index.php#byme'); await page.waitForTimeout(1200);
     await page.screenshot({ path: `screens/${name}-6-zdielane-mnou.png` });
     await page.click('.side-toggle'); await page.waitForTimeout(500);
