@@ -132,6 +132,7 @@ require __DIR__ . '/head.php';
         <?php else: ?>
           <div class="small text-body-secondary" id="quotaText">Využité <?= format_bytes($used) ?> (bez limitu)</div>
         <?php endif; ?>
+        <a class="small d-inline-block mt-2 text-decoration-none" href="<?= e(url('index.php#dupes')) ?>" data-nav="dupes"><i class="bi bi-files me-1"></i>Nájsť duplicitné súbory</a>
         <div class="small text-body-secondary opacity-50 mt-2">verzia <?= e(APP_VERSION) ?></div>
       </div>
     </div>

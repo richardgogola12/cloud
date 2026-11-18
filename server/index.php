@@ -191,6 +191,14 @@ require __DIR__ . '/inc/views/layout_start.php';
               <div class="input-group"><input class="form-control" id="shUrl" readonly><button class="btn btn-outline-primary" id="shCopy"><i class="bi bi-clipboard me-1"></i>Kopírovať</button></div>
               <div class="small text-body-secondary mt-1" id="shStats"></div>
             </div>
+            <div class="mb-3" id="shModeWrap">
+              <label class="form-label small">Čo môže návštevník</label>
+              <select class="form-select" id="shMode" data-search="false">
+                <option value="view">Zobraziť a stiahnuť</option>
+                <option value="upload">Iba nahrať súbory (obsah zložky neuvidí)</option>
+                <option value="both">Zobraziť, stiahnuť aj nahrať</option>
+              </select>
+            </div>
             <div class="row g-3">
               <div class="col-sm-6"><label class="form-label small">Platnosť do (voliteľné)</label><input type="date" class="form-control" id="shExpires"></div>
               <div class="col-sm-6"><label class="form-label small">Heslo (voliteľné)</label><input type="text" class="form-control" id="shPassword" autocomplete="off" placeholder="bez hesla">

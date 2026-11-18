@@ -6,13 +6,37 @@ declare(strict_types=1);
 
 const PERM_LEVEL = ['view' => 1, 'edit' => 2, 'owner' => 3];
 
+/** Voľný názov v zložke: „foto.jpg“ → „foto (2).jpg“ (aby sa cudzie nahrávanie neprepisovalo). */
+function free_name(int $owner, ?int $folder, string $name): string {
+    $ext = pathinfo($name, PATHINFO_EXTENSION);
+    $stem = $ext !== '' ? substr($name, 0, -strlen($ext) - 1) : $name;
+    for ($i = 1; $i < 1000; $i++) {
+        $try = $i === 1 ? $name : $stem . ' (' . $i . ')' . ($ext !== '' ? '.' . $ext : '');
+        if (!q('SELECT 1 FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL', [$owner, $folder, $try])->fetchColumn()) return $try;
+    }
+    return $stem . ' ' . bin2hex(random_bytes(3)) . ($ext !== '' ? '.' . $ext : '');
+}
 function clean_name(string $n): string {
     $n = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]+/u', '', $n));
     $n = mb_substr($n, 0, 255);
     if ($n === '' || $n === '.' || $n === '..') throw new RuntimeException('Neplatný názov.');
     return $n;
 }
-function is_thumbable(string $mime): bool { return in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true); }
+function is_thumbable(string $mime): bool {
+    return in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)
+        || (str_starts_with($mime, 'video/') && ffmpeg_bin() !== null);
+}
+/** Cesta k ffmpeg (miniatúry videí), ak je na serveri nainštalovaný a PHP smie spúšťať programy. */
+function ffmpeg_bin(string $tool = 'ffmpeg'): ?string {
+    static $cache = [];
+    if (array_key_exists($tool, $cache)) return $cache[$tool];
+    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+    if (!function_exists('exec') || in_array('exec', $disabled, true)) return $cache[$tool] = null;
+    $found = null;
+    foreach (['/usr/bin/' . $tool, '/usr/local/bin/' . $tool, '/opt/homebrew/bin/' . $tool] as $p) { if (@is_executable($p)) { $found = $p; break; } }
+    if (!$found) { $out = []; @exec('command -v ' . escapeshellarg($tool) . ' 2>/dev/null', $out); $found = isset($out[0]) && $out[0] !== '' ? $out[0] : null; }
+    return $cache[$tool] = $found;
+}
 function data_path(string $sub = ''): string { return rtrim(cfg('storage_path'), '/') . ($sub !== '' ? '/' . $sub : ''); }
 function tmp_file(): string {
     $d = data_path('tmp');
@@ -174,13 +198,19 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? [],
-                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null];
+                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null];
     }
     return $out;
 }
 
 /* ================== Ukladanie súborov a verzie ================== */
 function photo_date(string $path, string $mime): ?string {
+    if (str_starts_with($mime, 'video/') && ($probe = ffmpeg_bin('ffprobe'))) { // dátum natočenia videa
+        $out = [];
+        @exec(escapeshellarg($probe) . ' -v quiet -show_entries format_tags=creation_time -of default=nw=1:nk=1 ' . escapeshellarg($path) . ' 2>/dev/null', $out);
+        if (!empty($out[0]) && ($t = strtotime($out[0])) && $t > 631152000) return date('Y-m-d H:i:s', $t);
+        return null;
+    }
     if ($mime !== 'image/jpeg' || !function_exists('exif_read_data')) return null;
     $ex = @exif_read_data($path);
     $d = $ex['DateTimeOriginal'] ?? $ex['DateTime'] ?? null;
@@ -349,9 +379,47 @@ function purge_trash(int $owner, ?int $olderThanDays = null): int {
     return $n;
 }
 
+/** Doplní kontrolný súčet (SHA-256) starším súborom – potrebné pre hľadanie duplicít. */
+function backfill_hashes(?int $uid, float $seconds): int {
+    $t0 = microtime(true); $n = 0;
+    @set_time_limit((int)$seconds + 30);
+    $rows = q('SELECT * FROM ' . P . 'files WHERE sha256 IS NULL AND deleted_at IS NULL' . ($uid ? ' AND user_id = ' . (int)$uid : '') . ' ORDER BY size LIMIT 500')->fetchAll();
+    foreach ($rows as $r) {
+        if (microtime(true) - $t0 > $seconds) break;
+        try { q('UPDATE ' . P . 'files SET sha256 = ? WHERE id = ?', [stored_sha256($r), $r['id']]); $n++; } catch (Throwable $e) {
+            q("UPDATE " . P . "files SET sha256 = '' WHERE id = ?", [$r['id']]); // poškodený súbor – nezdržiavať ďalšie pokusy
+        }
+    }
+    return $n;
+}
+
+/** Upozornenie administrátorov, keď na disku servera dochádza miesto (najviac raz za 12 h). */
+function check_disk_warning(): void {
+    $path = (string)cfg('storage_path');
+    $tot = @disk_total_space($path); $free = @disk_free_space($path);
+    if (!$tot || $free === false) return;
+    $pct = 1 - $free / $tot;
+    $warned = (int)setting('disk_warned_at', '0');
+    if ($pct >= 0.9 || $free < 2 * 1073741824) {
+        if (time() - $warned < 12 * 3600) return;
+        setting_set('disk_warned_at', (string)time());
+        $msg = 'Na disku servera zostáva ' . format_bytes((int)$free) . ' z ' . format_bytes((int)$tot) . ' (' . round($pct * 100) . ' % zaplnené).';
+        notify_admins('disk', 'Na serveri dochádza miesto', $msg, 'admin.php');
+        foreach (q("SELECT email, name FROM " . P . "users WHERE role = 'admin' AND is_active = 1")->fetchAll() as $a) {
+            send_mail($a['email'], 'Na serveri dochádza miesto – ' . cfg('app_name'), 'Dochádza miesto na disku',
+                '<p>' . e($msg) . '</p><p>Keď sa disk zaplní, nahrávanie prestane fungovať. Uvoľni miesto (kôš, staré verzie, duplicity) alebo pridaj väčší disk.</p>',
+                'Otvoriť administráciu', public_url() . '/admin.php');
+        }
+    } elseif ($warned && $pct < 0.85) {
+        setting_set('disk_warned_at', '0');
+    }
+}
+
 /* ================== Denná údržba ================== */
 function housekeeping(): void {
     setting_set('housekeeping_day', date('Y-m-d'));
+    try { check_disk_warning(); } catch (Throwable $e) {}
+    try { backfill_hashes(null, 120); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY
@@ -454,6 +522,17 @@ function send_stored(array $row, string $name, bool $inline): never {
 function safe_inline(string $mime): bool {
     return (bool)preg_match('#^(image/(jpeg|png|gif|webp|bmp)|video/|audio/|application/pdf$|text/plain$)#', $mime);
 }
+/** Snímka z videa (ffmpeg) ako JPEG. */
+function make_video_thumb(string $src, string $dst, int $max): bool {
+    $ff = ffmpeg_bin(); if (!$ff) return false;
+    $tmp = $dst . '.v.jpg';
+    foreach (['1', '0'] as $ss) {
+        @exec(escapeshellarg($ff) . ' -v quiet -y -ss ' . $ss . ' -i ' . escapeshellarg($src) . ' -frames:v 1 -vf ' . escapeshellarg("scale='min($max,iw)':-2") . ' -q:v 4 -f image2 ' . escapeshellarg($tmp) . ' 2>/dev/null', $o, $rc);
+        if (is_file($tmp) && filesize($tmp) > 0) return rename($tmp, $dst);
+    }
+    @unlink($tmp);
+    return false;
+}
 function make_thumb(string $src, string $dst, int $max): bool {
     if (!function_exists('imagecreatefromstring') || !is_file($src) || filesize($src) > 40 * 1024 * 1024) return false;
     $img = @imagecreatefromstring(file_get_contents($src));
@@ -482,11 +561,13 @@ function send_thumb(array $f): never {
     $key = row_key($f);
     if (!is_file($tpath)) {
         if (!is_dir($tdir)) mkdir($tdir, 0750, true);
-        if ((int)$f['size'] > 40 * 1024 * 1024) { http_response_code(404); exit; }
+        $video = str_starts_with($f['mime'], 'video/');
+        if ((int)$f['size'] > ($video ? 600 : 40) * 1024 * 1024) { http_response_code(404); exit; }
+        @set_time_limit(180);
         $src = stored_to_temp($f);
         $plainThumb = tmp_file();
         try {
-            if (!make_thumb($src, $plainThumb, 400)) { http_response_code(404); exit; }
+            if (!($video ? make_video_thumb($src, $plainThumb, 400) : make_thumb($src, $plainThumb, 400))) { http_response_code(404); exit; }
             if ($key !== null) crypto_encrypt_file($plainThumb, $tpath, $key); // miniatúry sú šifrované kľúčom súboru
             else rename($plainThumb, $tpath);
         } finally { @unlink($src); if (is_file($plainThumb)) @unlink($plainThumb); }

@@ -13,6 +13,10 @@ if (isset($_GET['ajax'])) {
     @set_time_limit(180);
     try {
         switch ($_GET['ajax']) {
+            case 'health':
+                $hh = server_health();
+                json_out(['ok' => true, 'h' => $hh, 'uptime' => $hh['uptime'] ? fmt_uptime($hh['uptime']) : null,
+                          'mem' => $hh['mem_total'] ? format_bytes($hh['mem_used']) . ' z ' . format_bytes($hh['mem_total']) : null]);
             case 'encrypt':
                 if (!crypto_enabled()) throw new RuntimeException('Šifrovanie je vypnuté.');
                 $r = maint_encrypt_batch();
@@ -391,6 +395,55 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <div class="small text-body-secondary">Cloud = súbory a verzie používateľov (bez miniatúr a dočasných súborov).</div>
 </div></div>
 <?php endif; ?>
+<?php $hh = server_health();
+  $tCls = $hh['temp'] === null ? '' : ($hh['temp'] >= 80 ? 'text-danger' : ($hh['temp'] >= 70 ? 'text-warning' : 'text-success'));
+  $memPct = $hh['mem_total'] ? round($hh['mem_used'] / $hh['mem_total'] * 100) : null;
+  $loadPct = $hh['load'] && $hh['cores'] ? min(100, round($hh['load'][0] / $hh['cores'] * 100)) : null; ?>
+<div class="card card-soft mb-3" id="healthCard"><div class="card-body">
+  <div class="d-flex align-items-center mb-3"><h2 class="h6 fw-bold mb-0 me-auto"><i class="bi bi-cpu me-2"></i>Stav servera</h2>
+    <span class="small text-body-secondary"><span class="live-dot"></span>obnovuje sa každých 10 s</span></div>
+  <div class="row g-3 text-center">
+    <div class="col-6 col-md-3"><div class="health-tile">
+      <div class="small text-body-secondary">Teplota CPU</div>
+      <div class="fs-4 fw-bold <?= $tCls ?>" data-h="temp"><?= $hh['temp'] !== null ? $hh['temp'] . ' °C' : '—' ?></div>
+      <div class="small text-body-secondary"><?= $hh['temp'] === null ? 'nedostupné' : 'nad 80 °C sa spomaľuje' ?></div></div></div>
+    <div class="col-6 col-md-3"><div class="health-tile">
+      <div class="small text-body-secondary">Záťaž procesora</div>
+      <div class="fs-4 fw-bold" data-h="load"><?= $loadPct !== null ? $loadPct . ' %' : '—' ?></div>
+      <div class="small text-body-secondary" data-h="loadsub"><?= $hh['load'] ? implode(' · ', $hh['load']) . ' (' . $hh['cores'] . ' jadrá)' : 'nedostupné' ?></div></div></div>
+    <div class="col-6 col-md-3"><div class="health-tile">
+      <div class="small text-body-secondary">Pamäť RAM</div>
+      <div class="fs-4 fw-bold <?= $memPct !== null && $memPct >= 90 ? 'text-danger' : '' ?>" data-h="mempct"><?= $memPct !== null ? $memPct . ' %' : '—' ?></div>
+      <div class="small text-body-secondary" data-h="mem"><?= $hh['mem_total'] ? format_bytes($hh['mem_used']) . ' z ' . format_bytes($hh['mem_total']) : 'nedostupné' ?></div></div></div>
+    <div class="col-6 col-md-3"><div class="health-tile">
+      <div class="small text-body-secondary">Beží bez reštartu</div>
+      <div class="fs-5 fw-bold" data-h="uptime"><?= $hh['uptime'] ? fmt_uptime($hh['uptime']) : '—' ?></div>
+      <div class="small text-body-secondary"><?= $hh['swap_total'] ? 'swap ' . format_bytes($hh['swap_used']) . ' / ' . format_bytes($hh['swap_total']) : '&nbsp;' ?></div></div></div>
+  </div>
+  <dl class="row small mb-0 mt-3 health-info">
+    <?php if ($hh['model']): ?><dt class="col-sm-3 text-body-secondary fw-normal">Zariadenie</dt><dd class="col-sm-9"><?= e($hh['model']) ?></dd><?php endif; ?>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Systém</dt><dd class="col-sm-9"><?= e($hh['os']) ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Softvér</dt><dd class="col-sm-9">PHP <?= e($hh['php']) ?><?= $hh['db'] ? ' · databáza ' . e($hh['db']) : '' ?><?= $hh['web'] ? ' · ' . e($hh['web']) : '' ?></dd>
+    <?php if ($hh['db_size'] !== null): ?><dt class="col-sm-3 text-body-secondary fw-normal">Veľkosť databázy</dt><dd class="col-sm-9"><?= format_bytes((int)$hh['db_size']) ?></dd><?php endif; ?>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><?= $hh['ffmpeg'] ? '<span class="text-success">✓ ffmpeg je nainštalovaný</span>' : 'vypnuté – nainštaluj <code>ffmpeg</code> (napr. <code>sudo apt install ffmpeg</code>)' ?></dd>
+  </dl>
+</div></div>
+<script>
+(() => {
+  const card = document.getElementById('healthCard'); if (!card) return;
+  const set = (k, v, cls) => { const el = card.querySelector('[data-h="' + k + '"]'); if (el && v != null) { el.textContent = v; if (cls !== undefined) el.className = el.className.replace(/text-(success|warning|danger)/g, '') + ' ' + cls; } };
+  setInterval(async () => {
+    if (document.hidden) return;
+    const r = await Cloud.api('admin.php?ajax=health', {}).catch(() => null);
+    if (!r || !r.ok) return;
+    const h = r.h;
+    if (h.temp != null) set('temp', h.temp + ' °C', h.temp >= 80 ? 'text-danger' : h.temp >= 70 ? 'text-warning' : 'text-success');
+    if (h.load && h.cores) { set('load', Math.min(100, Math.round(h.load[0] / h.cores * 100)) + ' %'); set('loadsub', h.load.join(' · ') + ' (' + h.cores + ' jadrá)'); }
+    if (h.mem_total) { const p = Math.round(h.mem_used / h.mem_total * 100); set('mempct', p + ' %', p >= 90 ? 'text-danger' : ''); set('mem', r.mem); }
+    if (r.uptime) set('uptime', r.uptime);
+  }, 10000);
+})();
+</script>
 <div class="row g-3 mb-3">
   <div class="col-lg-8"><div class="card card-soft h-100"><div class="card-body">
     <div class="d-flex align-items-baseline mb-1"><h2 class="h6 fw-bold mb-0 me-auto">Využitie úložiska v čase</h2><span class="small text-body-secondary">posledných 180 dní</span></div>

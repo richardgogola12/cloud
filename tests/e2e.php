@@ -375,6 +375,55 @@ ok($r['body'] !== $big && $r['code'] === 404, 'cez odkaz sa nedá stiahnuť súb
 $r = $pub->get($path . '&zip=1');
 ok(str_starts_with($r['body'], "PK"), 'ZIP cez verejný odkaz');
 
+section('Odkaz na nahrávanie');
+$upFolder = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Schránka'])['id'] ?? 0);
+$j = $web->api('share_link_save', ['type' => 'd', 'id' => $upFolder, 'mode' => 'upload']);
+ok(!empty($j['url']), 'odkaz iba na nahrávanie', json_encode($j));
+$upPath = parse_url($j['url'] ?? '', PHP_URL_PATH) . '?' . parse_url($j['url'] ?? '', PHP_URL_QUERY);
+$guest = new Client();
+$r = $guest->get($upPath);
+ok(str_contains($r['body'], 'Nahraj súbory') && !str_contains($r['body'], 'Stiahnuť všetko'), 'stránka na nahrávanie bez obsahu zložky');
+no_php_errors($r['body'], 's.php upload');
+$guest->loadCsrf($r['body']);
+$gdata = random_bytes(700000);
+$init = $guest->req('POST', $upPath . '&up=init', ['ajax' => true, 'form' => ['_csrf' => $guest->csrf, 'name' => 'od-hosta.bin', 'size' => strlen($gdata), 'guest' => 'Jana']])['json'];
+ok(!empty($init['ok']), 'host: začiatok nahrávania', json_encode($init));
+$off = 0; $gdone = null;
+while (!empty($init['ok']) && $off < strlen($gdata)) {
+    $tmp = tempnam('/tmp', 'g'); file_put_contents($tmp, substr($gdata, $off, 300000));
+    $jr = $guest->req('POST', $upPath . '&up=chunk', ['ajax' => true, 'multipart' => true, 'form' => ['_csrf' => $guest->csrf, 'id' => $init['id'], 'offset' => (string)$off, 'chunk' => new CURLFile($tmp, 'application/octet-stream', 'chunk')]])['json'];
+    unlink($tmp);
+    if (empty($jr['ok'])) { $gdone = $jr; break; }
+    $off = (int)$jr['received'];
+    if (!empty($jr['done'])) { $gdone = $jr; break; }
+}
+ok(!empty($gdone['done']), 'host: súbor nahraný po častiach', json_encode($gdone));
+$guest->req('POST', $upPath . '&up=done', ['ajax' => true, 'form' => ['_csrf' => $guest->csrf, 'guest' => 'Jana']]);
+$sub = array_values(array_filter($web->api('list', ['folder' => $upFolder])['items'] ?? [], fn($i) => $i['type'] === 'd' && $i['name'] === 'Jana'))[0] ?? null;
+$inSub = $sub ? ($web->api('list', ['folder' => $sub['id']])['items'] ?? []) : [];
+ok($sub && count($inSub) === 1 && $inSub[0]['name'] === 'od-hosta.bin', 'súbor je v podzložke s menom hosťa');
+$dl = $sub ? $web->get('api.php?action=download&id=' . $inSub[0]['id']) : ['body' => ''];
+ok($dl['body'] === $gdata, 'nahraný obsah je zhodný');
+ok($guest->get($upPath . '&dl=' . ($inSub[0]['id'] ?? 0))['code'] === 404, 'host nemôže sťahovať');
+$n = $web->api('notifications');
+ok(str_contains(json_encode($n['items'] ?? [], JSON_UNESCAPED_UNICODE), 'Jana nahral'), 'vlastník dostal upozornenie', json_encode($n['items'][0] ?? null, JSON_UNESCAPED_UNICODE));
+
+section('Duplicity');
+$dupData = random_bytes(5000);
+upload($web, $upFolder, 'kopia-a.bin', $dupData);
+upload($web, 0, 'kopia-b.bin', $dupData);
+$j = $web->api('list', ['view' => 'dupes']);
+$grp = array_values(array_filter($j['items'] ?? [], fn($i) => in_array($i['name'], ['kopia-a.bin', 'kopia-b.bin'], true)));
+ok(count($grp) === 2 && ($grp[0]['dup']['g'] ?? 1) === ($grp[1]['dup']['g'] ?? 2) && ($grp[0]['dup']['n'] ?? 0) === 2, 'duplicitné súbory sa nájdu v jednej skupine', json_encode($grp));
+ok(str_contains(json_encode($grp, JSON_UNESCAPED_UNICODE), 'Schránka'), 'pri duplicite je cesta k zložke');
+
+section('Stav servera');
+$r = $web->get('admin.php');
+ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť RAM'), 'admin: stav servera');
+$web->loadCsrf($r['body']);
+$h = $web->req('POST', 'admin.php?ajax=health', ['ajax' => true, 'form' => ['_csrf' => $web->csrf]])['json'];
+ok(!empty($h['ok']) && !empty($h['h']['mem_total']), 'stav servera sa obnovuje (RAM, záťaž)', json_encode($h));
+
 section('Administrácia');
 foreach (['dashboard', 'users', 'settings', 'smtp', 'log', 'maintenance', 'update'] as $tab) {
     $r = $web->get("admin.php?tab=$tab");

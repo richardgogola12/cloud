@@ -54,6 +54,13 @@ class UploadService : Service() {
             start(ctx)
         }
 
+        /** Súbory skopírované do aplikácie (napr. „Zdieľať → Cloud“) – po nahratí sa zmažú. */
+        fun enqueueLocal(ctx: Context, folder: Int, files: List<Triple<java.io.File, String, Long>>) {
+            if (files.isEmpty()) return
+            UploadQueue.add(ctx, files.map { (f, name, size) -> UploadQueue.Item(Uri.fromFile(f).toString(), folder, name, size, false) })
+            start(ctx)
+        }
+
         fun enqueueTree(ctx: Context, folder: Int, tree: Uri) {
             try { ctx.contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
             val p = Prefs(ctx)
@@ -176,6 +183,7 @@ class UploadService : Service() {
                 } catch (e: Exception) {
                     errors += "$rel: ${e.message ?: e.javaClass.simpleName}"
                 }
+                if (uri.scheme == "file") uri.path?.let { p -> if (p.startsWith(filesDir.absolutePath)) java.io.File(p).delete() }
                 UploadQueue.removeFirst(this)
                 processed++
             }

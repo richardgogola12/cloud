@@ -112,3 +112,43 @@ function maint_orphans(): array {
     }
     return ['items' => $out, 'bytes' => $bytes];
 }
+
+/* ================== Stav servera (Raspberry Pi aj bežný Linux) ================== */
+function server_health(): array {
+    $read = function (string $f): ?string { return @is_readable($f) ? (@file_get_contents($f) ?: null) : null; };
+    $h = ['temp' => null, 'load' => null, 'cores' => null, 'mem_total' => null, 'mem_used' => null, 'swap_total' => null, 'swap_used' => null, 'uptime' => null];
+    // teplota CPU (°C) – prvá teplotná zóna, ktorá vyzerá ako CPU
+    foreach (glob('/sys/class/thermal/thermal_zone*') ?: [] as $z) {
+        $t = $read("$z/temp");
+        if ($t !== null && is_numeric(trim($t)) && (int)$t > 0) { $h['temp'] = round((int)$t / 1000, 1); break; }
+    }
+    if (function_exists('sys_getloadavg')) { $l = @sys_getloadavg(); if ($l) $h['load'] = array_map(fn($x) => round($x, 2), $l); }
+    if ($c = $read('/proc/cpuinfo')) $h['cores'] = max(1, substr_count($c, "\nprocessor") + (str_starts_with($c, 'processor') ? 1 : 0));
+    if ($m = $read('/proc/meminfo')) {
+        preg_match_all('/^(\w+):\s+(\d+) kB/m', $m, $mm);
+        $mi = array_combine($mm[1], array_map(fn($v) => (int)$v * 1024, $mm[2]));
+        if (isset($mi['MemTotal'])) {
+            $h['mem_total'] = $mi['MemTotal'];
+            $h['mem_used'] = $mi['MemTotal'] - ($mi['MemAvailable'] ?? ($mi['MemFree'] + ($mi['Cached'] ?? 0)));
+        }
+        if (!empty($mi['SwapTotal'])) { $h['swap_total'] = $mi['SwapTotal']; $h['swap_used'] = $mi['SwapTotal'] - ($mi['SwapFree'] ?? 0); }
+    }
+    if ($u = $read('/proc/uptime')) $h['uptime'] = (int)explode(' ', $u)[0];
+    $model = $read('/proc/device-tree/model') ?: $read('/sys/firmware/devicetree/base/model');
+    $h['model'] = $model ? trim(str_replace("\0", '', $model)) : null;
+    $h['os'] = php_uname('s') . ' ' . php_uname('r') . ' (' . php_uname('m') . ')';
+    if ($osr = $read('/etc/os-release')) { if (preg_match('/^PRETTY_NAME="?([^"\n]+)/m', $osr, $o)) $h['os'] = $o[1] . ' · ' . php_uname('m'); }
+    $h['php'] = PHP_VERSION;
+    $h['web'] = $_SERVER['SERVER_SOFTWARE'] ?? null;
+    try { $h['db'] = db()->query('SELECT VERSION()')->fetchColumn(); } catch (Throwable $e) { $h['db'] = null; }
+    try {
+        $h['db_size'] = (int)db()->query("SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '" . str_replace('_', '\\_', P) . "%'")->fetchColumn();
+    } catch (Throwable $e) { $h['db_size'] = null; }
+    $h['ffmpeg'] = ffmpeg_bin() !== null;
+    return $h;
+}
+
+function fmt_uptime(int $s): string {
+    $d = intdiv($s, 86400); $hh = intdiv($s % 86400, 3600); $mi = intdiv($s % 3600, 60);
+    return ($d ? $d . ' d ' : '') . $hh . ' h ' . $mi . ' min';
+}

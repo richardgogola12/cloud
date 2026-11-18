@@ -83,6 +83,11 @@ class Prefs(ctx: Context) {
         get() = (p.getString("server_history", "") ?: "").split("\n").filter { it.isNotBlank() }
         set(v) = p.edit().putString("server_history", v.distinct().take(6).joinToString("\n")).apply()
 
+    /** posledná zložka pre „Zdieľať → Cloud“ */
+    var shareFolder: Int
+        get() = p.getInt("share_folder", 0)
+        set(v) = p.edit().putInt("share_folder", v).apply()
+
     /** ručne vybrané súbory nahrávať natívne na pozadí (pokračuje aj po zatvorení aplikácie) */
     var bgUpload: Boolean
         get() = p.getBoolean("bg_upload", true)

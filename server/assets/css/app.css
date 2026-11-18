@@ -344,3 +344,19 @@ a.share-row:hover { background: var(--c-hover); }
 .pv-spin { position: absolute; left: 50%; top: 50%; margin: -1rem 0 0 -1rem; }
 .pv-img.loaded .pv-full { opacity: 1; }
 .pv-img.loaded .pv-low, .pv-img.loaded .pv-spin { display: none; }
+
+/* nahrávanie cez verejný odkaz */
+.share-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; padding: 2rem 1rem; border: 2px dashed var(--c-border); border-radius: 18px; cursor: pointer; transition: background .15s, border-color .15s; }
+.share-drop:hover, .share-drop.over { background: var(--c-hover); border-color: var(--bs-primary); }
+.share-up-item { padding: .5rem 0; border-bottom: 1px solid var(--c-border); }
+.share-up-item:last-child { border-bottom: 0; }
+.dup-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; padding: .9rem .75rem .35rem; margin-top: .5rem; border-top: 1px solid var(--c-border); font-size: .9rem; }
+.dup-head:first-child { border-top: 0; margin-top: 0; }
+.health-tile { background: var(--c-hover); border-radius: 14px; padding: .8rem .5rem; height: 100%; }
+.health-info dd { margin-bottom: .25rem; }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #188038; margin-right: 6px; animation: livePulse 2s infinite; }
+@keyframes livePulse { 50% { opacity: .3; } }
+.photo-noimg { display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.photo-play { position: absolute; right: 6px; bottom: 6px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; pointer-events: none; }
+.photo-years { display: flex; gap: 6px; flex-wrap: wrap; position: sticky; top: var(--topbar-h); z-index: 3; padding: 4px 0 8px; background: var(--c-surface, var(--bs-body-bg)); }
+.photo-month { scroll-margin-top: calc(var(--topbar-h) + 52px); }

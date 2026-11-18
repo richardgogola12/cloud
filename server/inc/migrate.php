@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -27,6 +27,7 @@ function migrate(): void {
         if ($v < 5) migrate_v5();
         if ($v < 6) migrate_v6();
         if ($v < 7) migrate_v7();
+        if ($v < 8) migrate_v8();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -226,4 +227,10 @@ function migrate_v7(): void {
     // profilová fotka (zašifrovaná, kľúč zabalený hlavným kľúčom)
     add_col(P . 'users', 'avatar_key', 'TEXT NULL');
     add_col(P . 'users', 'avatar_v', 'INT NOT NULL DEFAULT 0');
+}
+
+function migrate_v8(): void {
+    // verejný odkaz: view = zobraziť/stiahnuť, upload = iba nahrať, both = oboje
+    add_col(P . 'shares', 'mode', "VARCHAR(10) NOT NULL DEFAULT 'view'");
+    add_col(P . 'shares', 'uploads', 'INT UNSIGNED NOT NULL DEFAULT 0');
 }

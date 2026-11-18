@@ -54,7 +54,81 @@ function shared_file(int $id): array {
 $curId = (int)($_GET['f'] ?? 0) ?: ($share['item_type'] === 'd' ? (int)$root['id'] : 0);
 if ($share['item_type'] === 'd' && !in_array($curId, $tree, true)) $curId = (int)$root['id'];
 
+$mode = $share['item_type'] === 'd' ? ($share['mode'] ?? 'view') : 'view';
+$canView = $mode !== 'upload';
+$canUpload = in_array($mode, ['upload', 'both'], true);
+
+/* ----- nahrávanie cez odkaz (po častiach, ako v aplikácii) ----- */
+if (isset($_GET['up']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        if (!$canUpload) throw new RuntimeException('Tento odkaz neumožňuje nahrávanie.');
+        csrf_check();
+        $step = (string)$_GET['up'];
+        if ($step === 'init') {
+            $name = clean_name((string)($_POST['name'] ?? ''));
+            $size = max(0, (int)($_POST['size'] ?? 0));
+            $folder = $mode === 'both' ? (int)($_POST['f'] ?? 0) : (int)$root['id'];
+            if (!in_array($folder, $tree, true)) $folder = (int)$root['id'];
+            $guest = trim((string)($_POST['guest'] ?? ''));
+            if ($guest !== '' && $mode === 'upload') $folder = (int)ensure_path($owner, $folder, clean_name(mb_substr($guest, 0, 60)));
+            $maxMb = (int)setting('max_upload_mb', '0');
+            if ($maxMb > 0 && $size > $maxMb * 1048576) throw new RuntimeException("Maximálna veľkosť súboru je $maxMb MB.");
+            $ou = q('SELECT quota FROM ' . P . 'users WHERE id = ?', [$owner])->fetch();
+            if ($ou && (int)$ou['quota'] > 0 && used_space($owner) + $size > (int)$ou['quota']) throw new RuntimeException('Úložisko príjemcu je plné.');
+            $id = bin2hex(random_bytes(16));
+            $dir = data_path('tmp/chunks');
+            if (!is_dir($dir)) mkdir($dir, 0750, true);
+            touch($dir . '/' . $id);
+            q('INSERT INTO ' . P . 'uploads (id, user_id, owner_id, folder_id, relpath, name, size) VALUES (?,?,?,?,?,?,?)', [$id, $owner, $owner, $folder, 'share:' . $token, $name, $size]);
+            json_out(['ok' => true, 'id' => $id, 'chunk' => chunk_size()]);
+        }
+        if ($step === 'chunk') {
+            $id = preg_replace('/[^a-f0-9]/', '', (string)($_POST['id'] ?? ''));
+            $up = q('SELECT * FROM ' . P . 'uploads WHERE id = ? AND owner_id = ? AND relpath = ?', [$id, $owner, 'share:' . $token])->fetch();
+            if (!$up) throw new RuntimeException('Nahrávanie vypršalo. Skús to znova.');
+            $path = data_path('tmp/chunks/' . $id);
+            $have = is_file($path) ? filesize($path) : 0;
+            if ((int)($_POST['offset'] ?? -1) !== $have) json_out(['ok' => true, 'received' => $have, 'resync' => true]);
+            $chunk = $_FILES['chunk'] ?? null;
+            if ((int)$up['size'] > 0) {
+                if (!$chunk || $chunk['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Časť súboru sa nepreniesla.');
+                if ($have + $chunk['size'] > $up['size']) throw new RuntimeException('Neplatná veľkosť dát.');
+                $in = fopen($chunk['tmp_name'], 'rb'); $out = fopen($path, 'ab');
+                if (!$in || !$out || !flock($out, LOCK_EX)) throw new RuntimeException('Nepodarilo sa zapísať dáta.');
+                stream_copy_to_stream($in, $out); fflush($out); flock($out, LOCK_UN); fclose($out); fclose($in);
+            }
+            clearstatcache(true, $path);
+            $have = filesize($path);
+            q('UPDATE ' . P . 'uploads SET received = ? WHERE id = ?', [$have, $id]);
+            if ($have < $up['size']) json_out(['ok' => true, 'received' => $have]);
+            $folder = $up['folder_id'] ? (int)$up['folder_id'] : null;
+            $r = store_file($owner, $folder, free_name($owner, $folder, $up['name']), $path, false);
+            q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
+            q('UPDATE ' . P . 'shares SET uploads = uploads + 1 WHERE id = ?', [$share['id']]);
+            $_SESSION['share_up'][$token][] = $r['name'];
+            json_out(['ok' => true, 'done' => true, 'received' => $have, 'name' => $r['name']]);
+        }
+        if ($step === 'done') { // jedno upozornenie vlastníkovi za celú dávku
+            $names = $_SESSION['share_up'][$token] ?? [];
+            unset($_SESSION['share_up'][$token]);
+            if ($names) {
+                $guest = trim((string)($_POST['guest'] ?? ''));
+                $who = $guest !== '' ? mb_substr($guest, 0, 60) : 'Niekto';
+                $cnt = count($names);
+                $txt = $who . ' nahral(a) ' . $cnt . ' ' . ($cnt === 1 ? 'súbor' : ($cnt < 5 ? 'súbory' : 'súborov')) . ' do „' . $root['name'] . '“: ' . implode(', ', array_slice($names, 0, 5)) . ($cnt > 5 ? '…' : '');
+                notify($owner, 'upload', 'Nové súbory cez odkaz', $txt, 'index.php#folder/' . (int)$root['id']);
+                log_action($owner, 'share_upload', $txt);
+            }
+            json_out(['ok' => true]);
+        }
+        throw new RuntimeException('Neplatná požiadavka.');
+    } catch (Throwable $e) {
+        json_out(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
 /* ----- sťahovanie ----- */
+if (!$canView && (isset($_GET['dl']) || isset($_GET['thumb']) || isset($_GET['zip']))) share_fail('Tento odkaz slúži iba na nahrávanie súborov.');
 if (isset($_GET['dl']) || isset($_GET['thumb']) || isset($_GET['zip'])) {
     session_write_close();
     if (isset($_GET['thumb'])) send_thumb(shared_file((int)$_GET['thumb']));
@@ -98,7 +172,8 @@ require __DIR__ . '/inc/views/head.php';
 <header class="app-topbar">
   <span class="brand"><span class="brand-logo"><i class="bi bi-cloud-fill"></i></span><span class="d-none d-sm-inline"><?= e(cfg('app_name')) ?></span></span>
   <div class="flex-grow-1"></div>
-  <?php if ($share['item_type'] === 'd'): ?>
+  <?php if (!$canView): ?>
+  <?php elseif ($share['item_type'] === 'd'): ?>
     <a class="btn btn-primary rounded-pill" href="<?= e(url($base . '&zip=1&f=' . $curId)) ?>"><i class="bi bi-file-earmark-zip me-1"></i>Stiahnuť všetko</a>
   <?php else: ?>
     <a class="btn btn-primary rounded-pill" href="<?= e(url($base . '&dl=' . $root['id'])) ?>"><i class="bi bi-download me-1"></i>Stiahnuť</a>
@@ -120,7 +195,12 @@ require __DIR__ . '/inc/views/head.php';
         <a class="btn btn-primary rounded-pill px-4" href="<?= e(url($base . '&dl=' . $root['id'])) ?>"><i class="bi bi-download me-2"></i>Stiahnuť</a></div>
     <?php endif; ?>
   </div>
+<?php elseif (!$canView): ?>
+  <h1 class="h4 fw-bold text-break mb-1"><i class="bi bi-cloud-arrow-up me-2 text-primary"></i>Nahraj súbory do „<?= e($root['name']) ?>“</h1>
+  <p class="text-body-secondary mb-3">Súbory uvidí iba <?= e($share['owner_name']) ?>. Ostatné súbory v zložke nie sú viditeľné.</p>
+  <?php require __DIR__ . '/inc/views/share_upload.php'; ?>
 <?php else: ?>
+  <?php if ($canUpload) require __DIR__ . '/inc/views/share_upload.php'; ?>
   <nav><ol class="breadcrumb drive-crumbs mb-3">
     <?php foreach ($crumbs as $i => $c): $last = $i === count($crumbs) - 1; ?>
       <li class="breadcrumb-item <?= $last ? 'active' : '' ?>"><?= $last ? '<span class="crumb-text" title="' . e($c['name']) . '">' . e($c['name']) . '</span>' : '<a href="' . e(url($base . '&f=' . $c['id'])) . '"><span class="crumb-text" title="' . e($c['name']) . '">' . e($c['name']) . '</span></a>' ?></li>

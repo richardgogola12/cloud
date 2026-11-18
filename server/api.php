@@ -121,7 +121,7 @@ try {
             $folders = q("SELECT * FROM $D WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC", [$uid])->fetchAll();
             $files   = q("SELECT f.*, 0 vcnt FROM $F f WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC", [$uid])->fetchAll();
         } elseif ($view === 'photos') {
-            $files = q("SELECT f.*, 0 vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND mime LIKE 'image/%'
+            $files = q("SELECT f.*, 0 vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND (mime LIKE 'image/%' OR mime LIKE 'video/%')
                         ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 3000", [$uid])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
@@ -145,6 +145,31 @@ try {
                 }));
             }
             $crumbs = [['id' => (int)$tag['id'], 'name' => $tag['name'], 'color' => $tag['color']]];
+        } elseif ($view === 'dupes') { // rovnaké súbory (rovnaký obsah podľa SHA-256)
+            try { backfill_hashes($uid, 8); } catch (Throwable $e) {}
+            $groups = q("SELECT sha256, COUNT(*) c, MAX(size) sz FROM $F WHERE user_id = ? AND deleted_at IS NULL AND sha256 IS NOT NULL AND sha256 <> '' AND size > 0
+                         GROUP BY sha256 HAVING c > 1 ORDER BY sz * (c - 1) DESC LIMIT 300", [$uid])->fetchAll();
+            if ($groups) {
+                $shas = array_column($groups, 'sha256');
+                $ph = implode(',', array_fill(0, count($shas), '?'));
+                $rows = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND sha256 IN ($ph) ORDER BY created_at", array_merge([$uid], $shas))->fetchAll();
+                $order = array_flip($shas);
+                usort($rows, fn($a, $b) => [$order[$a['sha256']], $a['created_at']] <=> [$order[$b['sha256']], $b['created_at']]);
+                // cesta k zložke pre každý súbor
+                $paths = [];
+                $all = q('SELECT id, parent_id, name FROM ' . P . 'folders WHERE user_id = ? AND deleted_at IS NULL', [$uid])->fetchAll();
+                $byId = array_column($all, null, 'id');
+                $pathOf = function (?int $fid) use (&$pathOf, &$paths, $byId): string {
+                    if (!$fid) return 'Môj disk';
+                    if (isset($paths[$fid])) return $paths[$fid];
+                    $r = $byId[$fid] ?? null;
+                    return $paths[$fid] = $r ? $pathOf($r['parent_id'] ? (int)$r['parent_id'] : null) . ' / ' . $r['name'] : '?';
+                };
+                $cnt = array_column($groups, 'c', 'sha256');
+                foreach ($rows as $r) $extra['dup'][(int)$r['id']] = ['g' => substr($r['sha256'], 0, 12), 'n' => (int)$cnt[$r['sha256']], 'path' => $pathOf($r['folder_id'] ? (int)$r['folder_id'] : null)];
+                $files = $rows;
+            }
+            $extra['nohash'] = (int)q("SELECT COUNT(*) FROM $F WHERE user_id = ? AND deleted_at IS NULL AND sha256 IS NULL", [$uid])->fetchColumn();
         } elseif ($view === 'byme') { // Zdieľané mnou: s ľuďmi aj verejným odkazom
             $dIds = []; $fIds = [];
             foreach (q('SELECT s.item_type, s.item_id, s.permission, u.name FROM ' . P . 'user_shares s JOIN ' . P . 'users u ON u.id = s.target_id WHERE s.owner_id = ? ORDER BY u.name', [$uid]) as $s) {
@@ -152,9 +177,10 @@ try {
                 $extra['si'][$t][$id]['users'][] = $s['name'] . ($s['permission'] === 'edit' ? ' (úpravy)' : '');
                 $t === 'd' ? $dIds[$id] = 1 : $fIds[$id] = 1;
             }
-            foreach (q('SELECT item_type, item_id, expires_at FROM ' . P . 'shares WHERE user_id = ?', [$uid]) as $s) {
+            foreach (q('SELECT item_type, item_id, expires_at, mode FROM ' . P . 'shares WHERE user_id = ?', [$uid]) as $s) {
                 $t = $s['item_type']; $id = (int)$s['item_id'];
                 $extra['si'][$t][$id]['link'] = $s['expires_at'] && strtotime($s['expires_at']) < time() ? 'expired' : 'on';
+                $extra['si'][$t][$id]['mode'] = $s['mode'] ?? 'view';
                 $t === 'd' ? $dIds[$id] = 1 : $fIds[$id] = 1;
             }
             if ($dIds) $folders = q("SELECT * FROM $D WHERE user_id = ? AND id IN (" . implode(',', array_keys($dIds)) . ") AND deleted_at IS NULL ORDER BY $orderD", [$uid])->fetchAll();
@@ -181,7 +207,7 @@ try {
         }
         json_out(['ok' => true, 'folder' => $folderId, 'crumbs' => $crumbs, 'perm' => $perm, 'root' => $root,
                   'items' => rows_out($uid, $folders, $files, $extra), 'quota' => quota_info($user),
-                  'trash_days' => (int)setting('trash_days', '30')]);
+                  'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0]);
     }
 
     case 'folders': { // pre Select2 – výber cieľovej zložky (vlastné + zdieľané s právom úprav)
@@ -301,6 +327,7 @@ try {
         q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
         if (empty($r['unchanged'])) log_action($uid, 'upload', $r['name'] . ' (' . format_bytes($r['size']) . ')' . ($r['versioned'] ? ' – nová verzia' : ''));
         check_quota_warning($owner);
+        try { check_disk_warning(); } catch (Throwable $e) {}
         json_out(['ok' => true, 'done' => true, 'received' => $have, 'file' => $r, 'quota' => quota_info($user)]);
     }
 
@@ -518,7 +545,8 @@ try {
             'avatar' => avatar_url(['id' => $r['uid'], 'avatar_key' => $r['avatar_key'], 'avatar_v' => $r['avatar_v']])], $users);
         json_out(['ok' => true, 'name' => $a['row']['name'],
             'link' => $link ? ['url' => share_url($link['token']), 'has_password' => (bool)$link['password'], 'expires' => $link['expires_at'] ? substr($link['expires_at'], 0, 10) : '',
-                               'downloads' => (int)$link['downloads'], 'expired' => $link['expires_at'] && strtotime($link['expires_at']) < time()] : null,
+                               'downloads' => (int)$link['downloads'], 'expired' => $link['expires_at'] && strtotime($link['expires_at']) < time(),
+                               'mode' => $link['mode'] ?? 'view', 'uploads' => (int)($link['uploads'] ?? 0)] : null,
             'users' => $users]);
     }
 
@@ -529,6 +557,7 @@ try {
         $exp = trim((string)($_POST['expires'] ?? ''));
         $exp = preg_match('/^\d{4}-\d{2}-\d{2}$/', $exp) ? $exp . ' 23:59:59' : null;
         $pwMode = $_POST['password_mode'] ?? 'keep'; // keep | set | clear
+        $mode = $type === 'd' && in_array($_POST['mode'] ?? '', ['upload', 'both'], true) ? $_POST['mode'] : 'view';
         $link = q('SELECT * FROM ' . P . 'shares WHERE item_type = ? AND item_id = ? ORDER BY id DESC LIMIT 1', [$type, $id])->fetch();
         $pw = $link['password'] ?? null;
         if ($pwMode === 'set') {
@@ -537,11 +566,11 @@ try {
             $pw = password_hash($p, PASSWORD_DEFAULT);
         } elseif ($pwMode === 'clear') $pw = null;
         if ($link) {
-            q('UPDATE ' . P . 'shares SET password = ?, expires_at = ? WHERE id = ?', [$pw, $exp, $link['id']]);
+            q('UPDATE ' . P . 'shares SET password = ?, expires_at = ?, mode = ? WHERE id = ?', [$pw, $exp, $mode, $link['id']]);
             $token = $link['token'];
         } else {
             $token = bin2hex(random_bytes(16));
-            q('INSERT INTO ' . P . 'shares (user_id, item_type, item_id, token, password, expires_at) VALUES (?,?,?,?,?,?)', [$uid, $type, $id, $token, $pw, $exp]);
+            q('INSERT INTO ' . P . 'shares (user_id, item_type, item_id, token, password, expires_at, mode) VALUES (?,?,?,?,?,?,?)', [$uid, $type, $id, $token, $pw, $exp, $mode]);
             log_action($uid, 'share_link', "$type:$id");
         }
         json_out(['ok' => true, 'url' => share_url($token)]);
