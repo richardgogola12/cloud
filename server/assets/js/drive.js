@@ -178,7 +178,10 @@
     const layout = state.view === 'photos' ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
-    $('#listHeader .c-date').textContent = state.view === 'trash' ? 'Zmazané' : state.view === 'dupes' ? 'Umiestnenie' : state.view === 'byme' ? 'Zdieľané s' : 'Zmenené';
+    $('#colsDrop').classList.toggle('d-none', layout !== 'list');
+    state.cols = colsNow();
+    state.colsShown = state.cols.slice(0, maxCols());
+    renderHeader(box);
     $('#empty').classList.toggle('d-none', state.items.length > 0);
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
       trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''], byme: ['Zatiaľ nič nezdieľaš', 'Súbor alebo zložku zdieľaš cez ⋮ → Zdieľať.'],
@@ -273,15 +276,122 @@
     if (it.owner) return it.owner;
     return fmtDate(it.updated);
   }
+  /* ---------- stĺpce v zozname ---------- */
+  const COLDEF = window.CLOUD_COLS || { labels: { updated: 'Zmenené', size: 'Veľkosť' }, views: {}, defaults: {}, mine: {} };
+  if (Array.isArray(COLDEF.mine)) COLDEF.mine = {};
+  const COLW = { size: '96px', kind: '150px', updated: '120px', created: '120px', taken: '120px', location: 'minmax(120px, .9fr)',
+    owner: '140px', sharing: 'minmax(120px, .8fr)', versions: '64px', tags: 'minmax(100px, .6fr)', deleted: '120px' };
+  const SORTCOL = { size: 'size', updated: 'updated', created: 'created', kind: 'kind' };
+  const colView = () => state.view === 'folder' && state.root === 'shared' ? 'shared' : (COLDEF.views[state.view] ? state.view : 'folder');
+  function colsNow() {
+    const v = colView();
+    let c = COLDEF.mine[v] || COLDEF.defaults[v] || ['updated', 'size'];
+    return c.filter(x => COLDEF.labels[x] && (x !== 'deleted' || v === 'trash'));
+  }
+  const KINDS = { jpg: 'Obrázok JPEG', jpeg: 'Obrázok JPEG', png: 'Obrázok PNG', gif: 'Obrázok GIF', webp: 'Obrázok WebP', heic: 'Fotka HEIC', heif: 'Fotka HEIF',
+    bmp: 'Obrázok BMP', svg: 'Obrázok SVG', tif: 'Obrázok TIFF', tiff: 'Obrázok TIFF', raw: 'Fotka RAW', dng: 'Fotka RAW', cr2: 'Fotka RAW', nef: 'Fotka RAW',
+    pdf: 'Dokument PDF', doc: 'Dokument Word', docx: 'Dokument Word', odt: 'Dokument ODT', rtf: 'Dokument RTF', pages: 'Dokument Pages',
+    xls: 'Tabuľka Excel', xlsx: 'Tabuľka Excel', ods: 'Tabuľka ODS', csv: 'Tabuľka CSV', numbers: 'Tabuľka Numbers',
+    ppt: 'Prezentácia PowerPoint', pptx: 'Prezentácia PowerPoint', odp: 'Prezentácia ODP', key: 'Prezentácia Keynote',
+    txt: 'Textový súbor', md: 'Markdown', log: 'Záznam (log)', json: 'Dáta JSON', xml: 'Dáta XML', yml: 'Konfigurácia YAML', yaml: 'Konfigurácia YAML',
+    html: 'Webová stránka', htm: 'Webová stránka', css: 'Štýly CSS', js: 'JavaScript', ts: 'TypeScript', php: 'Skript PHP', py: 'Skript Python', sql: 'Databáza SQL',
+    sh: 'Skript Shell', kt: 'Kód Kotlin', java: 'Kód Java', c: 'Kód C', cpp: 'Kód C++', cs: 'Kód C#',
+    zip: 'Archív ZIP', rar: 'Archív RAR', '7z': 'Archív 7z', gz: 'Archív GZ', tar: 'Archív TAR',
+    mp4: 'Video MP4', mov: 'Video MOV', mkv: 'Video MKV', avi: 'Video AVI', webm: 'Video WebM', '3gp': 'Video 3GP', m4v: 'Video M4V',
+    mp3: 'Zvuk MP3', wav: 'Zvuk WAV', m4a: 'Zvuk M4A', flac: 'Zvuk FLAC', ogg: 'Zvuk OGG', opus: 'Zvuk Opus', aac: 'Zvuk AAC',
+    apk: 'Aplikácia Android', exe: 'Program Windows', msi: 'Inštalátor Windows', dmg: 'Obraz disku macOS', iso: 'Obraz disku ISO',
+    ttf: 'Písmo', otf: 'Písmo', woff2: 'Písmo', ics: 'Kalendár', vcf: 'Kontakt', eml: 'E-mail', epub: 'E-kniha', stl: '3D model', psd: 'Photoshop', ai: 'Illustrator' };
+  function kindOf(it) {
+    if (it.type === 'd') return 'Zložka';
+    const ext = it.name.includes('.') ? it.name.split('.').pop().toLowerCase() : '';
+    if (KINDS[ext]) return KINDS[ext];
+    const m = it.mime || '';
+    if (m.startsWith('image/')) return 'Obrázok'; if (m.startsWith('video/')) return 'Video'; if (m.startsWith('audio/')) return 'Zvuk'; if (m.startsWith('text/')) return 'Text';
+    return ext ? 'Súbor ' + ext.toUpperCase() : 'Súbor';
+  }
+  const herePath = () => (state.root === 'shared' ? 'Zdieľané so mnou' : 'Môj disk') + state.crumbs.map(c => ' / ' + c.name).join('');
+  /** hodnota stĺpca ako HTML (null = prázdne) */
+  function colVal(c, it) {
+    switch (c) {
+      case 'size': return it.type === 'f' ? formatBytes(it.size) : (it.count != null ? it.count + ' pol.' : null);
+      case 'kind': return esc(kindOf(it));
+      case 'updated': return it.updated ? '<span title="' + esc(fmtFull(it.updated)) + '">' + esc(fmtDate(it.updated)) + '</span>' : null;
+      case 'created': return it.created ? '<span title="' + esc(fmtFull(it.created)) + '">' + esc(fmtDate(it.created)) + '</span>' : null;
+      case 'taken': return it.taken ? '<span title="' + esc(fmtFull(it.taken)) + '">' + esc(fmtDate(it.taken)) + '</span>' : null;
+      case 'deleted': return it.deleted ? esc(fmtDate(it.deleted)) : null;
+      case 'location': { const p = it.path || (state.view === 'folder' ? herePath() : (it.owner ? 'Zdieľané so mnou' : null)); return p ? '<span title="' + esc(p) + '">' + esc(p) + '</span>' : null; }
+      case 'owner': return esc(it.owner || 'ja');
+      case 'sharing': { const t = shareSummary(it) || (it.shared ? 'Zdieľané' : ''); return t ? '<span title="' + esc(t) + '">' + esc(t) + '</span>' : null; }
+      case 'versions': return it.type === 'f' && it.versions ? String(it.versions + 1) : null;
+      case 'tags': return (it.tags || []).length ? tagChips(it) : null;
+    }
+    return null;
+  }
+  const colText = (c, it) => { const v = colVal(c, it); return v == null ? null : v.replace(/<[^>]+>/g, ''); };
+  // koľko stĺpcov sa zmestí vedľa názvu (na užšej obrazovke len prvé; v mobile sú pod názvom)
+  const maxCols = () => innerWidth < 992 ? 2 : innerWidth < 1200 ? 3 : innerWidth < 1500 ? 5 : 8;
+  let lastMax = maxCols();
+  addEventListener('resize', () => { const m = maxCols(); if (m !== lastMax) { lastMax = m; if (state.items.length) render(); } });
+  function renderHeader(box) {
+    const cols = state.colsShown || [];
+    const w = cols.map(c => COLW[c] || '120px').join(' ');
+    [box, $('#listHeader')].forEach(el => el.style.setProperty('--cols', w));
+    const arrow = (k) => state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
+    const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
+      + '<div class="c-name sortable" data-sort-col="name">Názov' + arrow('name') + '</div>'
+      + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '">' + esc(COLDEF.labels[c]) + (SORTCOL[c] ? arrow(SORTCOL[c]) : '') + '</div>').join('')
+      + '<div class="c-act"></div>';
+    const h = $('#listHeader');
+    if (h.dataset.html !== html) { h.innerHTML = html; h.dataset.html = html; }
+  }
   function listItem(it) {
-    const k = key(it);
+    const k = key(it), cols = state.cols || [];
+    const meta = cols.filter(c => c !== 'tags').map(c => colText(c, it)).filter(Boolean).slice(0, 3).join(' · ');
     return '<div class="item row-item' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
       + '<div class="c-check"><input type="checkbox" class="form-check-input item-check" tabindex="-1"></div>'
-      + '<div class="c-name"><span class="item-icon' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it) + '</span><span class="item-name text-truncate">' + esc(it.name) + '</span>' + (state.view === 'dupes' && it.dup ? '<span class="small text-body-secondary text-truncate d-md-none ms-1">' + esc(it.dup.path) + '</span>' : '') + badges(it) + tagChips(it) + '</div>'
-      + '<div class="c-date d-none d-md-block text-truncate">' + esc(subText(it)) + '</div>'
-      + '<div class="c-size d-none d-sm-block">' + (it.type === 'f' ? formatBytes(it.size) : (it.count != null ? it.count + ' pol.' : '—')) + '</div>'
+      + '<div class="c-name"><span class="item-icon' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it) + '</span>'
+      + '<div class="name-wrap"><div class="name-line"><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + ((state.colsShown || []).includes('tags') ? '<span class="d-md-none d-inline-flex">' + tagChips(it) + '</span>' : tagChips(it)) + '</div>'
+      + (meta ? '<div class="item-meta text-truncate">' + esc(meta) + '</div>' : '') + '</div></div>'
+      + (state.colsShown || []).map(c => '<div class="c-col c-' + c + '">' + (colVal(c, it) ?? '<span class="opacity-50">—</span>') + '</div>').join('')
       + '<div class="c-act"><button class="btn btn-icon btn-sm item-menu" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div></div>';
   }
+  // výber stĺpcov (tlačidlo v hornej lište) – uloží sa do účtu, platí na webe aj v aplikácii
+  let colsSaveT;
+  function saveCols() {
+    clearTimeout(colsSaveT);
+    colsSaveT = setTimeout(async () => {
+      const r = await api('api.php?action=prefs_save', { key: 'columns', value: JSON.stringify(COLDEF.mine) });
+      if (!r.ok) toast(r.error || 'Nastavenie sa nepodarilo uložiť', 'danger');
+    }, 400);
+  }
+  $('#colsDrop').addEventListener('show.bs.dropdown', () => {
+    const v = colView(), cur = colsNow();
+    const avail = Object.keys(COLDEF.labels).filter(c => c !== 'deleted' || v === 'trash');
+    $('#colsMenu').innerHTML = '<h6 class="dropdown-header">Stĺpce – ' + esc(COLDEF.views[v] || '') + '</h6>'
+      + avail.map(c => '<label class="dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0" data-col="' + c + '"' + (cur.includes(c) ? ' checked' : '') + '>' + esc(COLDEF.labels[c]) + '</label>').join('')
+      + '<div class="dropdown-divider"></div><button class="dropdown-item small" data-cols-reset>Predvolené pre tento pohľad</button>'
+      + '<a class="dropdown-item small" href="' + base + 'profile.php#columns">Nastaviť všetky pohľady…</a>';
+  });
+  $('#colsMenu').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-col]'); if (!cb) return;
+    const v = colView();
+    const sel = [...$$('#colsMenu [data-col]')].filter(x => x.checked).map(x => x.dataset.col);
+    COLDEF.mine[v] = sel; saveCols(); render();
+  });
+  $('#colsMenu').addEventListener('click', (e) => {
+    if (!e.target.closest('[data-cols-reset]')) return;
+    delete COLDEF.mine[colView()]; saveCols(); render();
+    const cur = colsNow(); $$('#colsMenu [data-col]').forEach(x => { x.checked = cur.includes(x.dataset.col); });
+  });
+  // triedenie kliknutím na hlavičku stĺpca
+  $('#listHeader').addEventListener('click', (e) => {
+    const h = e.target.closest('.sortable'); if (!h || !h.dataset.sortCol) return;
+    const k = h.dataset.sortCol;
+    if (state.sort === k) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+    else { state.sort = k; state.dir = ['updated', 'created', 'size'].includes(k) ? 'desc' : 'asc'; }
+    localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
+    load(true);
+  });
   function gridItem(it) {
     const k = key(it);
     if (it.type === 'd') {
@@ -948,7 +1058,7 @@
     if (dragKeys && t) { e.preventDefault(); moveTo(dragKeys.map(byKey).filter(Boolean), parseInt(t.dataset.dropFolder) || 0); dragKeys = null; }
   });
 
-  $('#checkAll').addEventListener('change', (e) => { state.sel = new Set(e.target.checked ? state.items.map(key) : []); updateSel(); });
+  $('#listHeader').addEventListener('change', (e) => { if (e.target.id !== 'checkAll') return; state.sel = new Set(e.target.checked ? state.items.map(key) : []); updateSel(); });
   $('#selBar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-sel]'); if (!b) return;
     const items = selItems();

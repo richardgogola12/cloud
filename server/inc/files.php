@@ -174,6 +174,40 @@ function item_tags_for(int $uid, array $fileIds, array $folderIds): array {
 }
 function valid_color(?string $c): ?string { return $c !== null && preg_match('/^#[0-9a-f]{6}$/i', $c) ? strtolower($c) : null; }
 
+/* ---------- stĺpce v zozname (vyberá si každý používateľ podľa pohľadu) ---------- */
+const LIST_COLUMNS = [
+    'size' => 'Veľkosť', 'kind' => 'Druh', 'updated' => 'Zmenené', 'created' => 'Vytvorené', 'taken' => 'Dátum snímky',
+    'location' => 'Umiestnenie', 'owner' => 'Vlastník', 'sharing' => 'Zdieľanie', 'versions' => 'Verzie', 'tags' => 'Štítky', 'deleted' => 'Zmazané',
+];
+const LIST_VIEWS = [
+    'folder' => 'Môj disk a zložky', 'recent' => 'Nedávne', 'starred' => 'S hviezdičkou', 'search' => 'Hľadanie', 'tag' => 'Štítky',
+    'shared' => 'Zdieľané so mnou', 'byme' => 'Zdieľané mnou', 'dupes' => 'Duplicitné súbory', 'trash' => 'Kôš',
+];
+const DEFAULT_COLUMNS = [
+    'folder' => ['kind', 'updated', 'size'], 'recent' => ['location', 'updated', 'size'], 'starred' => ['location', 'updated', 'size'],
+    'search' => ['location', 'updated', 'size'], 'tag' => ['location', 'updated', 'size'], 'shared' => ['owner', 'updated', 'size'],
+    'byme' => ['sharing', 'updated', 'size'], 'dupes' => ['location', 'created', 'size'], 'trash' => ['location', 'deleted', 'size'],
+];
+function user_prefs(?array $u): array {
+    $p = $u && !empty($u['prefs']) ? json_decode((string)$u['prefs'], true) : null;
+    return is_array($p) ? $p : [];
+}
+/** Cesty k zložkám používateľa (id → „Môj disk / A / B“), 0 = koreň. */
+function folder_paths(int $uid, array $ids): array {
+    $all = q('SELECT id, parent_id, name FROM ' . P . 'folders WHERE user_id = ? AND deleted_at IS NULL', [$uid])->fetchAll();
+    $by = []; foreach ($all as $r) $by[(int)$r['id']] = $r;
+    $memo = [0 => 'Môj disk'];
+    $path = function (int $id, int $depth = 0) use (&$path, &$memo, $by): string {
+        if (isset($memo[$id])) return $memo[$id];
+        $r = $by[$id] ?? null;
+        if (!$r || $depth > 100) return $memo[$id] = 'Môj disk';
+        return $memo[$id] = $path((int)($r['parent_id'] ?? 0), $depth + 1) . ' / ' . $r['name'];
+    };
+    $out = [];
+    foreach ($ids as $id) $out[(int)$id] = $path((int)$id);
+    return $out;
+}
+
 function rows_out(int $uid, array $folders, array $files, array $extra = []): array {
     try { $tags = item_tags_for($uid, array_map(fn($f) => (int)$f['id'], $files), array_map(fn($f) => (int)$f['id'], $folders)); }
     catch (Throwable $e) { $tags = ['f' => [], 'd' => []]; }
@@ -187,7 +221,8 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
                   'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? [],
-                  'share_info' => $extra['si']['d'][(int)$d['id']] ?? null];
+                  'share_info' => $extra['si']['d'][(int)$d['id']] ?? null, 'created' => $d['created_at'] ?? null,
+                  'path' => isset($extra['paths']) && (int)$d['user_id'] === $uid ? ($extra['paths'][(int)($d['parent_id'] ?? 0)] ?? null) : null];
     }
     foreach ($files as $f) {
         $out[] = ['type' => 'f', 'id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'mime' => $f['mime'],
@@ -198,7 +233,10 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? [],
-                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null];
+                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null,
+                  'created' => $f['created_at'] ?? null,
+                  'path' => isset($extra['dup'][(int)$f['id']]) ? $extra['dup'][(int)$f['id']]['path']
+                      : (isset($extra['paths']) && (int)$f['user_id'] === $uid ? ($extra['paths'][(int)($f['folder_id'] ?? 0)] ?? null) : null)];
     }
     return $out;
 }

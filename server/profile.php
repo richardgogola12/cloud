@@ -213,6 +213,45 @@ $used = used_space($uid);
         <div class="small text-danger mt-2 d-none" id="pkUnsupported">Toto zariadenie alebo prehliadač nepodporuje biometrické prihlásenie (vyžaduje HTTPS).</div>
       </div>
     </div>
+    <div class="card card-soft mb-4" id="columns">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-layout-three-columns me-2"></i>Stĺpce v zozname</h2>
+        <p class="small text-body-secondary">Vyber, čo chceš vidieť pri súboroch v zobrazení <b>Zoznam</b> – zvlášť pre každý pohľad. V mobile sa prvé tri zobrazia pod názvom. Platí na webe aj v aplikácii.</p>
+        <?php $myCols = user_prefs($user)['columns'] ?? []; ?>
+        <div class="cols-settings">
+          <?php foreach (LIST_VIEWS as $v => $vLabel): $cur = $myCols[$v] ?? DEFAULT_COLUMNS[$v]; ?>
+          <div class="cols-row" data-view="<?= e($v) ?>">
+            <div class="fw-semibold small mb-1"><?= e($vLabel) ?></div>
+            <div class="d-flex flex-wrap gap-1">
+              <?php foreach (LIST_COLUMNS as $c => $cLabel): if ($c === 'deleted' && $v !== 'trash') continue; $id = 'col_' . $v . '_' . $c; ?>
+              <input type="checkbox" class="btn-check" id="<?= e($id) ?>" data-col="<?= e($c) ?>" <?= in_array($c, $cur, true) ? 'checked' : '' ?>>
+              <label class="btn btn-sm btn-outline-secondary rounded-pill" for="<?= e($id) ?>"><?= e($cLabel) ?></label>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary" type="button" id="colsSave"><i class="bi bi-check-lg me-1"></i>Uložiť</button>
+          <button class="btn btn-outline-secondary" type="button" id="colsReset">Predvolené</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (() => {
+      const defs = <?= json_encode(DEFAULT_COLUMNS) ?>;
+      const rows = () => [...document.querySelectorAll('.cols-row')];
+      document.getElementById('colsSave').addEventListener('click', async () => {
+        const val = {};
+        rows().forEach(r => { val[r.dataset.view] = [...r.querySelectorAll('[data-col]')].filter(x => x.checked).map(x => x.dataset.col); });
+        const res = await Cloud.api('api.php?action=prefs_save', { key: 'columns', value: JSON.stringify(val) });
+        Cloud.toast(res.ok ? 'Stĺpce boli uložené' : (res.error || 'Chyba'), res.ok ? 'success' : 'danger');
+      });
+      document.getElementById('colsReset').addEventListener('click', () => {
+        rows().forEach(r => r.querySelectorAll('[data-col]').forEach(x => { x.checked = (defs[r.dataset.view] || []).includes(x.dataset.col); }));
+      });
+    })();
+    </script>
     <div class="card card-soft mb-4" id="dav">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-hdd-network me-2"></i>Sieťový disk (WebDAV)</h2>

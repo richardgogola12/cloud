@@ -55,6 +55,13 @@ for (const [name, opts] of sizes) {
     await page.screenshot({ path: `screens/${name}-6-zdielane-mnou.png` });
     await page.click('.side-toggle'); await page.waitForTimeout(500);
     await page.screenshot({ path: `screens/${name}-7-menu-nastavenia.png` });
+    // zoznam so stĺpcami a výber stĺpcov
+    await page.goto(base + 'index.php#folder/' + ids[0]); await page.waitForTimeout(800);
+    await page.click('[data-view="list"]'); await page.waitForTimeout(600);
+    await page.click('#colsDrop > button'); await page.waitForTimeout(500);
+    await page.screenshot({ path: `screens/${name}-10-stlpce.png` });
+    await page.keyboard.press('Escape');
+    await page.click('[data-view="grid"]');
     await page.goto(base + 'admin.php'); await page.waitForTimeout(800);
     await page.locator('#healthCard').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `screens/${name}-8-admin-stav.png` });

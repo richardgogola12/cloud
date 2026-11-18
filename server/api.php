@@ -100,10 +100,10 @@ try {
     /* ---------------- výpis ---------------- */
     case 'list': {
         $view = $_POST['view'] ?? 'folder';
-        $sort = in_array($_POST['sort'] ?? '', ['name', 'updated', 'size'], true) ? $_POST['sort'] : 'name';
+        $sort = in_array($_POST['sort'] ?? '', ['name', 'updated', 'size', 'created', 'kind'], true) ? $_POST['sort'] : 'name';
         $dir  = ($_POST['dir'] ?? 'asc') === 'desc' ? 'DESC' : 'ASC';
-        $orderF = ['name' => 'name', 'updated' => 'updated_at', 'size' => 'size'][$sort] . " $dir";
-        $orderD = ($sort === 'updated' ? 'updated_at' : 'name') . " $dir";
+        $orderF = ['name' => 'name', 'updated' => 'updated_at', 'size' => 'size', 'created' => 'created_at', 'kind' => "mime $dir, name"][$sort] . " $dir";
+        $orderD = (['updated' => 'updated_at', 'created' => 'created_at'][$sort] ?? 'name') . " $dir";
         $vcnt = "(SELECT COUNT(*) FROM $V v WHERE v.file_id = f.id) AS vcnt";
         $folders = []; $files = []; $crumbs = []; $folderId = null; $perm = 'owner'; $root = 'drive'; $extra = [];
 
@@ -206,6 +206,13 @@ try {
                           FROM $D d WHERE d.user_id = ? AND d.parent_id <=> ? AND d.deleted_at IS NULL ORDER BY $orderD", [$owner, $folderId])->fetchAll();
             $files   = q("SELECT f.*, $vcnt FROM $F f WHERE f.user_id = ? AND f.folder_id <=> ? AND f.deleted_at IS NULL ORDER BY $orderF", [$owner, $folderId])->fetchAll();
             $crumbs  = breadcrumbs($uid, $folderId);
+        }
+        // umiestnenie (cesta) vlastných položiek mimo zobrazenia zložky – stĺpec „Umiestnenie“
+        if ($view !== 'folder' && $view !== 'photos' && empty($extra['dup'])) {
+            $need = [];
+            foreach ($files as $f) if ((int)$f['user_id'] === $uid) $need[(int)($f['folder_id'] ?? 0)] = 1;
+            foreach ($folders as $d) if ((int)$d['user_id'] === $uid) $need[(int)($d['parent_id'] ?? 0)] = 1;
+            if ($need) $extra['paths'] = folder_paths($uid, array_keys($need));
         }
         // veľké zložky po častiach: najprv prvých N položiek (rýchle zobrazenie), zvyšok hneď potom
         $total = count($folders) + count($files);
@@ -455,6 +462,21 @@ try {
         foreach ($items['d'] as $id) q("UPDATE $D SET starred = ?, updated_at = updated_at WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
         foreach ($items['f'] as $id) q("UPDATE $F SET starred = ?, updated_at = updated_at WHERE id = ? AND user_id = ?", [$val, $id, $uid]);
         json_out(['ok' => true]);
+    }
+
+    case 'prefs_save': { // osobné nastavenia zobrazenia (napr. stĺpce v zozname) – platia na webe aj v aplikácii
+        $key = (string)($_POST['key'] ?? '');
+        if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
+        $val = json_decode((string)($_POST['value'] ?? ''), true);
+        $clean = [];
+        if (is_array($val)) foreach ($val as $view => $cols) {
+            if (!isset(LIST_VIEWS[$view]) || !is_array($cols)) continue;
+            $clean[$view] = array_values(array_unique(array_filter($cols, fn($c) => is_string($c) && isset(LIST_COLUMNS[$c]))));
+        }
+        $prefs = user_prefs($user);
+        $prefs['columns'] = $clean;
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+        json_out(['ok' => true, 'columns' => $clean]);
     }
 
     case 'info': {

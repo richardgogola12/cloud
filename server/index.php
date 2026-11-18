@@ -21,6 +21,10 @@ require __DIR__ . '/inc/views/layout_start.php';
     <button class="btn btn-icon" data-view="list" title="Zoznam"><i class="bi bi-list-ul"></i></button>
     <button class="btn btn-icon" data-view="grid" title="Mriežka"><i class="bi bi-grid-3x3-gap"></i></button>
   </div>
+  <div class="dropdown" id="colsDrop">
+    <button class="btn btn-icon" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Stĺpce v zozname"><i class="bi bi-layout-three-columns"></i></button>
+    <div class="dropdown-menu dropdown-menu-end shadow cols-menu" id="colsMenu"></div>
+  </div>
   <div class="dropdown">
     <button class="btn btn-icon" data-bs-toggle="dropdown" title="Zoradiť"><i class="bi bi-sort-down"></i></button>
     <ul class="dropdown-menu dropdown-menu-end shadow" id="sortMenu">
@@ -28,6 +32,8 @@ require __DIR__ . '/inc/views/layout_start.php';
       <li><a class="dropdown-item" href="#" data-sort="name">Názov</a></li>
       <li><a class="dropdown-item" href="#" data-sort="updated">Dátum zmeny</a></li>
       <li><a class="dropdown-item" href="#" data-sort="size">Veľkosť</a></li>
+      <li><a class="dropdown-item" href="#" data-sort="created">Dátum vytvorenia</a></li>
+      <li><a class="dropdown-item" href="#" data-sort="kind">Druh</a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="#" data-dir="asc">Vzostupne</a></li>
       <li><a class="dropdown-item" href="#" data-dir="desc">Zostupne</a></li>
@@ -59,7 +65,7 @@ require __DIR__ . '/inc/views/layout_start.php';
 
 <div id="listHeader" class="list-header d-none">
   <div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll"></div>
-  <div class="c-name">Názov</div><div class="c-date d-none d-md-block">Zmenené</div><div class="c-size d-none d-sm-block">Veľkosť</div><div class="c-act"></div>
+  <div class="c-name sortable" data-sort-col="name">Názov</div><div class="c-cols" id="headCols"></div><div class="c-act"></div>
 </div>
 <div id="items" class="items"></div>
 <div id="empty" class="empty-state d-none">
@@ -294,4 +300,8 @@ require __DIR__ . '/inc/views/layout_start.php';
     </div>
   </div>
 </div>
+<script>
+  // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
+  window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
+</script>
 <?php require __DIR__ . '/inc/views/layout_end.php'; ?>

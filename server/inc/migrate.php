@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -30,6 +30,7 @@ function migrate(): void {
         if ($v < 8) migrate_v8();
         if ($v < 9) migrate_v9();
         if ($v < 10) migrate_v10();
+        if ($v < 11) migrate_v11();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -311,3 +312,8 @@ const HTACCESS_PERF = <<<'HT'
 # <<< CLOUD-PERF
 
 HT;
+
+/* v11: osobné nastavenia zobrazenia (stĺpce v zozname…) */
+function migrate_v11(): void {
+    add_col(P . 'users', 'prefs', 'TEXT NULL');
+}

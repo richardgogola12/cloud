@@ -107,8 +107,24 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 [data-bs-theme="dark"] .selection-bar { color: #d3e3fd; }
 
 /* ---- zoznam ---- */
-.list-header, .row-item { display: grid; grid-template-columns: 36px minmax(0,1fr) 140px 110px 44px; align-items: center; gap: 8px; padding: 0 8px; }
-@media (max-width: 767.98px) { .list-header, .row-item { grid-template-columns: 36px minmax(0,1fr) 90px 44px; } }
+.list-header, .row-item { display: grid; grid-template-columns: 36px minmax(200px, 1.6fr) var(--cols,) 44px; align-items: center; gap: 12px; padding: 0 8px; }
+.c-col { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-item .c-col { font-size: .88rem; color: var(--bs-secondary-color); }
+.row-item .c-col .tag-chip { font-size: .72rem; }
+.c-size, .c-versions { text-align: right; }
+.list-header .sortable { cursor: pointer; user-select: none; }
+.list-header .sortable:hover { color: var(--bs-body-color); }
+.name-wrap { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.name-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.item-meta { font-size: .78rem; font-weight: 400; color: var(--bs-secondary-color); display: none; }
+.cols-menu { min-width: 230px; max-height: 70vh; overflow-y: auto; }
+.cols-menu .dropdown-item { cursor: pointer; }
+@media (max-width: 767.98px) {
+  .list-header, .row-item { grid-template-columns: 36px minmax(0,1fr) 44px; }
+  .c-col { display: none; }
+  .item-meta { display: block; }
+  .row-item { min-height: 58px; }
+}
 @media (max-width: 575.98px) { .list-header, .row-item { grid-template-columns: 0 minmax(0,1fr) 40px; } .c-check { overflow: hidden; } }
 .list-header { font-size: .85rem; font-weight: 600; color: var(--bs-secondary-color); height: 44px; border-bottom: 1px solid var(--c-border); }
 .row-item { min-height: 52px; border-bottom: 1px solid var(--c-border); cursor: pointer; user-select: none; border-radius: 0; }
@@ -366,3 +382,5 @@ a.share-row:hover { background: var(--c-hover); }
 .photo-play { position: absolute; right: 6px; bottom: 6px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; pointer-events: none; }
 .photo-years { display: flex; gap: 6px; flex-wrap: wrap; position: sticky; top: var(--topbar-h); z-index: 3; padding: 4px 0 8px; background: var(--c-surface, var(--bs-body-bg)); }
 .photo-month { scroll-margin-top: calc(var(--topbar-h) + 52px); }
+.cols-settings { display: grid; gap: 14px; }
+.cols-row .btn { --bs-btn-padding-y: .15rem; --bs-btn-padding-x: .6rem; font-size: .8rem; }

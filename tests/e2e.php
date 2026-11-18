@@ -478,6 +478,16 @@ ok(stripos($gz['headers'], 'Content-Encoding: gzip') !== false && is_array(json_
 $home = $web->get('index.php')['body'];
 ok(!is_dir(__DIR__ . '/../server/assets/vendor/bootstrap') || (str_contains($home, 'assets/vendor/bootstrap/bootstrap.min.css') && !str_contains($home, 'cdn.jsdelivr.net')), 'knižnice sa načítajú z vlastného servera');
 
+section('Stĺpce v zozname');
+$j = $web->api('prefs_save', ['key' => 'columns', 'value' => json_encode(['recent' => ['kind', 'location', 'size', 'nezmysel'], 'zly' => ['size']])]);
+ok(!empty($j['ok']) && ($j['columns']['recent'] ?? null) === ['kind', 'location', 'size'] && !isset($j['columns']['zly']), 'uloženie stĺpcov (neplatné sa zahodia)', json_encode($j));
+ok(str_contains($web->get('index.php')['body'], '"recent":["kind","location","size"]'), 'stĺpce sa načítajú do stránky');
+$j = $web->api('list', ['view' => 'recent']);
+$it = array_values(array_filter($j['items'] ?? [], fn($i) => $i['name'] === 'kopia-a.bin'))[0] ?? null;
+ok($it && $it['path'] === 'Môj disk / Schránka' && !empty($it['created']), 'položky majú umiestnenie a dátum vytvorenia', json_encode($it, JSON_UNESCAPED_UNICODE));
+$j = $web->api('list', ['folder' => $pf, 'sort' => 'created', 'dir' => 'desc']);
+ok(($j['items'][0]['name'] ?? '') === 'kus-5.txt', 'triedenie podľa dátumu vytvorenia');
+
 section('Stav servera');
 $r = $web->get('admin.php');
 ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť RAM') && str_contains($r['body'], 'PHP OPcache'), 'admin: stav servera (aj OPcache)');
