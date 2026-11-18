@@ -1238,7 +1238,7 @@
         state.sugItems = r.items || [];
         state.sugItems.forEach((it, i) => {
           const sub = it.owner ? it.owner : (it.path || (it.type === 'd' ? 'Zložka' : ''));
-          h += '<div class="sp-row" data-sp-item="' + i + '"><span class="sp-ic">' + (it.type === 'd' ? '<i class="bi bi-folder-fill" style="color:#5f6368"></i>' : '<i class="bi ' + fileIcon(it) + '"></i>') + '</span><span class="flex-grow-1 min-w-0"><span class="d-block text-truncate">' + hlq(it.name, q) + '</span>'
+          h += '<div class="sp-row" data-sp-item="' + i + '"><span class="sp-ic">' + (it.type === 'd' ? '<i class="bi bi-folder-fill" style="color:#5f6368"></i>' : '<i class="bi ' + spIcon(it) + '"></i>') + '</span><span class="flex-grow-1 min-w-0"><span class="d-block text-truncate">' + hlq(it.name, q) + '</span>'
             + (sub ? '<span class="d-block small text-body-secondary text-truncate">' + esc(sub) + '</span>' : '') + '</span><span class="small text-body-secondary d-none d-sm-inline">' + esc(fmtDate(it.updated)) + '</span></div>';
         });
       }
@@ -1252,18 +1252,7 @@
     const i = name.toLowerCase().indexOf(q.toLowerCase());
     return i < 0 ? esc(name) : esc(name.slice(0, i)) + '<b>' + esc(name.slice(i, i + q.length)) + '</b>' + esc(name.slice(i + q.length));
   }
-  function fileIcon(it) {
-    const m = it.mime || '', n = it.name.toLowerCase();
-    if (m.startsWith('image/')) return 'bi-image text-danger';
-    if (m.startsWith('video/')) return 'bi-camera-video text-danger';
-    if (m.startsWith('audio/')) return 'bi-music-note-beamed text-info';
-    if (n.endsWith('.pdf')) return 'bi-file-earmark-pdf text-danger';
-    if (/\.(docx?|odt|rtf)$/.test(n)) return 'bi-file-earmark-word text-primary';
-    if (/\.(xlsx?|ods|csv)$/.test(n)) return 'bi-file-earmark-spreadsheet text-success';
-    if (/\.(pptx?|odp)$/.test(n)) return 'bi-file-earmark-slides text-warning';
-    if (/\.(zip|rar|7z|gz|tar)$/.test(n)) return 'bi-file-earmark-zip';
-    return 'bi-file-earmark-text';
-  }
+  function spIcon(it) { const [ic, cls] = fileIcon(it); return ic + ' ' + cls; }
   sInput.addEventListener('focus', () => { if (sAdv.classList.contains('d-none')) showSuggest(); });
   sInput.addEventListener('input', () => {
     clearTimeout(sugT); sugT = setTimeout(showSuggest, 180);
