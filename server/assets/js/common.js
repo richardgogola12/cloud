@@ -112,6 +112,14 @@ window.Cloud = (function () {
     // volá Android aplikácia pri tlačidle Späť: true = zatvorilo sa okno, inak sa ide späť v histórii
     window.cloudBack = () => closeTop(false);
 
+    // tlačidlá „Kopírovať“ (data-copy="#idPola")
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-copy]'); if (!b) return;
+      const el = document.querySelector(b.dataset.copy); if (!el) return;
+      try { await navigator.clipboard.writeText(el.value || el.textContent); } catch (x) { el.select && el.select(); document.execCommand('copy'); }
+      toast('Skopírované', 'success');
+    });
+
     // zbaliteľné skupiny v menu si pamätajú stav
     document.querySelectorAll('[data-remember]').forEach(b => {
       const k = b.dataset.remember, el = document.querySelector(b.dataset.bsTarget);

@@ -22,3 +22,9 @@ AddType application/manifest+json .webmanifest
     php_value max_execution_time 300
     php_value memory_limit 256M
 </IfModule>
+
+# >>> CLOUD-DAV (sieťový disk WebDAV – PHP musí dostať hlavičku Authorization aj pri PHP-FPM)
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+# <<< CLOUD-DAV

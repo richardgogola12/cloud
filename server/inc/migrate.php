@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -28,6 +28,7 @@ function migrate(): void {
         if ($v < 6) migrate_v6();
         if ($v < 7) migrate_v7();
         if ($v < 8) migrate_v8();
+        if ($v < 9) migrate_v9();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -162,6 +163,17 @@ function migrate_v3(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
+/** Doplní do existujúceho .htaccess odovzdávanie hlavičky Authorization (aktualizácia .htaccess neprepisuje). */
+function htaccess_dav_patch(): void {
+    $f = APP_ROOT . '/.htaccess';
+    if (!is_file($f) || !is_writable($f)) return;
+    $cur = (string)@file_get_contents($f);
+    if (str_contains($cur, 'CLOUD-DAV')) return;
+    $block = "\n# >>> CLOUD-DAV (sieťový disk WebDAV – PHP musí dostať hlavičku Authorization aj pri PHP-FPM)\n"
+        . "<IfModule mod_setenvif.c>\n    SetEnvIfNoCase Authorization \"(.+)\" HTTP_AUTHORIZATION=\$1\n</IfModule>\n# <<< CLOUD-DAV\n";
+    @file_put_contents($f, rtrim($cur, "\n") . "\n" . $block);
+}
+
 /* v4: šifrovanie súborov, kontrolné súčty, upozornenia */
 function migrate_v4(): void {
     $p = P;
@@ -233,4 +245,20 @@ function migrate_v8(): void {
     // verejný odkaz: view = zobraziť/stiahnuť, upload = iba nahrať, both = oboje
     add_col(P . 'shares', 'mode', "VARCHAR(10) NOT NULL DEFAULT 'view'");
     add_col(P . 'shares', 'uploads', 'INT UNSIGNED NOT NULL DEFAULT 0');
+}
+
+function migrate_v9(): void {
+    // heslá pre sieťový disk (WebDAV) – samostatné pre každé zariadenie, dajú sa zrušiť
+    $p = P;
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}dav_passwords (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        hash CHAR(64) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_used DATETIME NULL,
+        INDEX (user_id),
+        CONSTRAINT fk_cloud_dav_user FOREIGN KEY (user_id) REFERENCES {$p}users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    htaccess_dav_patch();
 }

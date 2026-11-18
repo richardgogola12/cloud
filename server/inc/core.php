@@ -90,7 +90,7 @@ function set_remember_cookie(bool $remember): void {
         'samesite' => 'Lax',
     ]);
 }
-start_session();
+if (!defined('CLOUD_NO_SESSION')) start_session(); // WebDAV beží bez session (každá požiadavka sa overuje heslom)
 
 /* ---------- Databáza ---------- */
 function db(): PDO {

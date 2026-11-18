@@ -417,6 +417,50 @@ $grp = array_values(array_filter($j['items'] ?? [], fn($i) => in_array($i['name'
 ok(count($grp) === 2 && ($grp[0]['dup']['g'] ?? 1) === ($grp[1]['dup']['g'] ?? 2) && ($grp[0]['dup']['n'] ?? 0) === 2, 'duplicitné súbory sa nájdu v jednej skupine', json_encode($grp));
 ok(str_contains(json_encode($grp, JSON_UNESCAPED_UNICODE), 'Schránka'), 'pri duplicite je cesta k zložke');
 
+section('Sieťový disk (WebDAV)');
+$r = $web->get('profile.php');
+$web->loadCsrf($r['body']);
+$web->post('profile.php', ['_csrf' => $web->csrf, 'act' => 'dav_create', 'name' => 'Test PC']);
+$r = $web->get('profile.php');
+preg_match('/id="davNewPw" value="([a-z0-9-]+)"/', $r['body'], $m);
+$davPw = $m[1] ?? '';
+ok(strlen($davPw) === 19, 'vytvorenie hesla pre sieťový disk', substr($r['body'], 0, 0));
+ok(!str_contains($web->get('profile.php')['body'], $davPw ?: 'xxxxx'), 'heslo sa zobrazí iba raz');
+function dav(string $method, string $path, array $o = []): array {
+    global $davPw;
+    $ch = curl_init(BASE . 'dav.php' . $path);
+    $h = $o['headers'] ?? [];
+    curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $h, CURLOPT_TIMEOUT => 60,
+        CURLOPT_USERPWD => ($o['user'] ?? 'admin@test.sk') . ':' . ($o['pw'] ?? $davPw)]);
+    if (isset($o['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $o['body']);
+    if ($method === 'HEAD') curl_setopt($ch, CURLOPT_NOBODY, true);
+    $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+    return ['code' => $code, 'body' => (string)$body];
+}
+ok(dav('PROPFIND', '/', ['pw' => 'zle-heslo', 'headers' => ['Depth: 0']])['code'] === 401, 'WebDAV: zlé heslo → 401');
+$r = dav('PROPFIND', '/', ['headers' => ['Depth: 1']]);
+ok($r['code'] === 207 && str_contains($r['body'], '<d:collection/>') && str_contains($r['body'], 'quota-used-bytes'), 'WebDAV: zoznam koreňa (PROPFIND)', substr($r['body'], 0, 300));
+ok(dav('MKCOL', '/Sie%C5%A5ov%C3%BD%20disk')['code'] === 201, 'WebDAV: nová zložka s diakritikou (MKCOL)');
+$davData = random_bytes(1500000);
+ok(dav('PUT', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin', ['body' => $davData])['code'] === 201, 'WebDAV: nahratie súboru (PUT)');
+$r = dav('GET', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin');
+ok($r['code'] === 200 && $r['body'] === $davData, 'WebDAV: stiahnutie zhodné (GET, rozšifrované)');
+$r = dav('GET', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin', ['headers' => ['Range: bytes=100-199']]);
+ok($r['code'] === 206 && $r['body'] === substr($davData, 100, 100), 'WebDAV: čiastočné stiahnutie (Range)');
+$r = dav('PROPFIND', '/Sie%C5%A5ov%C3%BD%20disk/', ['headers' => ['Depth: 1']]);
+ok(str_contains($r['body'], 'velky.bin') && str_contains($r['body'], '<d:getcontentlength>1500000<'), 'WebDAV: súbor v zozname s veľkosťou');
+ok(dav('LOCK', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin', ['body' => '<?xml version="1.0"?><d:lockinfo xmlns:d="DAV:"><d:lockscope><d:exclusive/></d:lockscope><d:locktype><d:write/></d:locktype></d:lockinfo>'])['code'] === 200, 'WebDAV: zámok (LOCK)');
+ok(dav('PUT', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin', ['body' => 'nova verzia'])['code'] === 204, 'WebDAV: prepis = nová verzia');
+$r = dav('MOVE', '/Sie%C5%A5ov%C3%BD%20disk/velky.bin', ['headers' => ['Destination: ' . BASE . 'dav.php/Sie%C5%A5ov%C3%BD%20disk/premenovany.txt']]);
+ok($r['code'] === 201 && dav('GET', '/Sie%C5%A5ov%C3%BD%20disk/premenovany.txt')['body'] === 'nova verzia', 'WebDAV: premenovanie (MOVE)');
+ok(dav('COPY', '/Sie%C5%A5ov%C3%BD%20disk', ['headers' => ['Destination: ' . BASE . 'dav.php/Kopia%20disku', 'Depth: infinity']])['code'] === 201
+   && dav('GET', '/Kopia%20disku/premenovany.txt')['body'] === 'nova verzia', 'WebDAV: kópia zložky (COPY)');
+ok(dav('PUT', '/._premenovany.txt', ['body' => 'mac'])['code'] === 201 && dav('GET', '/._premenovany.txt')['code'] === 404, 'WebDAV: systémové súbory macOS sa ignorujú');
+ok(dav('DELETE', '/Kopia%20disku')['code'] === 204 && dav('PROPFIND', '/Kopia%20disku', ['headers' => ['Depth: 0']])['code'] === 404, 'WebDAV: zmazanie (do koša)');
+$tr = $web->api('list', ['view' => 'trash']);
+ok(in_array('Kopia disku', array_column($tr['items'] ?? [], 'name'), true), 'WebDAV: zmazaná zložka je v koši');
+ok(dav('OPTIONS', '/', ['pw' => ''])['code'] === 200, 'WebDAV: OPTIONS bez prihlásenia');
+
 section('Stav servera');
 $r = $web->get('admin.php');
 ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť RAM'), 'admin: stav servera');

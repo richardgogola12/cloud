@@ -70,6 +70,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         q('UPDATE ' . P . 'app_tokens SET revoked = 1 WHERE id = ? AND user_id = ?', [(int)($_POST['tid'] ?? 0), $uid]);
         log_action($uid, 'app_revoke');
         flash('success', 'Aplikácia bola odhlásená.');
+    } elseif ($act === 'dav_create') { // heslo pre sieťový disk (WebDAV)
+        $name = trim(mb_substr((string)($_POST['name'] ?? ''), 0, 100)) ?: 'Sieťový disk';
+        $abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+        $pw = '';
+        for ($i = 0; $i < 16; $i++) $pw .= $abc[random_int(0, strlen($abc) - 1)];
+        $pw = implode('-', str_split($pw, 4));
+        q('INSERT INTO ' . P . 'dav_passwords (user_id, name, hash) VALUES (?,?,?)', [$uid, $name, hash('sha256', str_replace('-', '', $pw))]);
+        log_action($uid, 'dav_password', $name);
+        $_SESSION['dav_new'] = ['name' => $name, 'pw' => $pw];
+    } elseif ($act === 'dav_delete') {
+        q('DELETE FROM ' . P . 'dav_passwords WHERE id = ? AND user_id = ?', [(int)($_POST['id'] ?? 0), $uid]);
+        flash('success', 'Heslo pre sieťový disk bolo zrušené – zariadenie sa už nepripojí.');
     } elseif ($act === 'cancel_email') {
         q('UPDATE ' . P . 'users SET pending_email = NULL WHERE id = ?', [$uid]);
         q('UPDATE ' . P . "tokens SET used = 1 WHERE user_id = ? AND type = 'email_change'", [$uid]);
@@ -81,6 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $sessions = q('SELECT * FROM ' . P . 'sessions WHERE user_id = ? AND revoked = 0 AND last_seen > (NOW() - INTERVAL ' . (int)ceil(cfg('session_lifetime') / 86400) . ' DAY) ORDER BY last_seen DESC', [$uid])->fetchAll();
 $apps = q('SELECT * FROM ' . P . 'app_tokens WHERE user_id = ? AND revoked = 0 ORDER BY COALESCE(last_used, created_at) DESC', [$uid])->fetchAll();
 $keys = q('SELECT id, name, created_at, last_used FROM ' . P . 'webauthn WHERE user_id = ? ORDER BY created_at DESC', [$uid])->fetchAll();
+$davPw = q('SELECT * FROM ' . P . 'dav_passwords WHERE user_id = ? ORDER BY created_at DESC', [$uid])->fetchAll();
+$davNew = $_SESSION['dav_new'] ?? null; unset($_SESSION['dav_new']);
+$davUrl = (request_base_url() ?: public_url()) . '/dav.php';
+$davHost = (string)parse_url($davUrl, PHP_URL_HOST);
+$davHttps = str_starts_with($davUrl, 'https://');
 $title = 'Môj účet';
 $active = 'profile';
 $scripts = ['assets/js/passkey.js', 'assets/js/profile.js'];
@@ -194,6 +211,53 @@ $used = used_space($uid);
           <button class="btn btn-primary" id="pkAdd"><i class="bi bi-fingerprint me-1"></i>Pridať</button>
         </div>
         <div class="small text-danger mt-2 d-none" id="pkUnsupported">Toto zariadenie alebo prehliadač nepodporuje biometrické prihlásenie (vyžaduje HTTPS).</div>
+      </div>
+    </div>
+    <div class="card card-soft mb-4" id="dav">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-hdd-network me-2"></i>Sieťový disk (WebDAV)</h2>
+        <p class="small text-body-secondary">Pripoj si Môj disk ako písmeno disku vo Windows, vo Finderi na Macu alebo v správcovi súborov v mobile – súbory potom len presúvaš myšou.</p>
+        <label class="form-label small text-body-secondary mb-1">Adresa</label>
+        <div class="input-group mb-2"><input class="form-control" id="davUrl" value="<?= e($davUrl) ?>" readonly><button class="btn btn-outline-primary" type="button" data-copy="#davUrl"><i class="bi bi-clipboard"></i></button></div>
+        <div class="small mb-3">Meno: <b><?= e($user['email']) ?></b> · heslo: vytvor nižšie (prihlasovacie heslo sa tu nepoužíva)</div>
+        <?php if ($davNew): ?>
+          <div class="alert alert-success">
+            <div class="fw-semibold mb-1">Heslo pre „<?= e($davNew['name']) ?>“</div>
+            <div class="input-group"><input class="form-control font-monospace fs-5" id="davNewPw" value="<?= e($davNew['pw']) ?>" readonly><button class="btn btn-success" type="button" data-copy="#davNewPw"><i class="bi bi-clipboard me-1"></i>Kopírovať</button></div>
+            <div class="small mt-1">Zobrazí sa iba teraz. Pomlčky môžeš vynechať.</div>
+          </div>
+        <?php endif; ?>
+        <ul class="list-group list-group-flush mb-3">
+          <?php foreach ($davPw as $d): ?>
+          <li class="list-group-item px-0 d-flex align-items-center gap-3">
+            <i class="bi bi-key fs-5 text-primary"></i>
+            <div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate"><?= e($d['name']) ?></div>
+              <div class="small text-body-secondary">Vytvorené <?= date('d.m.Y', strtotime($d['created_at'])) ?> · <?= $d['last_used'] ? 'naposledy ' . date('d.m.Y H:i', strtotime($d['last_used'])) : 'ešte nepoužité' ?></div></div>
+            <form method="post" data-confirm="Zrušiť toto heslo? Zariadenie sa už nepripojí."><?= csrf_field() ?><input type="hidden" name="act" value="dav_delete"><input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
+              <button class="btn btn-icon text-danger" title="Zrušiť"><i class="bi bi-trash3"></i></button></form>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <form method="post" class="input-group mb-3"><?= csrf_field() ?><input type="hidden" name="act" value="dav_create">
+          <input class="form-control" name="name" maxlength="100" placeholder="Pre zariadenie, napr. Notebook" aria-label="Názov zariadenia">
+          <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Vytvoriť heslo</button>
+        </form>
+        <div class="accordion accordion-flush small" id="davHelp">
+          <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed py-2 px-0 small" type="button" data-bs-toggle="collapse" data-bs-target="#davWin"><i class="bi bi-windows me-2"></i>Windows</button></h3>
+            <div id="davWin" class="accordion-collapse collapse" data-bs-parent="#davHelp"><div class="accordion-body px-0">
+              <ol class="ps-3 mb-2"><li>Prieskumník → <b>Tento počítač</b> → hore <b>⋯ → Pripojiť sieťovú jednotku</b>.</li>
+                <li>Vyber písmeno, do poľa Priečinok vlož adresu a zaškrtni <b>Pripojiť pomocou iných poverení</b>.</li>
+                <li>Zadaj e-mail a heslo pre sieťový disk, zaškrtni <b>Zapamätať</b>.</li></ol>
+              <?php if (!$davHttps): ?><div class="text-warning mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Windows sa bez https štandardne nepripojí – použi https adresu servera.</div><?php endif; ?>
+              <div class="text-body-secondary">Windows má v predvolení limit 50 MB na súbor. Pre väčšie súbory zvýš <code>FileSizeLimitInBytes</code> v službe WebClient, alebo použi aplikáciu RaiDrive.</div>
+            </div></div></div>
+          <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed py-2 px-0 small" type="button" data-bs-toggle="collapse" data-bs-target="#davMac"><i class="bi bi-apple me-2"></i>Mac</button></h3>
+            <div id="davMac" class="accordion-collapse collapse" data-bs-parent="#davHelp"><div class="accordion-body px-0">Finder → <b>Prejsť → Pripojiť k serveru</b> (⌘K) → vlož adresu → Pripojiť → e-mail a heslo pre sieťový disk.</div></div></div>
+          <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed py-2 px-0 small" type="button" data-bs-toggle="collapse" data-bs-target="#davLin"><i class="bi bi-ubuntu me-2"></i>Linux</button></h3>
+            <div id="davLin" class="accordion-collapse collapse" data-bs-parent="#davHelp"><div class="accordion-body px-0">Súbory → <b>Ďalšie miesta</b> → Pripojiť k serveru: <code><?= e(($davHttps ? 'davs' : 'dav') . substr($davUrl, $davHttps ? 5 : 4)) ?></code></div></div></div>
+          <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed py-2 px-0 small" type="button" data-bs-toggle="collapse" data-bs-target="#davMob"><i class="bi bi-phone me-2"></i>Mobil</button></h3>
+            <div id="davMob" class="accordion-collapse collapse" data-bs-parent="#davHelp"><div class="accordion-body px-0">V správcovi súborov s podporou WebDAV (napr. Solid Explorer, CX File Explorer na Androide, Documents na iPhone) pridaj nové pripojenie <b>WebDAV</b>: server <code><?= e($davHost) ?></code>, cesta <code><?= e((string)parse_url($davUrl, PHP_URL_PATH)) ?></code>, <?= $davHttps ? 'HTTPS' : 'HTTP' ?>, e-mail a heslo pre sieťový disk.</div></div></div>
+        </div>
       </div>
     </div>
     <div class="card card-soft mb-4">
