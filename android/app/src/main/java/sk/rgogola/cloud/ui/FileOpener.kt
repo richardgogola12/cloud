@@ -32,12 +32,13 @@ class FileOpener(private val act: AppCompatActivity) {
         val name = (uri.getQueryParameter("name") ?: "subor").replace(Regex("[\\\\/:*?\"<>|]"), "_")
         val size = uri.getQueryParameter("size")?.toLongOrNull() ?: -1L
         val send = uri.host == "send"
+        val pdf = uri.host == "pdf"
         val mime = mimeFor(name, uri.getQueryParameter("mime"))
 
         val dir = File(act.cacheDir, "open").apply { mkdirs() }
         dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 24 * 3600 * 1000L) it.delete() }
         val file = File(dir, "${id}_$name")
-        if (file.exists() && size >= 0 && file.length() == size) { deliver(file, mime, send); return }
+        if (file.exists() && size >= 0 && file.length() == size) { if (pdf) openPdf(file, name) else deliver(file, mime, send); return }
 
         val bar = LinearProgressIndicator(act).apply { max = 100; isIndeterminate = true; setPadding(60, 40, 60, 20) }
         val dlg = MaterialAlertDialogBuilder(act)
@@ -53,9 +54,14 @@ class FileOpener(private val act: AppCompatActivity) {
                 }
             }
             if (dlg.isShowing) dlg.dismiss()
-            res.onSuccess { deliver(file, mime, send) }
+            res.onSuccess { if (pdf) openPdf(file, name) else deliver(file, mime, send) }
                 .onFailure { if (it !is kotlinx.coroutines.CancellationException) Toast.makeText(act, it.message ?: "Sťahovanie zlyhalo", Toast.LENGTH_LONG).show() }
         }
+    }
+
+    /** PDF vo vstavanom prehliadači (priblíženie, listovanie, „Otvoriť v…“). */
+    private fun openPdf(file: File, name: String) {
+        act.startActivity(Intent(act, PdfActivity::class.java).putExtra(PdfActivity.EXTRA_PATH, file.absolutePath).putExtra(PdfActivity.EXTRA_NAME, name))
     }
 
     private fun mimeFor(name: String, given: String?): String {

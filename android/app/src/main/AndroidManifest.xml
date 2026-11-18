@@ -48,6 +48,12 @@
             android:parentActivityName=".ui.MainActivity" />
 
         <activity
+            android:name=".ui.PdfActivity"
+            android:exported="false"
+            android:label="PDF"
+            android:theme="@style/Theme.Cloud" />
+
+        <activity
             android:name=".ui.ServerActivity"
             android:exported="false"
             android:label="Server"

@@ -363,11 +363,12 @@ class MainActivity : AppCompatActivity() {
         }
         w.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
             try {
-                val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                val name = downloadName(url, contentDisposition, mimeType)
                 val req = DownloadManager.Request(Uri.parse(url))
                     .addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url) ?: "")
                     .addRequestHeader("User-Agent", userAgent)
                     .setTitle(name)
+                    .setMimeType(mimeType?.takeIf { it.isNotBlank() } ?: "application/octet-stream")
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                     .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
                 getSystemService(DownloadManager::class.java)?.enqueue(req)
@@ -376,6 +377,17 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             }
         }
+    }
+
+    /** Názov sťahovaného súboru z hlavičky Content-Disposition (aj filename*=UTF-8''… s diakritikou). */
+    private fun downloadName(url: String, cd: String?, mime: String?): String {
+        val clean = { n: String -> n.trim().trim('"').replace(Regex("[\\\\/:*?\"<>|\\x00-\\x1f]"), "_").ifBlank { "subor" } }
+        if (!cd.isNullOrBlank()) {
+            Regex("filename\\*\\s*=\\s*[^']*'[^']*'([^;]+)", RegexOption.IGNORE_CASE).find(cd)?.let { return clean(Uri.decode(it.groupValues[1])) }
+            Regex("filename\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE).find(cd)?.let { return clean(it.groupValues[1]) }
+            Regex("filename\\s*=\\s*([^;]+)", RegexOption.IGNORE_CASE).find(cd)?.let { return clean(it.groupValues[1]) }
+        }
+        return URLUtil.guessFileName(url, cd, mime)
     }
 
     /** Prihlási WebView tokenom a otvorí disk. */
@@ -411,7 +423,7 @@ class MainActivity : AppCompatActivity() {
                     "sync" -> startActivity(Intent(this, SyncActivity::class.java))
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
-                    "open", "send" -> opener.handle(uri)
+                    "open", "send", "pdf" -> opener.handle(uri)
                     "background" -> startActivity(Intent(this, BackgroundActivity::class.java))
                     "server" -> serverLauncher.launch(Intent(this, ServerActivity::class.java))
                     "upload-files" -> {

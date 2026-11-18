@@ -718,6 +718,16 @@
     }
     else if (m.startsWith('video/')) body.innerHTML = '<video src="' + u + '" controls autoplay playsinline></video>';
     else if (m.startsWith('audio/')) body.innerHTML = '<div class="text-center"><i class="bi bi-music-note-beamed display-1 d-block mb-4 text-white-50"></i><audio src="' + u + '" controls autoplay></audio></div>';
+    else if (m === 'application/pdf' && (IN_APP || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))) {
+      // mobil: prehliadač PDF v stránke nezobrazí → v aplikácii vstavaný prehliadač, inak nová karta
+      const av = (navigator.userAgent.match(/CloudAndroid\/(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
+      const native = IN_APP && av.length === 3 && (av[0] > 1 || av[1] > 0 || av[2] >= 19);
+      const href = IN_APP ? appUrl(native ? 'pdf' : 'open', it) : u;
+      body.innerHTML = '<div class="text-center text-white px-3"><i class="bi bi-file-earmark-pdf display-1 d-block mb-3 text-danger"></i>'
+        + '<div class="mb-3 text-white-50">' + esc(it.name) + ' · ' + formatBytes(it.size) + '</div>'
+        + '<a class="btn btn-light rounded-pill px-4" href="' + esc(href) + '"' + (IN_APP ? '' : ' target="_blank" rel="noopener"') + '><i class="bi bi-book me-2"></i>Otvoriť PDF</a></div>';
+      if (IN_APP) location.href = href;
+    }
     else if (m === 'application/pdf') body.innerHTML = '<iframe src="' + u + '" title="PDF"></iframe>';
     else if (isDocx(it) || (isSheet(it) && ext(it) !== 'csv')) {
       body.innerHTML = '<div class="spinner-border text-light"></div>';
