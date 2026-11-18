@@ -54,9 +54,23 @@
   const loadScript = (src) => new Promise((res, rej) => { if ($$('script').some(s => s.src === src)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Nepodarilo sa načítať prehliadač dokumentov.')); document.head.appendChild(s); });
 
   /* ---------------- načítanie ---------------- */
+  // kostra zoznamu, kým sa načítava (blikajúce plochy namiesto prázdnej stránky)
+  function skeleton() {
+    const box = $('#items');
+    const layout = state.view === 'photos' ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
+    box.className = 'items items-' + layout;
+    $('#empty').classList.add('d-none');
+    const n = (k) => Array.from({ length: k });
+    if (layout === 'photos') box.innerHTML = '<div class="photo-grid mt-3">' + n(18).map(() => '<div class="photo-item thumb-loading"></div>').join('') + '</div>';
+    else if (layout === 'grid') box.innerHTML = '<div class="sk-line thumb-loading mb-3" style="width:80px"></div><div class="grid grid-files">'
+      + n(8).map(() => '<div class="file-card sk-card"><div class="d-flex align-items-center gap-2 p-2"><span class="sk-icon thumb-loading"></span><span class="sk-line thumb-loading flex-grow-1"></span></div><div class="file-thumb thumb-loading"></div></div>').join('') + '</div>';
+    else box.innerHTML = n(10).map(() => '<div class="sk-row"><span class="sk-icon thumb-loading"></span><span class="sk-line thumb-loading" style="width:' + (35 + Math.round(Math.random() * 35)) + '%"></span></div>').join('');
+  }
   async function load(keepSel) {
-    $('#loading').classList.remove('d-none');
+    const skT = keepSel ? null : setTimeout(() => { $('#loading').classList.add('d-none'); skeleton(); }, 120);
+    if (keepSel) $('#loading').classList.remove('d-none');
     const r = await api('api.php?action=list', { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir });
+    clearTimeout(skT);
     $('#loading').classList.add('d-none');
     if (!r.ok) { toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
     Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0 });

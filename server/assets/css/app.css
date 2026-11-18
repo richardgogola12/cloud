@@ -332,7 +332,13 @@ a.share-row:hover { background: var(--c-hover); }
 
 /* načítavanie miniatúr a fotiek */
 @keyframes thumbShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-.thumb-loading { background: linear-gradient(100deg, var(--c-hover) 30%, var(--c-surface) 50%, var(--c-hover) 70%) !important; background-size: 300% 100% !important; animation: thumbShimmer 1.3s linear infinite; }
+.thumb-loading { background: linear-gradient(100deg, var(--sk-a) 30%, var(--sk-b) 50%, var(--sk-a) 70%) !important; background-size: 300% 100% !important; animation: thumbShimmer 1.3s linear infinite; }
+:root { --sk-a: rgba(60, 64, 67, .08); --sk-b: rgba(60, 64, 67, .18); }
+[data-bs-theme="dark"] { --sk-a: rgba(255, 255, 255, .05); --sk-b: rgba(255, 255, 255, .13); }
+.sk-line { display: block; height: 12px; border-radius: 6px; }
+.sk-icon { display: inline-block; width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; }
+.sk-row { display: flex; align-items: center; gap: 14px; padding: 14px 12px; border-bottom: 1px solid var(--c-border); }
+.sk-card { cursor: default; }
 .thumb-loading img { opacity: 0; }
 .file-thumb img, .photo-item img, .item-icon img { transition: opacity .3s ease, transform .2s; }
 .item-icon.thumb-loading { border-radius: 6px; }

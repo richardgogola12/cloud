@@ -92,6 +92,26 @@ window.Cloud = (function () {
       e.preventDefault();
       if (await confirmBox('Si si istý?', f.dataset.confirm, 'Potvrdiť')) { f.dataset.ok = 1; f.submit(); }
     }));
+    // tlačidlo Späť (telefón, aplikácia, prehliadač) zatvorí otvorené okno – napr. náhľad fotky či videa
+    let popping = false;
+    const layerOpen = (e) => { try { history.pushState({ cloudLayer: e.target.id || 'layer' }, ''); } catch (x) {} };
+    const layerClosed = (e) => { if (popping) return; if (history.state && history.state.cloudLayer === (e.target.id || 'layer')) history.back(); };
+    document.addEventListener('shown.bs.modal', layerOpen);
+    document.addEventListener('hidden.bs.modal', layerClosed);
+    const closeTop = (fromPop) => {
+      const m = [...document.querySelectorAll('.modal.show')].pop();
+      const oc = document.querySelector('.offcanvas.show');
+      const el = m || oc; if (!el) return false;
+      if (fromPop) popping = true;
+      el.querySelectorAll('video, audio').forEach(v => { try { v.pause(); } catch (x) {} });
+      (m ? bootstrap.Modal : bootstrap.Offcanvas).getInstance(el)?.hide();
+      if (fromPop) setTimeout(() => { popping = false; }, 500);
+      return true;
+    };
+    addEventListener('popstate', () => closeTop(true));
+    // volá Android aplikácia pri tlačidle Späť: true = zatvorilo sa okno, inak sa ide späť v histórii
+    window.cloudBack = () => closeTop(false);
+
     // zbaliteľné skupiny v menu si pamätajú stav
     document.querySelectorAll('[data-remember]').forEach(b => {
       const k = b.dataset.remember, el = document.querySelector(b.dataset.bsTarget);

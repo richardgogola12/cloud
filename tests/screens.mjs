@@ -60,6 +60,15 @@ for (const [name, opts] of sizes) {
     await page.screenshot({ path: `screens/${name}-8-admin-stav.png` });
     await page.goto(base + 'index.php#dupes'); await page.waitForTimeout(1200);
     await page.screenshot({ path: `screens/${name}-9-duplicity.png` });
+    // tlačidlo Späť zatvorí náhľad
+    await page.goto(base + 'index.php#photos'); await page.waitForTimeout(1200);
+    await page.locator('.photo-item').first().dblclick().catch(() => {});
+    await page.waitForTimeout(800);
+    const opened = await page.locator('#previewModal.show').count();
+    await page.goBack(); await page.waitForTimeout(800);
+    const still = await page.locator('#previewModal.show').count();
+    console.log('[späť] náhľad otvorený: ' + opened + ', po Späť: ' + still + ' · adresa: ' + page.url());
+    if (opened !== 1 || still !== 0) { console.log('CHYBA: Späť nezatvoril náhľad'); process.exitCode = 1; }
   }
   if (name === 'mobil') {
     await page.click('button[data-bs-target="#sidebar"]'); await page.waitForTimeout(800);

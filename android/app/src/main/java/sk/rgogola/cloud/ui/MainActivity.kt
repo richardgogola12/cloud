@@ -178,7 +178,12 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (b.web.canGoBack()) b.web.goBack() else moveTaskToBack(true)
+                // najprv zavrieť otvorené okno na stránke (náhľad fotky/videa, menu, dialóg)
+                if (!loaded) { if (b.web.canGoBack()) b.web.goBack() else moveTaskToBack(true); return }
+                b.web.evaluateJavascript("(function(){try{return window.cloudBack&&window.cloudBack()?1:0}catch(e){return 0}})()") { r ->
+                    if (r == "1") return@evaluateJavascript
+                    if (b.web.canGoBack()) b.web.goBack() else moveTaskToBack(true)
+                }
             }
         })
 
