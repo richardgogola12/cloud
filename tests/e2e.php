@@ -465,7 +465,7 @@ ok(dav('OPTIONS', '/', ['pw' => ''])['code'] === 200, 'WebDAV: OPTIONS bez prihl
 
 section('Rýchlosť');
 $pf = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Veľa súborov'])['id'] ?? 0);
-for ($i = 1; $i <= 5; $i++) upload($web, $pf, "subor-$i.txt", "obsah $i");
+for ($i = 1; $i <= 5; $i++) upload($web, $pf, "kus-$i.txt", "obsah $i");
 $a = $web->api('list', ['folder' => $pf, 'limit' => 2]);
 $b = $web->api('list', ['folder' => $pf, 'offset' => 2]);
 ok(count($a['items'] ?? []) === 2 && ($a['total'] ?? 0) === 5 && count($b['items'] ?? []) === 3
