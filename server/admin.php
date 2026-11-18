@@ -806,9 +806,10 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
 <div class="card card-soft mb-3" id="termConnect"><div class="card-body p-4">
   <h2 class="h6 fw-bold mb-1"><i class="bi bi-terminal me-2 text-primary"></i>SSH terminál</h2>
   <p class="small text-body-secondary mb-3">Príkazový riadok servera priamo v prehliadači – prihlásiš sa cez SSH ako používateľ systému (napr. <code><?= e($sysUser ?: 'pi') ?></code>). Heslo do SSH zadáš v termináli. Každé otvorenie sa zapíše do záznamov.</p>
+  <?php if (in_docker()): ?><div class="alert alert-info small py-2"><i class="bi bi-box me-1"></i>Web beží v Docker kontajneri – na samotné Pi sa pripojíš cez adresu hostiteľa <code><?= e(docker_host_ip() ?: '172.17.0.1') ?></code> (nie 127.0.0.1).</div><?php endif; ?>
   <form id="termForm" class="row g-2 align-items-end" autocomplete="off">
     <div class="col-sm-4 col-lg-3"><label class="form-label small mb-1" for="termUser">Používateľ</label><input class="form-control" id="termUser" value="<?= e($tl['user'] ?? ($sysUser ?: 'pi')) ?>" required autocapitalize="off" spellcheck="false"></div>
-    <div class="col-sm-5 col-lg-3"><label class="form-label small mb-1" for="termHost">Server</label><input class="form-control" id="termHost" value="<?= e($tl['host'] ?? '127.0.0.1') ?>" autocapitalize="off" spellcheck="false"></div>
+    <div class="col-sm-5 col-lg-3"><label class="form-label small mb-1" for="termHost">Server</label><input class="form-control" id="termHost" value="<?= e($tl['host'] ?? (in_docker() ? (docker_host_ip() ?: '172.17.0.1') : '127.0.0.1')) ?>" autocapitalize="off" spellcheck="false"></div>
     <div class="col-sm-3 col-lg-2"><label class="form-label small mb-1" for="termPort">Port</label><input class="form-control" id="termPort" type="number" min="1" max="65535" value="<?= (int)($tl['port'] ?? 22) ?>"></div>
     <div class="col-sm-8 col-lg-3 <?= time() - (int)($_SESSION['term_unlock'] ?? 0) < 900 ? 'd-none' : '' ?>" id="termPassWrap"><label class="form-label small mb-1" for="termPass">Tvoje heslo do Cloudu (overenie)</label><input class="form-control" id="termPass" type="password" autocomplete="current-password"></div>
     <div class="col-sm-4 col-lg-1 d-grid"><button class="btn btn-primary rounded-pill" id="termGo"><i class="bi bi-plug"></i><span class="d-lg-none ms-1">Pripojiť</span></button></div>

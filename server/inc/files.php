@@ -30,12 +30,48 @@ function is_thumbable(string $mime): bool {
 function ffmpeg_bin(string $tool = 'ffmpeg'): ?string {
     static $cache = [];
     if (array_key_exists($tool, $cache)) return $cache[$tool];
-    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
-    if (!function_exists('exec') || in_array('exec', $disabled, true)) return $cache[$tool] = null;
-    $found = null;
-    foreach (['/usr/bin/' . $tool, '/usr/local/bin/' . $tool, '/opt/homebrew/bin/' . $tool] as $p) { if (@is_executable($p)) { $found = $p; break; } }
-    if (!$found) { $out = []; @exec('command -v ' . escapeshellarg($tool) . ' 2>/dev/null', $out); $found = isset($out[0]) && $out[0] !== '' ? $out[0] : null; }
-    return $cache[$tool] = $found;
+    if (!exec_allowed()) return $cache[$tool] = null;
+    $dirs = ['/usr/bin', '/usr/local/bin', '/bin', '/usr/sbin', '/opt/homebrew/bin'];
+    foreach ($dirs as $d) { if (@is_executable("$d/$tool")) return $cache[$tool] = "$d/$tool"; }
+    // open_basedir môže PHP zakázať pozrieť sa do /usr/bin – vtedy sa opýtame shellu (s plnou cestou PATH)
+    $out = []; $rc = 1;
+    @exec('PATH=' . implode(':', $dirs) . ':$PATH; command -v ' . escapeshellarg($tool) . ' 2>/dev/null', $out, $rc);
+    $p = trim($out[0] ?? '');
+    if ($rc === 0 && $p !== '' && $p[0] === '/') return $cache[$tool] = $p;
+    return $cache[$tool] = null;
+}
+function exec_allowed(): bool {
+    $disabled = array_map('trim', explode(',', strtolower((string)ini_get('disable_functions'))));
+    return function_exists('exec') && !in_array('exec', $disabled, true);
+}
+/** Beží web v Docker kontajneri? (programy nainštalované na Pi potom PHP nevidí) */
+function in_docker(): bool {
+    static $r = null;
+    if ($r !== null) return $r;
+    return $r = @file_exists('/.dockerenv') || str_contains((string)@file_get_contents('/proc/1/cgroup'), 'docker') || str_contains((string)@file_get_contents('/proc/self/mountinfo'), '/docker/');
+}
+/** IP adresa hostiteľa (Pi) z pohľadu kontajnera – predvolená brána. */
+function docker_host_ip(): ?string {
+    foreach (@file('/proc/net/route') ?: [] as $l) {
+        $c = preg_split('/\s+/', trim($l));
+        if (($c[1] ?? '') === '00000000' && isset($c[2]) && strlen($c[2]) === 8) return implode('.', array_reverse(array_map('hexdec', str_split($c[2], 2))));
+    }
+    return null;
+}
+/** Diagnostika spúšťania programov z PHP (pre Stav servera a Terminál). */
+function exec_diag(string $tool): string {
+    if (!exec_allowed()) return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
+    $out = []; $rc = -1;
+    @exec('echo ok 2>&1', $out, $rc);
+    if ($rc !== 0 || trim($out[0] ?? '') !== 'ok') return 'PHP nedokáže spustiť ani jednoduchý príkaz (návratový kód ' . (int)$rc . '). Skontroluj, či Apache/PHP nebeží v obmedzenom režime (AppArmor, systemd <code>NoNewPrivileges</code>/<code>ProtectSystem</code>, chroot).';
+    $out = []; @exec('PATH=/usr/local/bin:/usr/bin:/bin:$PATH; command -v ' . escapeshellarg($tool) . ' 2>&1; ls -l /usr/bin/' . escapeshellarg($tool) . ' 2>&1; id 2>&1', $out);
+    $ob = (string)ini_get('open_basedir');
+    if (in_docker()) {
+        $pkg = ['python3' => 'python3 openssh-client', 'ssh' => 'openssh-client', 'ffmpeg' => 'ffmpeg', 'pdftotext' => 'poppler-utils'][$tool] ?? $tool;
+        return 'Web beží v <b>Docker kontajneri</b> – programy nainštalované priamo na Pi v ňom nie sú. Nainštaluj ich do kontajnera: <code>docker exec -u 0 &lt;kontajner&gt; sh -c "apt-get update &amp;&amp; apt-get install -y ' . e($pkg) . '"</code> (po novom vytvorení kontajnera treba znova – natrvalo ich pridaj do Dockerfile).';
+    }
+    return 'PHP (' . e(trim((string)@exec('whoami'))) . ') program <code>' . e($tool) . '</code> nenašlo. Výpis zo servera: <code>' . e(implode(' | ', $out)) . '</code>'
+        . ($ob !== '' ? ' · open_basedir: <code>' . e($ob) . '</code>' : '');
 }
 function data_path(string $sub = ''): string { return rtrim(cfg('storage_path'), '/') . ($sub !== '' ? '/' . $sub : ''); }
 function tmp_file(): string {

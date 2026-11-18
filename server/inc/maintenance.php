@@ -138,6 +138,7 @@ function server_health(): array {
     $h['model'] = $model ? trim(str_replace("\0", '', $model)) : null;
     $h['os'] = php_uname('s') . ' ' . php_uname('r') . ' (' . php_uname('m') . ')';
     if ($osr = $read('/etc/os-release')) { if (preg_match('/^PRETTY_NAME="?([^"\n]+)/m', $osr, $o)) $h['os'] = $o[1] . ' · ' . php_uname('m'); }
+    if (in_docker()) $h['os'] .= ' · Docker kontajner';
     $h['php'] = PHP_VERSION;
     $h['web'] = $_SERVER['SERVER_SOFTWARE'] ?? null;
     try { $h['db'] = db()->query('SELECT VERSION()')->fetchColumn(); } catch (Throwable $e) { $h['db'] = null; }
@@ -211,25 +212,13 @@ function fmt_uptime(int $s): string {
 }
 
 /** Prečo server nevidí ffmpeg – konkrétna príčina pre administrátora. */
-function ffmpeg_why(): string {
-    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
-    if (!function_exists('exec') || in_array('exec', $disabled, true))
-        return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
-    $ob = (string)ini_get('open_basedir');
-    if (is_file('/usr/bin/ffmpeg') || @file_exists('/usr/bin/ffmpeg')) {
-        if (!@is_executable('/usr/bin/ffmpeg')) return $ob !== '' ? 'Súbor /usr/bin/ffmpeg existuje, ale <code>open_basedir</code> (' . e($ob) . ') bráni PHP ho použiť.' : 'Súbor /usr/bin/ffmpeg nemá právo na spustenie pre používateľa webservera.';
-    }
-    $out = []; @exec('ls -l /usr/bin/ffmpeg /usr/local/bin/ffmpeg 2>&1', $out);
-    if ($out && str_contains(implode(' ', $out), 'ffmpeg') && !str_contains(implode(' ', $out), 'No such')) return 'ffmpeg existuje (' . e(implode('; ', $out)) . '), ale PHP ho nevie spustiť' . ($ob !== '' ? ' – skontroluj <code>open_basedir</code> (' . e($ob) . ')' : '') . '.';
-    return 'Webserver ffmpeg nenašiel v /usr/bin ani /usr/local/bin. Nainštaluj ho na <b>tomto</b> serveri: <code>sudo apt install ffmpeg</code> a potom <code>sudo systemctl restart apache2</code>.';
-}
+function ffmpeg_why(): string { return exec_diag('ffmpeg'); }
 
 /** Čo chýba pre webový terminál (null = všetko je v poriadku). */
 function term_requirements(): ?string {
-    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
-    if (!function_exists('exec') || in_array('exec', $disabled, true)) return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
-    if (!ffmpeg_bin('python3')) return 'Chýba <code>python3</code> – nainštaluj ho: <code>sudo apt install python3</code>.';
-    if (!ffmpeg_bin('ssh')) return 'Chýba SSH klient – nainštaluj ho: <code>sudo apt install openssh-client</code>.';
+    if (!exec_allowed()) return exec_diag('python3');
+    if (!ffmpeg_bin('python3')) return exec_diag('python3');
+    if (!ffmpeg_bin('ssh')) return 'Chýba SSH klient (<code>sudo apt install openssh-client</code>). ' . exec_diag('ssh');
     $d = data_path('term');
     if (!is_dir($d)) @mkdir($d, 0700, true);
     if (!is_dir($d) || !is_writable($d)) return 'Priečinok <code>' . e($d) . '</code> nie je zapisovateľný.';
