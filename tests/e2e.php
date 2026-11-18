@@ -485,8 +485,10 @@ ok(str_contains($web->get('index.php')['body'], '"recent":["kind","location","si
 $j = $web->api('list', ['view' => 'recent']);
 $it = array_values(array_filter($j['items'] ?? [], fn($i) => $i['name'] === 'kopia-a.bin'))[0] ?? null;
 ok($it && $it['path'] === 'Môj disk / Schránka' && !empty($it['created']), 'položky majú umiestnenie a dátum vytvorenia', json_encode($it, JSON_UNESCAPED_UNICODE));
-$j = $web->api('list', ['folder' => $pf, 'sort' => 'created', 'dir' => 'desc']);
-ok(($j['items'][0]['name'] ?? '') === 'kus-5.txt', 'triedenie podľa dátumu vytvorenia');
+$j = $web->api('list', ['view' => 'starred', 'sort' => 'kind', 'dir' => 'asc']);
+$j2 = $web->api('list', ['folder' => $pf, 'sort' => 'created', 'dir' => 'desc']);
+$cr = array_column($j2['items'] ?? [], 'created'); $sorted = $cr; rsort($sorted);
+ok(!empty($j['ok']) && count($cr) === 5 && $cr === $sorted, 'triedenie podľa dátumu vytvorenia a druhu', json_encode($cr));
 
 section('Stav servera');
 $r = $web->get('admin.php');
