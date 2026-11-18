@@ -149,7 +149,7 @@
     const layout = state.view === 'photos' ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
-    $('#listHeader .c-date').textContent = state.view === 'trash' ? 'Zmazané' : 'Zmenené';
+    $('#listHeader .c-date').textContent = state.view === 'trash' ? 'Zmazané' : state.view === 'dupes' ? 'Umiestnenie' : state.view === 'byme' ? 'Zdieľané s' : 'Zmenené';
     $('#empty').classList.toggle('d-none', state.items.length > 0);
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
       trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''], byme: ['Zatiaľ nič nezdieľaš', 'Súbor alebo zložku zdieľaš cez ⋮ → Zdieľať.'],
