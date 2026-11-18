@@ -145,6 +145,7 @@ function server_health(): array {
         $h['db_size'] = (int)db()->query("SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '" . str_replace('_', '\\_', P) . "%'")->fetchColumn();
     } catch (Throwable $e) { $h['db_size'] = null; }
     $h['ffmpeg'] = ffmpeg_bin() !== null;
+    $h['ffmpeg_why'] = $h['ffmpeg'] ? null : ffmpeg_why();
     // OPcache – bez neho PHP pri každej požiadavke znova spracúva všetky skripty
     $h['opcache'] = null;
     if (function_exists('opcache_get_status')) {
@@ -207,4 +208,18 @@ function speed_tips(array $h): array {
 function fmt_uptime(int $s): string {
     $d = intdiv($s, 86400); $hh = intdiv($s % 86400, 3600); $mi = intdiv($s % 3600, 60);
     return ($d ? $d . ' d ' : '') . $hh . ' h ' . $mi . ' min';
+}
+
+/** Prečo server nevidí ffmpeg – konkrétna príčina pre administrátora. */
+function ffmpeg_why(): string {
+    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+    if (!function_exists('exec') || in_array('exec', $disabled, true))
+        return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
+    $ob = (string)ini_get('open_basedir');
+    if (is_file('/usr/bin/ffmpeg') || @file_exists('/usr/bin/ffmpeg')) {
+        if (!@is_executable('/usr/bin/ffmpeg')) return $ob !== '' ? 'Súbor /usr/bin/ffmpeg existuje, ale <code>open_basedir</code> (' . e($ob) . ') bráni PHP ho použiť.' : 'Súbor /usr/bin/ffmpeg nemá právo na spustenie pre používateľa webservera.';
+    }
+    $out = []; @exec('ls -l /usr/bin/ffmpeg /usr/local/bin/ffmpeg 2>&1', $out);
+    if ($out && str_contains(implode(' ', $out), 'ffmpeg') && !str_contains(implode(' ', $out), 'No such')) return 'ffmpeg existuje (' . e(implode('; ', $out)) . '), ale PHP ho nevie spustiť' . ($ob !== '' ? ' – skontroluj <code>open_basedir</code> (' . e($ob) . ')' : '') . '.';
+    return 'Webserver ffmpeg nenašiel v /usr/bin ani /usr/local/bin. Nainštaluj ho na <b>tomto</b> serveri: <code>sudo apt install ffmpeg</code> a potom <code>sudo systemctl restart apache2</code>.';
 }

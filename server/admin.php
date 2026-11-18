@@ -437,7 +437,7 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <?php if ($hh['storage_dev']): $sdLabel = ['sd' => 'SD karta', 'usb' => 'USB / SATA disk (SSD)', 'ssd' => 'NVMe SSD', 'hdd' => 'pevný disk (HDD)'][$hh['storage_dev']['type']] ?? 'disk'; ?>
     <dt class="col-sm-3 text-body-secondary fw-normal">Úložisko súborov</dt><dd class="col-sm-9"><?= e($sdLabel) ?> · <code><?= e($hh['storage_dev']['dev']) ?></code> · <?= e($hh['storage_dev']['fs']) ?></dd>
     <?php endif; ?>
-    <dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><?= $hh['ffmpeg'] ? '<span class="text-success">✓ ffmpeg je nainštalovaný</span>' : 'vypnuté – nainštaluj <code>ffmpeg</code> (napr. <code>sudo apt install ffmpeg</code>)' ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><?= $hh['ffmpeg'] ? '<span class="text-success">✓ ffmpeg je nainštalovaný</span>' : '<span class="text-warning">vypnuté</span> – ' . ($hh['ffmpeg_why'] ?? 'nainštaluj <code>ffmpeg</code> (<code>sudo apt install ffmpeg</code>)') ?></dd>
   </dl>
   <?php $tips = speed_tips($hh); if ($tips): ?>
   <h3 class="h6 fw-bold mt-3 mb-2"><i class="bi bi-lightning-charge me-1"></i>Ako zrýchliť server</h3>
