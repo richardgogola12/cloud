@@ -1,0 +1,24 @@
+name: Knižnice (vendor)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/fetch-vendor.sh']
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Stiahnuť knižnice
+        run: bash tools/fetch-vendor.sh
+      - name: Uložiť do repozitára
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/assets/vendor
+          if git diff --cached --quiet; then echo "Bez zmeny"; exit 0; fi
+          git commit -m "Knižnice uložené na serveri (assets/vendor)"
+          git pull --rebase origin main
+          git push origin HEAD:main
