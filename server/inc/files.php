@@ -50,15 +50,7 @@ function in_docker(): bool {
     if ($r !== null) return $r;
     return $r = @file_exists('/.dockerenv') || str_contains((string)@file_get_contents('/proc/1/cgroup'), 'docker') || str_contains((string)@file_get_contents('/proc/self/mountinfo'), '/docker/');
 }
-/** IP adresa hostiteľa (Pi) z pohľadu kontajnera – predvolená brána. */
-function docker_host_ip(): ?string {
-    foreach (@file('/proc/net/route') ?: [] as $l) {
-        $c = preg_split('/\s+/', trim($l));
-        if (($c[1] ?? '') === '00000000' && isset($c[2]) && strlen($c[2]) === 8) return implode('.', array_reverse(array_map('hexdec', str_split($c[2], 2))));
-    }
-    return null;
-}
-/** Diagnostika spúšťania programov z PHP (pre Stav servera a Terminál). */
+/** Diagnostika spúšťania programov z PHP (pre Stav servera). */
 function exec_diag(string $tool): string {
     if (!exec_allowed()) return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
     $out = []; $rc = -1;
@@ -67,7 +59,7 @@ function exec_diag(string $tool): string {
     $out = []; @exec('PATH=/usr/local/bin:/usr/bin:/bin:$PATH; command -v ' . escapeshellarg($tool) . ' 2>&1; ls -l /usr/bin/' . escapeshellarg($tool) . ' 2>&1; id 2>&1', $out);
     $ob = (string)ini_get('open_basedir');
     if (in_docker()) {
-        $pkg = ['python3' => 'python3 openssh-client', 'ssh' => 'openssh-client', 'ffmpeg' => 'ffmpeg', 'pdftotext' => 'poppler-utils'][$tool] ?? $tool;
+        $pkg = ['ffmpeg' => 'ffmpeg', 'pdftotext' => 'poppler-utils'][$tool] ?? $tool;
         return 'Web beží v <b>Docker kontajneri</b> – programy nainštalované priamo na Pi v ňom nie sú. Nainštaluj ich do kontajnera: <code>docker exec -u 0 &lt;kontajner&gt; sh -c "apt-get update &amp;&amp; apt-get install -y ' . e($pkg) . '"</code> (po novom vytvorení kontajnera treba znova – natrvalo ich pridaj do Dockerfile).';
     }
     return 'PHP (' . e(trim((string)@exec('whoami'))) . ') program <code>' . e($tool) . '</code> nenašlo. Výpis zo servera: <code>' . e(implode(' | ', $out)) . '</code>'
@@ -512,7 +504,6 @@ function housekeeping(): void {
     try { backfill_hashes(null, 120); } catch (Throwable $e) {}
     try { backfill_thumbs(120); } catch (Throwable $e) {}
     try { backfill_text(120); } catch (Throwable $e) {}
-    try { require_once __DIR__ . '/maintenance.php'; term_cleanup(); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY

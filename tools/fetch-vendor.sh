@@ -15,9 +15,6 @@ get jquery@3.7.1/dist/jquery.min.js                          jquery/jquery.min.j
 get select2@4.1.0-rc.0/dist/css/select2.min.css              select2/select2.min.css
 get select2@4.1.0-rc.0/dist/js/select2.min.js                select2/select2.min.js
 get select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css select2/select2-bootstrap-5-theme.min.css
-get @xterm/xterm@5.5.0/lib/xterm.js                          xterm/xterm.js
-get @xterm/xterm@5.5.0/css/xterm.css                         xterm/xterm.css
-get @xterm/addon-fit@0.10.0/lib/addon-fit.js                 xterm/addon-fit.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
 echo "Hotovo: $D"

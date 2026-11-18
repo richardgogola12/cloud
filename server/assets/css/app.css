@@ -425,13 +425,3 @@ a.share-row:hover { background: var(--c-hover); }
 .col-resizing, .col-resizing * { cursor: col-resize !important; user-select: none !important; }
 @media (pointer: coarse) { .col-resize { display: none; } }
 
-/* webový terminál */
-.term-wrap { background: #1e1f24; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - 190px); min-height: 360px; }
-.term-wrap.term-full { position: fixed; inset: 0; z-index: 1085; border-radius: 0; height: 100vh; height: 100dvh; }
-.term-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: #2a2b31; color: #cfd2d8; }
-.term-dot { width: 9px; height: 9px; border-radius: 50%; background: #777; margin-right: 6px; flex-shrink: 0; }
-.term-dot.on { background: #34a853; } .term-dot.err { background: #f9ab00; } .term-dot.off { background: #ea4335; }
-.btn-term { color: #cfd2d8; border: 1px solid #44464e; padding: 1px 8px; font-size: .78rem; }
-.btn-term:hover { background: #3a3c44; color: #fff; }
-.term-box { flex: 1; min-height: 0; padding: 6px 4px 4px 8px; }
-.term-box .xterm { height: 100%; }

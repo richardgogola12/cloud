@@ -111,14 +111,6 @@ for (const [name, opts] of sizes) {
     await page.goto(base + 'admin.php'); await page.waitForTimeout(800);
     await page.locator('#healthCard').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `screens/${name}-8-admin-stav.png` });
-    await page.goto(base + 'admin.php?tab=terminal'); await page.waitForTimeout(800);
-    await page.fill('#termUser', 'nobody'); await page.fill('#termPort', '1');
-    if (await page.locator('#termPass').isVisible()) await page.fill('#termPass', 'Heslo1234');
-    await page.click('#termGo'); await page.waitForTimeout(2500);
-    const tx = await page.locator('#term').innerText().catch(() => '');
-    console.log(`[${name}] terminál: ` + tx.replace(/\s+/g, ' ').slice(0, 120));
-    if (!/refused|port 1/i.test(tx)) { console.log('CHYBA: terminál nezobrazil výstup ssh'); process.exitCode = 1; }
-    await page.screenshot({ path: `screens/${name}-16-terminal.png` });
     await page.goto(base + 'index.php#dupes'); await page.waitForTimeout(1200);
     await page.screenshot({ path: `screens/${name}-9-duplicity.png` });
     // tlačidlo Späť zatvorí náhľad

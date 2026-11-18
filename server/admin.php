@@ -339,12 +339,8 @@ $active = 'admin';
 $scripts = ['assets/js/admin.js'];
 if ($tab === 'dashboard' && count($hist) >= 2) $scripts[] = 'assets/js/admin-chart.js';
 if ($tab === 'maintenance') $scripts[] = 'assets/js/admin-maint.js';
-if ($tab === 'terminal') {
-    $extScripts = [lib('xterm/xterm.js', 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js'), lib('xterm/addon-fit.js', 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js')];
-    $scripts[] = 'assets/js/admin-term.js';
-}
 require __DIR__ . '/inc/views/layout_start.php';
-$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'maintenance' => ['bi-shield-check', 'Údržba'], 'terminal' => ['bi-terminal', 'Terminál'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
+$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'maintenance' => ['bi-shield-check', 'Údržba'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <h1 class="h4 fw-bold mb-0 me-auto"><i class="bi bi-shield-lock me-2 text-primary"></i>Administrácia</h1>
@@ -793,41 +789,6 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <?php endforeach; ?>
   </tbody>
 </table></div></div>
-<?php elseif ($tab === 'terminal'):
-  $tw = term_requirements();
-  $tl = json_decode((string)setting('term_last', ''), true) ?: [];
-  $sysUser = '';
-  if (!$tw) { foreach (['/home'] as $hd) foreach ((array)@scandir($hd) as $n) if (is_string($n) && $n !== '' && $n !== '.' && $n !== '..' && $n !== 'lost+found' && is_dir("$hd/$n") && !$sysUser) $sysUser = $n; }
-?>
-<link rel="stylesheet" href="<?= e(lib('xterm/xterm.css', 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css')) ?>">
-<?php if ($tw): ?>
-<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Terminál nie je dostupný: <?= $tw ?></div>
-<?php else: ?>
-<div class="card card-soft mb-3" id="termConnect"><div class="card-body p-4">
-  <h2 class="h6 fw-bold mb-1"><i class="bi bi-terminal me-2 text-primary"></i>SSH terminál</h2>
-  <p class="small text-body-secondary mb-3">Príkazový riadok servera priamo v prehliadači – prihlásiš sa cez SSH ako používateľ systému (napr. <code><?= e($sysUser ?: 'pi') ?></code>). Heslo do SSH zadáš v termináli. Každé otvorenie sa zapíše do záznamov.</p>
-  <?php if (in_docker()): ?><div class="alert alert-info small py-2"><i class="bi bi-box me-1"></i>Web beží v Docker kontajneri – na samotné Pi sa pripojíš cez adresu hostiteľa <code><?= e(docker_host_ip() ?: '172.17.0.1') ?></code> (nie 127.0.0.1).</div><?php endif; ?>
-  <form id="termForm" class="row g-2 align-items-end" autocomplete="off">
-    <div class="col-sm-4 col-lg-3"><label class="form-label small mb-1" for="termUser">Používateľ</label><input class="form-control" id="termUser" value="<?= e($tl['user'] ?? ($sysUser ?: 'pi')) ?>" required autocapitalize="off" spellcheck="false"></div>
-    <div class="col-sm-5 col-lg-3"><label class="form-label small mb-1" for="termHost">Server</label><input class="form-control" id="termHost" value="<?= e($tl['host'] ?? (in_docker() ? (docker_host_ip() ?: '172.17.0.1') : '127.0.0.1')) ?>" autocapitalize="off" spellcheck="false"></div>
-    <div class="col-sm-3 col-lg-2"><label class="form-label small mb-1" for="termPort">Port</label><input class="form-control" id="termPort" type="number" min="1" max="65535" value="<?= (int)($tl['port'] ?? 22) ?>"></div>
-    <div class="col-sm-8 col-lg-3 <?= time() - (int)($_SESSION['term_unlock'] ?? 0) < 900 ? 'd-none' : '' ?>" id="termPassWrap"><label class="form-label small mb-1" for="termPass">Tvoje heslo do Cloudu (overenie)</label><input class="form-control" id="termPass" type="password" autocomplete="current-password"></div>
-    <div class="col-sm-4 col-lg-1 d-grid"><button class="btn btn-primary rounded-pill" id="termGo"><i class="bi bi-plug"></i><span class="d-lg-none ms-1">Pripojiť</span></button></div>
-  </form>
-</div></div>
-<div class="term-wrap d-none" id="termWrap">
-  <div class="term-bar">
-    <span class="term-dot" id="termDot"></span><span class="small text-truncate me-auto" id="termTitle"></span>
-    <button class="btn btn-sm btn-term" data-key="esc" title="Esc">Esc</button>
-    <button class="btn btn-sm btn-term" data-key="tab" title="Tab">Tab</button>
-    <button class="btn btn-sm btn-term" data-key="ctrlc" title="Ctrl+C">Ctrl+C</button>
-    <button class="btn btn-sm btn-term d-none d-sm-inline-block" data-key="up" title="Šípka hore"><i class="bi bi-arrow-up"></i></button>
-    <button class="btn btn-sm btn-term" id="termFull" title="Celá obrazovka"><i class="bi bi-arrows-fullscreen"></i></button>
-    <button class="btn btn-sm btn-term text-danger" id="termClose" title="Odpojiť"><i class="bi bi-x-lg"></i></button>
-  </div>
-  <div id="term" class="term-box"></div>
-</div>
-<?php endif; ?>
 <?php endif; ?>
 
 <!-- modal: používateľ -->

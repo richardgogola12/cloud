@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -32,6 +32,7 @@ function migrate(): void {
         if ($v < 10) migrate_v10();
         if ($v < 11) migrate_v11();
         if ($v < 12) migrate_v12();
+        if ($v < 13) migrate_v13();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -331,4 +332,16 @@ function migrate_v12(): void {
         FULLTEXT KEY ft_body (body),
         CONSTRAINT fk_{$p}ft_file FOREIGN KEY (file_id) REFERENCES {$p}files(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/* v13: webový terminál bol odstránený – zmaže jeho súbory, ktoré po aktualizácii ostali na serveri */
+function migrate_v13(): void {
+    foreach (['term.php', 'inc/term_helper.py', 'assets/js/admin-term.js', 'assets/vendor/xterm/xterm.js', 'assets/vendor/xterm/xterm.css', 'assets/vendor/xterm/addon-fit.js'] as $f) @unlink(APP_ROOT . '/' . $f);
+    @rmdir(APP_ROOT . '/assets/vendor/xterm');
+    $rm = function (string $d) use (&$rm) {
+        foreach (array_diff((array)@scandir($d), ['.', '..', false]) as $f) { $p = "$d/$f"; is_dir($p) && !is_link($p) ? $rm($p) : @unlink($p); }
+        @rmdir($d);
+    };
+    if (is_dir(data_path('term'))) { foreach (glob(data_path('term') . '/*/') ?: [] as $d) @touch($d . 'close'); $rm(data_path('term')); }
+    try { q('DELETE FROM ' . P . "settings WHERE k IN ('term_last')"); } catch (Throwable $e) {}
 }
