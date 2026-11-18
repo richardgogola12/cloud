@@ -41,6 +41,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   </div>
 </div>
 
+<div class="search-chips d-none" id="searchChips"></div>
 <div class="trash-bar d-none" id="trashBar">
   <i class="bi bi-info-circle"></i>
   <span class="flex-grow-1 small" id="trashInfo">Položky v koši sa natrvalo zmažú po 30 dňoch.</span>

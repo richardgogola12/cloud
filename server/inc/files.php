@@ -234,7 +234,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? [],
                   'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null,
-                  'created' => $f['created_at'] ?? null,
+                  'created' => $f['created_at'] ?? null, 'snip' => $extra['snip'][(int)$f['id']] ?? null,
                   'path' => isset($extra['dup'][(int)$f['id']]) ? $extra['dup'][(int)$f['id']]['path']
                       : (isset($extra['paths']) && (int)$f['user_id'] === $uid ? ($extra['paths'][(int)($f['folder_id'] ?? 0)] ?? null) : null)];
     }
@@ -270,6 +270,7 @@ function store_file(int $owner, ?int $folder, string $name, string $src, bool $i
                 @unlink(data_path('thumbs/' . (int)$row['user_id'] . '/' . $row['stored_name'] . '.jpg'));
                 thumb_ensure($row);
             }
+            if ($row && content_index_on()) { try { index_file_text($row); } catch (Throwable $e) {} }
         });
     }
     return $r;
@@ -474,6 +475,7 @@ function housekeeping(): void {
     try { check_disk_warning(); } catch (Throwable $e) {}
     try { backfill_hashes(null, 120); } catch (Throwable $e) {}
     try { backfill_thumbs(120); } catch (Throwable $e) {}
+    try { backfill_text(120); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY

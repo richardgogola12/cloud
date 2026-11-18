@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($p1 !== $p2) flash('danger', 'Heslá sa nezhodujú.');
         else {
             q('UPDATE ' . P . 'users SET password = ? WHERE id = ?', [password_hash($p1, PASSWORD_DEFAULT), $uid]);
+            revoke_switch_tokens($uid); remember_account($uid);
             session_regenerate_id(true);
             q('UPDATE ' . P . 'sessions SET revoked = 1 WHERE user_id = ? AND id <> ?', [$uid, (int)($_SESSION['sid_row'] ?? 0)]);
             q('UPDATE ' . P . 'app_tokens SET revoked = 1 WHERE user_id = ? AND id <> ?', [$uid, (int)($GLOBALS['_app_token_id'] ?? 0)]);

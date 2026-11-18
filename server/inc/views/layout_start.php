@@ -40,9 +40,13 @@ require __DIR__ . '/head.php';
   <button class="btn btn-icon d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-label="Menu"><i class="bi bi-list"></i></button>
   <a href="<?= e(url('index.php')) ?>" class="brand"><span class="brand-logo"><i class="bi bi-cloud-fill"></i></span><span class="d-none d-sm-inline"><?= e(cfg('app_name')) ?></span></a>
   <?php if (($active ?? '') !== 'admin' && ($active ?? '') !== 'profile'): ?>
-  <form class="search-box" id="searchForm" role="search" onsubmit="return false">
-    <i class="bi bi-search"></i>
-    <input type="search" id="searchInput" class="form-control" placeholder="Hľadať v disku" autocomplete="off">
+  <form class="search-box" id="searchForm" role="search">
+    <i class="bi bi-search search-ic"></i>
+    <input type="text" id="searchInput" class="form-control" placeholder="Hľadať v disku" autocomplete="off" enterkeyhint="search" aria-label="Hľadať v disku">
+    <button type="button" class="btn btn-icon btn-sm search-clear d-none" id="searchClear" aria-label="Vymazať"><i class="bi bi-x-lg"></i></button>
+    <button type="button" class="btn btn-icon btn-sm search-filter" id="searchFilterBtn" title="Rozšírené vyhľadávanie" aria-label="Rozšírené vyhľadávanie"><i class="bi bi-sliders2"></i></button>
+    <div class="search-pop shadow d-none" id="searchPop"></div>
+    <div class="search-adv shadow d-none" id="searchAdv"></div>
   </form>
   <?php else: ?><div class="flex-grow-1"></div><?php endif; ?>
   <div class="dropdown">
@@ -63,7 +67,16 @@ require __DIR__ . '/head.php';
       <?= avatar_html($user) ?>
     </button>
     <ul class="dropdown-menu dropdown-menu-end shadow">
-      <li class="px-3 py-2"><div class="fw-semibold"><?= e($user['name']) ?></div><div class="small text-body-secondary"><?= e($user['email']) ?></div></li>
+      <li class="px-3 py-2 d-flex align-items-center gap-2"><?= avatar_html($user, 'avatar-md') ?><div class="min-w-0"><div class="fw-semibold text-truncate"><?= e($user['name']) ?></div><div class="small text-body-secondary text-truncate"><?= e($user['email']) ?></div></div></li>
+      <?php if (!$inApp): $others = saved_accounts((int)$user['id']); ?>
+      <li><hr class="dropdown-divider"></li>
+      <?php if ($others): ?><li><h6 class="dropdown-header">Prepnúť účet</h6></li><?php endif; ?>
+      <?php foreach ($others as $acc): ?>
+      <li><form method="post" action="<?= e(url('switch.php')) ?>" class="acc-switch"><?= csrf_field() ?><input type="hidden" name="uid" value="<?= (int)$acc['id'] ?>">
+        <button class="dropdown-item d-flex align-items-center gap-2" title="Prepnúť na <?= e($acc['email']) ?>"><?= avatar_html($acc, 'avatar-sm') ?><span class="min-w-0"><span class="d-block text-truncate"><?= e($acc['name']) ?></span><span class="d-block small text-body-secondary text-truncate"><?= e($acc['email']) ?></span></span></button></form></li>
+      <?php endforeach; ?>
+      <li><form method="post" action="<?= e(url('switch.php')) ?>"><?= csrf_field() ?><input type="hidden" name="do" value="add"><button class="dropdown-item"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</button></form></li>
+      <?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="<?= e(url('profile.php')) ?>"><i class="bi bi-person-gear me-2"></i>Môj účet</a></li>
       <?php if ($user['role'] === 'admin'): ?><li><a class="dropdown-item" href="<?= e(url('admin.php')) ?>"><i class="bi bi-shield-lock me-2"></i>Administrácia</a></li><?php endif; ?>
@@ -72,6 +85,7 @@ require __DIR__ . '/head.php';
       <li><a class="dropdown-item text-danger" href="cloudapp://logout"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť sa z aplikácie</a></li>
       <?php else: ?>
       <li><form method="post" action="<?= e(url('logout.php')) ?>"><?= csrf_field() ?><button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť sa</button></form></li>
+      <?php if (!empty($others)): ?><li><form method="post" action="<?= e(url('switch.php')) ?>"><?= csrf_field() ?><input type="hidden" name="do" value="logout_all"><button class="dropdown-item text-danger"><i class="bi bi-door-open me-2"></i>Odhlásiť všetky účty</button></form></li><?php endif; ?>
       <?php endif; ?>
     </ul>
   </div>

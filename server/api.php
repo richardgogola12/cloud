@@ -108,10 +108,7 @@ try {
         $folders = []; $files = []; $crumbs = []; $folderId = null; $perm = 'owner'; $root = 'drive'; $extra = [];
 
         if ($view === 'search') {
-            $s = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], trim((string)($_POST['q'] ?? ''))) . '%';
-            $tagged = "SELECT it.item_id FROM " . P . "item_tags it JOIN " . P . "tags tg ON tg.id = it.tag_id WHERE tg.user_id = ? AND tg.name LIKE ? AND it.item_type = ";
-            $folders = q("SELECT * FROM $D WHERE user_id = ? AND deleted_at IS NULL AND (name LIKE ? OR id IN ($tagged'd')) ORDER BY $orderD LIMIT 100", [$uid, $s, $uid, $s])->fetchAll();
-            $files   = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND (name LIKE ? OR id IN ($tagged'f')) ORDER BY $orderF LIMIT 300", [$uid, $s, $uid, $s])->fetchAll();
+            [$folders, $files, $extra] = search_items($uid, $_POST, $orderD, $orderF, $vcnt);
         } elseif ($view === 'recent') {
             $files = q("SELECT f.*, $vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 60", [$uid])->fetchAll();
         } elseif ($view === 'starred') {
@@ -227,6 +224,23 @@ try {
         json_out(['ok' => true, 'folder' => $folderId, 'crumbs' => $crumbs, 'perm' => $perm, 'root' => $root,
                   'items' => rows_out($uid, $folders, $files, $extra), 'total' => $total, 'offset' => $offset, 'quota' => quota_info($user),
                   'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0]);
+    }
+
+    case 'suggest': { // rýchle návrhy pri písaní do vyhľadávania
+        $qq = trim((string)($_POST['q'] ?? ''));
+        if (mb_strlen($qq) < 1) json_out(['ok' => true, 'items' => [], 'tags' => []]);
+        $vc = '0 AS vcnt';
+        [$ds, $fs] = search_items($uid, ['q' => $qq, 'content' => '0'], 'updated_at DESC', 'updated_at DESC', $vc, 8);
+        $items = rows_out($uid, array_slice($ds, 0, 3), array_slice($fs, 0, 8 - min(3, count($ds))));
+        $tags = q('SELECT id, name, color FROM ' . P . 'tags WHERE user_id = ? AND name LIKE ? ORDER BY name LIMIT 3', [$uid, like_esc($qq)])->fetchAll();
+        json_out(['ok' => true, 'items' => $items, 'tags' => $tags]);
+    }
+
+    case 'search_meta': { // údaje pre panel rozšíreného vyhľadávania
+        $types = [];
+        foreach (SEARCH_TYPES as $k => $t) $types[] = ['id' => $k, 'label' => $t['label'], 'icon' => $t['icon']];
+        json_out(['ok' => true, 'types' => $types, 'content' => content_index_on(),
+                  'tags' => q('SELECT id, name, color FROM ' . P . 'tags WHERE user_id = ? ORDER BY name', [$uid])->fetchAll()]);
     }
 
     case 'folders': { // pre Select2 – výber cieľovej zložky (vlastné + zdieľané s právom úprav)

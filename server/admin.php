@@ -116,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($_POST['password'])) {
                     if (strlen($_POST['password']) < 8) throw new RuntimeException('Heslo musí mať aspoň 8 znakov.');
                     q("UPDATE $U SET password = ? WHERE id = ?", [password_hash((string)$_POST['password'], PASSWORD_DEFAULT), $id]);
+                    revoke_switch_tokens($id);
                 }
                 if (!$old['is_active'] && $activeFlag) {
                     send_mail($email, 'Účet bol aktivovaný – ' . cfg('app_name'), 'Tvoj účet je aktívny',
@@ -222,6 +223,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST['encrypt_files'])) crypto_master_key(); // vytvor kľúč hneď
             log_action($me, 'encryption_setting', setting('encrypt_files'));
             flash('success', 'Nastavenie šifrovania bolo uložené.');
+        } elseif ($act === 'content_index') {
+            $on = !empty($_POST['content_index']);
+            setting_set('content_index', $on ? '1' : '0');
+            if (!$on) { try { q('DELETE FROM ' . P . 'file_text'); } catch (Throwable $e) {} }
+            else defer_task(fn() => backfill_text(240));
+            log_action($me, 'content_index', $on ? '1' : '0');
+            flash('success', $on ? 'Index obsahu je zapnutý – dokumenty sa indexujú na pozadí.' : 'Index obsahu je vypnutý a zmazaný.');
         } elseif ($act === 'update') {
             $want = (string)($_POST['version'] ?? '');
             $rel = null;
@@ -686,6 +694,22 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="download_key"><input type="hidden" name="tab" value="maintenance">
       <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="bi bi-key me-1"></i>Stiahnuť záložný kľúč</button></form>
     <?php endif; ?>
+  </div></div></div>
+
+  <div class="col-lg-6"><div class="card card-soft h-100"><div class="card-body p-4">
+    <?php $ci = content_index_stats(); ?>
+    <h2 class="h6 fw-bold mb-3"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Hľadanie v obsahu dokumentov</h2>
+    <p class="small text-body-secondary">Vyhľadávanie nájde aj slová vnútri dokumentov (TXT, Word, Excel, PowerPoint, OpenDocument<?= ffmpeg_bin('pdftotext') ? ', PDF' : '' ?>), nielen v názvoch – ako Google Disk.</p>
+    <div class="alert alert-warning small"><i class="bi bi-exclamation-triangle me-1"></i>Index obsahu sa ukladá do databázy <b>nezašifrovaný</b> – kto má prístup k databáze, uvidí text dokumentov. Vypnutím sa index zmaže.</div>
+    <?php if (!ffmpeg_bin('pdftotext')): ?><div class="small text-body-secondary mb-2"><i class="bi bi-info-circle me-1"></i>Pre PDF nainštaluj <code>sudo apt install poppler-utils</code>.</div><?php endif; ?>
+    <form method="post" class="mb-2">
+      <?= csrf_field() ?><input type="hidden" name="act" value="content_index"><input type="hidden" name="tab" value="maintenance">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" name="content_index" id="ciOn" value="1" <?= content_index_on() ? 'checked' : '' ?> onchange="this.form.submit()">
+        <label class="form-check-label fw-semibold" for="ciOn">Indexovať obsah dokumentov</label>
+      </div>
+    </form>
+    <?php if (content_index_on()): ?><div class="small text-body-secondary">V indexe: <b><?= (int)$ci['files'] ?></b> dokumentov · <?= e(format_bytes($ci['bytes'])) ?> textu. Nové súbory sa indexujú hneď, staršie postupne na pozadí.</div><?php endif; ?>
   </div></div></div>
 
   <div class="col-lg-6"><div class="card card-soft h-100"><div class="card-body p-4">

@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($p1 !== $p2) flash('danger', 'Heslá sa nezhodujú.');
     else {
         q('UPDATE ' . P . 'users SET password = ? WHERE id = ?', [password_hash($p1, PASSWORD_DEFAULT), $row['user_id']]);
+        revoke_switch_tokens((int)$row['user_id']);
         q('UPDATE ' . P . 'password_resets SET used = 1 WHERE user_id = ?', [$row['user_id']]);
         q('UPDATE ' . P . 'sessions SET revoked = 1 WHERE user_id = ?', [$row['user_id']]); // odhlás všetky zariadenia
         q('UPDATE ' . P . 'app_tokens SET revoked = 1 WHERE user_id = ?', [$row['user_id']]);

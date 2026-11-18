@@ -264,6 +264,8 @@ function current_user(): ?array {
         $u = q('SELECT * FROM ' . P . 'users WHERE id = ? AND is_active = 1', [$_SESSION['uid']])->fetch() ?: null;
         if ($u && !session_valid($u)) $u = null;
         if (!$u) { unset($_SESSION['uid'], $_SESSION['sid_row'], $_SESSION['sid_key']); }
+        // účty prihlásené pred zavedením prepínania doplní do zoznamu
+        elseif (!defined('CLOUD_NO_SESSION') && !is_android_app() && !headers_sent() && !isset(acc_list()[(int)$u['id']])) remember_account((int)$u['id']);
     }
     return $u;
 }
@@ -309,6 +311,69 @@ function login_user(array $user, bool $remember = false, string $method = 'heslo
     q('UPDATE ' . P . 'users SET last_login = NOW() WHERE id = ?', [$user['id']]);
     track_session($user, $method);
     check_new_device($user, $method);
+    if (!is_android_app()) remember_account((int)$user['id']);
+}
+
+/* ---------- Rýchle prepínanie účtov ----------
+ * Cookie <session>_acc = "uid:token,uid:token" – token je v tabuľke tokens (type=switch, hash).
+ * Dovoľuje prepnúť sa na iný účet prihlásený v tomto prehliadači bez zadávania hesla. */
+function acc_cookie_name(): string { return cfg('session_name', 'CLOUD_SID') . '_acc'; }
+function acc_list(): array {
+    $out = [];
+    foreach (explode(',', (string)($_COOKIE[acc_cookie_name()] ?? '')) as $part) {
+        if (preg_match('/^(\d+):([a-f0-9]{64})$/', $part, $m)) $out[(int)$m[1]] = $m[2];
+    }
+    return array_slice($out, 0, 6, true);
+}
+function acc_save(array $list): void {
+    $parts = [];
+    foreach ($list as $uid => $t) $parts[] = $uid . ':' . $t;
+    $v = implode(',', $parts);
+    $_COOKIE[acc_cookie_name()] = $v;
+    if (headers_sent()) return;
+    setcookie(acc_cookie_name(), $v, ['expires' => $v === '' ? time() - 3600 : time() + 90 * 86400,
+        'path' => app_base_path(), 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
+}
+function remember_account(int $uid): void {
+    try {
+        $list = acc_list();
+        if (isset($list[$uid]) && acc_token_valid($uid, $list[$uid])) { acc_save($list); return; }
+        $t = bin2hex(random_bytes(32));
+        q('INSERT INTO ' . P . 'tokens (user_id, type, token_hash, data, expires_at) VALUES (?,?,?,?, NOW() + INTERVAL 90 DAY)',
+          [$uid, 'switch', hash('sha256', $t), null]);
+        $list[$uid] = $t;
+        acc_save($list);
+    } catch (Throwable $e) {}
+}
+function acc_token_valid(int $uid, string $t): bool {
+    return (bool)q('SELECT id FROM ' . P . "tokens WHERE user_id = ? AND type = 'switch' AND token_hash = ? AND used = 0 AND expires_at > NOW()",
+        [$uid, hash('sha256', $t)])->fetchColumn();
+}
+function forget_account(int $uid): void {
+    $list = acc_list();
+    if (isset($list[$uid])) {
+        try { q('UPDATE ' . P . "tokens SET used = 1 WHERE user_id = ? AND type = 'switch' AND token_hash = ?", [$uid, hash('sha256', $list[$uid])]); } catch (Throwable $e) {}
+        unset($list[$uid]);
+        acc_save($list);
+    }
+}
+/** Účty uložené v tomto prehliadači (platné), bez aktuálneho. */
+function saved_accounts(?int $except = null): array {
+    $list = acc_list();
+    if (!$list) return [];
+    $ids = array_keys($list);
+    $rows = q('SELECT id, name, email, avatar_key, avatar_v, is_active FROM ' . P . 'users WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids)->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        if ((int)$r['id'] === $except || !$r['is_active']) continue;
+        if (!acc_token_valid((int)$r['id'], $list[(int)$r['id']])) continue;
+        $out[] = $r;
+    }
+    return $out;
+}
+/** Zneplatní všetky prepínacie tokeny používateľa (napr. po zmene hesla). */
+function revoke_switch_tokens(int $uid): void {
+    try { q('UPDATE ' . P . "tokens SET used = 1 WHERE user_id = ? AND type = 'switch'", [$uid]); } catch (Throwable $e) {}
 }
 function logout_user(): void {
     if (!empty($_SESSION['sid_row'])) {
@@ -412,6 +477,7 @@ require_once __DIR__ . '/files.php';
 require_once __DIR__ . '/crypto.php';
 require_once __DIR__ . '/notify.php';
 require_once __DIR__ . '/avatar.php';
+require_once __DIR__ . '/search.php';
 
 setting('schema_version');
 if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SCHEMA_VERSION) {

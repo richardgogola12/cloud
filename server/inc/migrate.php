@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -31,6 +31,7 @@ function migrate(): void {
         if ($v < 9) migrate_v9();
         if ($v < 10) migrate_v10();
         if ($v < 11) migrate_v11();
+        if ($v < 12) migrate_v12();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -316,4 +317,18 @@ HT;
 /* v11: osobné nastavenia zobrazenia (stĺpce v zozname…) */
 function migrate_v11(): void {
     add_col(P . 'users', 'prefs', 'TEXT NULL');
+}
+
+/* v12: voliteľný index obsahu dokumentov pre vyhľadávanie (fulltext) */
+function migrate_v12(): void {
+    $p = P;
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}file_text (
+        file_id INT UNSIGNED NOT NULL PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        body MEDIUMTEXT NOT NULL,
+        indexed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id),
+        FULLTEXT KEY ft_body (body),
+        CONSTRAINT fk_{$p}ft_file FOREIGN KEY (file_id) REFERENCES {$p}files(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }

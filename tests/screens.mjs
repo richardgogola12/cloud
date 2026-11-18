@@ -38,6 +38,28 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-2b-cesta-3-urovne.png` });
   await page.goto(base + 'index.php#'); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-3-moj-disk.png` });
+  // vyhľadávanie: návrhy, výsledky s čipmi filtrov, rozšírené vyhľadávanie
+  await page.click('#searchInput'); await page.waitForTimeout(500);
+  await page.screenshot({ path: `screens/${name}-12-hladanie-prazdne.png` });
+  await page.fill('#searchInput', 'Barbora'); await page.waitForTimeout(900);
+  await page.screenshot({ path: `screens/${name}-12b-hladanie-navrhy.png` });
+  await page.press('#searchInput', 'Enter'); await page.waitForTimeout(1300);
+  const chips = await page.locator('#searchChips .s-chip').count(), marks = await page.locator('#items mark').count();
+  console.log(`[${name}] hľadanie: čipy ${chips}, zvýraznenia ${marks}, adresa ${page.url()}`);
+  if (chips < 4 || marks < 1) { console.log('CHYBA: výsledky hľadania bez čipov / zvýraznenia'); process.exitCode = 1; }
+  await page.screenshot({ path: `screens/${name}-13-hladanie-vysledky.png` });
+  await page.locator('#searchChips .s-chip').first().click(); await page.waitForTimeout(400);
+  await page.screenshot({ path: `screens/${name}-13b-hladanie-typ.png` });
+  await page.locator('#searchChips .dropdown-menu.show [data-val="folder"]').click(); await page.waitForTimeout(1200);
+  if (!page.url().includes('type=folder')) { console.log('CHYBA: čip typu nezmenil filter'); process.exitCode = 1; }
+  await page.click('#searchFilterBtn'); await page.waitForTimeout(500);
+  await page.screenshot({ path: `screens/${name}-14-rozsirene-hladanie.png` });
+  await page.selectOption('#searchAdv select[name="modified"]', '7d');
+  await page.click('#searchAdv [data-adv-go]'); await page.waitForTimeout(1200);
+  if (!page.url().includes('modified=7d')) { console.log('CHYBA: rozšírené vyhľadávanie nepoužilo filter'); process.exitCode = 1; }
+  await page.click('.avatar-btn'); await page.waitForTimeout(400);
+  await page.screenshot({ path: `screens/${name}-15-menu-uctu.png` });
+  await page.keyboard.press('Escape');
   if (name === 'pc') {
     // zdieľanie: hľadanie používateľa podľa e-mailu v Select2
     const card = page.locator('[data-key="d:' + ids[0] + '"]').first();

@@ -40,8 +40,25 @@ $heading = 'Prihlásenie';
 $subheading = 'Vitaj späť v ' . cfg('app_name');
 $title = 'Prihlásenie';
 $scripts = ['assets/js/passkey.js'];
+$saved = is_android_app() ? [] : saved_accounts();
 require __DIR__ . '/inc/views/auth_start.php';
 ?>
+<?php if ($saved): ?>
+<div class="acc-list mb-3" id="savedAccounts">
+  <div class="small text-body-secondary mb-2"><?= !empty($_GET['add']) ? 'Prepnúť na uložený účet' : 'Vyber účet' ?></div>
+  <?php foreach ($saved as $acc): $acc['avatar_key'] = null; ?>
+  <div class="d-flex align-items-center gap-1">
+    <form method="post" action="<?= e(url('switch.php')) ?>" class="flex-grow-1 min-w-0"><?= csrf_field() ?><input type="hidden" name="uid" value="<?= (int)$acc['id'] ?>">
+      <button class="acc-item"><?= avatar_html($acc, 'avatar-sm') ?><span class="min-w-0"><span class="d-block fw-semibold text-truncate"><?= e($acc['name']) ?></span><span class="d-block small text-body-secondary text-truncate"><?= e($acc['email']) ?></span></span></button>
+    </form>
+    <form method="post" action="<?= e(url('switch.php')) ?>" class="mb-2"><?= csrf_field() ?><input type="hidden" name="do" value="forget"><input type="hidden" name="uid" value="<?= (int)$acc['id'] ?>">
+      <button class="btn btn-icon" title="Odstrániť z tohto zariadenia"><i class="bi bi-x-lg"></i></button>
+    </form>
+  </div>
+  <?php endforeach; ?>
+  <div class="divider-text my-3"><span>alebo iný účet</span></div>
+</div>
+<?php endif; ?>
 <div id="passkeyLogin" class="d-none mb-4">
   <button type="button" class="btn btn-passkey w-100 py-3" id="btnPasskeyLogin">
     <i class="bi bi-fingerprint fs-3 d-block mb-1"></i>

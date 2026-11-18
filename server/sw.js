@@ -49,7 +49,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // dynamické dáta a súbory nikdy necacheujeme
-  if (url.origin === location.origin && /\/(api|passkey|logout|admin)\.php/.test(url.pathname)) return;
+  if (url.origin === location.origin && /\/(api|passkey|logout|admin|switch)\.php/.test(url.pathname)) return;
 
   // navigácia: sieť, pri výpadku offline stránka
   if (req.mode === 'navigate') {

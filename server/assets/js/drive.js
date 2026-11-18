@@ -70,6 +70,7 @@
     const skT = keepSel ? null : setTimeout(() => { $('#loading').classList.add('d-none'); skeleton(); }, 120);
     if (keepSel) $('#loading').classList.remove('d-none');
     const params = { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir };
+    if (state.view === 'search') { Object.assign(params, searchParams(state.sf || {})); params.folder = 0; }
     const ticket = state.loadTicket = (state.loadTicket || 0) + 1;
     // najprv prvých 250 položiek → zoznam je hneď na obrazovke, zvyšok sa dotiahne na pozadí
     const r = await api('api.php?action=list', Object.assign({ limit: 250 }, params));
@@ -96,7 +97,7 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
-    const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: 'Výsledky pre „' + state.q + '“' };
+    const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: state.q ? 'Výsledky pre „' + state.q + '“' : 'Výsledky hľadania' };
     const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
       const t = state.crumbs[0] || {};
@@ -156,6 +157,7 @@
 
   function render() {
     renderCrumbs();
+    renderSearchChips();
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : state.view;
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
@@ -367,14 +369,34 @@
     const h = $('#listHeader');
     if (h.dataset.html !== html) { h.innerHTML = html; h.dataset.html = html; }
   }
+  /** zvýrazní hľadané slová (iba vo výsledkoch hľadania) */
+  function hl(t) {
+    const words = state.view === 'search' ? searchWords() : [];
+    if (!words.length) return esc(t);
+    const fold = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const src = String(t), f = fold(src);
+    if (f.length !== src.length) return esc(src);
+    const marks = new Array(src.length).fill(false);
+    words.forEach(w => { const fw = fold(w); if (!fw) return; let i = f.indexOf(fw); while (i >= 0) { for (let j = i; j < i + fw.length; j++) marks[j] = true; i = f.indexOf(fw, i + fw.length); } });
+    let out = '', open = false;
+    for (let i = 0; i < src.length; i++) {
+      if (marks[i] && !open) { out += '<mark>'; open = true; } else if (!marks[i] && open) { out += '</mark>'; open = false; }
+      out += esc(src[i]);
+    }
+    return out + (open ? '</mark>' : '');
+  }
+  function searchWords() {
+    return (state.q || '').replace(/(^|\s)-?\w+(:|>=|<=|>|<)("[^"]*"|\S+)/g, ' ').match(/"[^"]+"|\S+/g)?.map(w => w.replace(/"/g, '')).filter(w => w.length > 1) || [];
+  }
   function listItem(it) {
     const k = key(it), cols = state.cols || [];
     const meta = cols.filter(c => c !== 'tags').map(c => colText(c, it)).filter(Boolean).slice(0, 3).join(' · ');
     return '<div class="item row-item' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
       + '<div class="c-check"><input type="checkbox" class="form-check-input item-check" tabindex="-1"></div>'
       + '<div class="c-name"><span class="item-icon' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it) + '</span>'
-      + '<div class="name-wrap"><div class="name-line"><span class="item-name text-truncate" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' + badges(it) + ((state.colsShown || []).includes('tags') ? '<span class="d-md-none d-inline-flex">' + tagChips(it) + '</span>' : tagChips(it)) + '</div>'
-      + (meta ? '<div class="item-meta text-truncate">' + esc(meta) + '</div>' : '') + '</div></div>'
+      + '<div class="name-wrap"><div class="name-line"><span class="item-name text-truncate" title="' + esc(it.name) + '">' + hl(it.name) + '</span>' + badges(it) + ((state.colsShown || []).includes('tags') ? '<span class="d-md-none d-inline-flex">' + tagChips(it) + '</span>' : tagChips(it)) + '</div>'
+      + (meta ? '<div class="item-meta text-truncate">' + esc(meta) + '</div>' : '')
+      + (it.snip ? '<div class="item-snip text-truncate" title="' + esc(it.snip) + '"><i class="bi bi-text-paragraph me-1"></i>…' + hl(it.snip) + '…</div>' : '') + '</div></div>'
       + (state.colsShown || []).map(c => '<div class="c-col c-' + c + '">' + (colVal(c, it) ?? '<span class="opacity-50">—</span>') + '</div>').join('')
       + '<div class="c-act"><button class="btn btn-icon btn-sm item-menu" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div></div>';
   }
@@ -452,14 +474,14 @@
     if (it.type === 'd') {
       return '<div class="item folder-card' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.deleted ? '' : ' data-drop-folder="' + it.id + '"') + '>'
         + '<input type="checkbox" class="form-check-input item-check" tabindex="-1"><i class="bi ' + (it.shared || it.owner ? 'bi-folder-symlink-fill' : 'bi-folder-fill') + ' ic-folder"' + iconStyle(it) + '></i>'
-        + '<span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + tagChips(it)
+        + '<span class="item-name text-truncate">' + hl(it.name) + '</span>' + badges(it) + tagChips(it)
         + '<button class="btn btn-icon btn-sm item-menu ms-auto" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div>';
     }
     const [ic, cls] = fileIcon(it);
     return '<div class="item file-card' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '">'
       + '<input type="checkbox" class="form-check-input item-check" tabindex="-1">'
       + '<div class="file-thumb' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it, true) + '</div>'
-      + '<div class="file-meta"><i class="bi ' + ic + ' ' + cls + '"' + iconStyle(it) + '></i><span class="item-name text-truncate">' + esc(it.name) + '</span>'
+      + '<div class="file-meta"><i class="bi ' + ic + ' ' + cls + '"' + iconStyle(it) + '></i><span class="item-name text-truncate">' + hl(it.name) + '</span>'
       + '<button class="btn btn-icon btn-sm item-menu ms-auto" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div>'
       + '<div class="file-sub text-truncate">' + formatBytes(it.size) + ' · ' + esc(subText(it)) + ' ' + badges(it) + '</div>' + tagChips(it) + '</div>';
   }
@@ -509,9 +531,15 @@
     if (h.startsWith('folder/')) { state.view = 'folder'; state.folder = parseInt(h.slice(7)) || null; }
     else if (['recent', 'starred', 'trash', 'shared', 'byme', 'dupes', 'photos'].includes(h)) { state.view = h; state.folder = null; }
     else if (h.startsWith('tag/')) { state.view = 'tag'; state.tagId = parseInt(h.slice(4)) || null; state.folder = null; }
-    else if (h.startsWith('search/')) { state.view = 'search'; state.q = h.slice(7); $('#searchInput').value = state.q; }
+    else if (h.startsWith('search/')) {
+      const raw = location.hash.slice(8), qi = raw.indexOf('?');
+      state.view = 'search';
+      state.q = decodeURIComponent(qi >= 0 ? raw.slice(0, qi) : raw);
+      state.sf = Object.fromEntries(new URLSearchParams(qi >= 0 ? raw.slice(qi + 1) : ''));
+      $('#searchInput').value = state.q;
+    }
     else { state.view = 'folder'; state.folder = null; }
-    if (state.view !== 'search') $('#searchInput').value = '';
+    if (state.view !== 'search') { $('#searchInput').value = ''; state.sf = {}; }
     const oc = bootstrap.Offcanvas.getInstance($('#sidebar')); oc && oc.hide();
     load();
   }
@@ -532,7 +560,7 @@
   });
 
   function open(it) {
-    if (state.view === 'trash') { toast('Položku v koši najprv obnov.'); return; }
+    if (state.view === 'trash' || it.deleted) { toast('Položku v koši najprv obnov.'); return; }
     if (it.type === 'd') go('#folder/' + it.id);
     else preview(it);
   }
@@ -1139,11 +1167,225 @@
     if (map[a.dataset.nav] !== undefined) a.addEventListener('click', (e) => { e.preventDefault(); go(map[a.dataset.nav]); });
   });
 
-  // vyhľadávanie
-  let sTimer;
-  $('#searchInput').addEventListener('input', (e) => {
-    clearTimeout(sTimer);
-    sTimer = setTimeout(() => { const v = e.target.value.trim(); go(v ? '#search/' + encodeURIComponent(v) : '#'); }, 350);
+  /* ---------------- vyhľadávanie ako v Google Disku ---------------- */
+  const SF = {
+    owner: { '': 'Ktokoľvek', me: 'Vlastním ja', others: 'Nevlastním ja' },
+    where: { '': 'Kdekoľvek', drive: 'Môj disk', shared: 'Zdieľané so mnou', starred: 'S hviezdičkou', trash: 'Kôš' },
+    modified: { '': 'Kedykoľvek', today: 'Dnes', '7d': 'Posledných 7 dní', '30d': 'Posledných 30 dní', '90d': 'Posledné 3 mesiace', year: 'Tento rok', lastyear: 'Minulý rok', custom: 'Vlastný rozsah…' },
+    size: { '': 'Ľubovoľná', lt1: 'Menej ako 1 MB', '1-10': '1 – 10 MB', '10-100': '10 – 100 MB', '100-1g': '100 MB – 1 GB', gt1g: 'Viac ako 1 GB' },
+  };
+  const MB = 1048576;
+  const SIZE_RANGE = { lt1: [null, MB], '1-10': [MB, 10 * MB], '10-100': [10 * MB, 100 * MB], '100-1g': [100 * MB, 1024 * MB], gt1g: [1024 * MB, null] };
+  let smeta = null;
+  async function searchMeta() {
+    if (!smeta) { const r = await api('api.php?action=search_meta', {}); smeta = r.ok ? r : { types: [], tags: [], content: false }; }
+    return smeta;
+  }
+  function searchParams(sf) {
+    const p = {};
+    ['type', 'owner', 'modified', 'tag'].forEach(k => { if (sf[k]) p[k] = sf[k]; });
+    if (sf.where) p.where = sf.where === 'here' ? (sf.wid || '') : sf.where;
+    if (sf.modified === 'custom') { p.after = sf.after || ''; p.before = sf.before || ''; }
+    const sr = SIZE_RANGE[sf.size];
+    if (sr) { if (sr[0] != null) p.size_min = sr[0]; if (sr[1] != null) p.size_max = sr[1]; }
+    if (sf.content === '0') p.content = '0';
+    return p;
+  }
+  function goSearch(q, sf) {
+    q = (q || '').trim();
+    const clean = {};
+    Object.entries(sf || {}).forEach(([k, v]) => { if (v !== '' && v != null) clean[k] = v; });
+    if (clean.modified !== 'custom') { delete clean.after; delete clean.before; }
+    if (clean.where !== 'here') { delete clean.wid; delete clean.wn; }
+    const qs = new URLSearchParams(clean).toString();
+    if (!q && !qs) { go('#'); return; }
+    if (q) rememberSearch(q);
+    closeSearchPop(); closeAdv();
+    go('#search/' + encodeURIComponent(q) + (qs ? '?' + qs : ''));
+  }
+  const RS_KEY = 'cloud-recent-search';
+  const recentSearches = () => { try { return JSON.parse(localStorage.getItem(RS_KEY) || '[]'); } catch (e) { return []; } };
+  function rememberSearch(q) {
+    const l = recentSearches().filter(x => x !== q); l.unshift(q);
+    try { localStorage.setItem(RS_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {}
+  }
+  const typeLabel = (id) => ((smeta && smeta.types.find(t => t.id === id)) || {}).label || id;
+  const typeIcon = (id) => ((smeta && smeta.types.find(t => t.id === id)) || {}).icon || 'bi-file-earmark';
+
+  // návrhy pod políčkom
+  const sInput = $('#searchInput'), sPop = $('#searchPop'), sAdv = $('#searchAdv'), sClear = $('#searchClear');
+  let sugT, sugTicket = 0, liveT;
+  function closeSearchPop() { sPop.classList.add('d-none'); sPop.innerHTML = ''; }
+  function closeAdv() { sAdv.classList.add('d-none'); }
+  function popRows() { return [...sPop.querySelectorAll('.sp-row')]; }
+  async function showSuggest() {
+    const q = sInput.value.trim();
+    sClear.classList.toggle('d-none', !q);
+    const meta = await searchMeta();
+    const t = ++sugTicket;
+    let h = '';
+    if (!q) {
+      h += '<div class="sp-chips">' + meta.types.filter(x => ['doc', 'sheet', 'slides', 'pdf', 'image', 'video', 'folder', 'archive'].includes(x.id))
+        .map(x => '<button type="button" class="sp-chip" data-sp-type="' + x.id + '"><i class="bi ' + x.icon + '"></i>' + esc(x.label) + '</button>').join('') + '</div>';
+      const rs = recentSearches();
+      if (rs.length) h += '<div class="sp-head">Nedávne vyhľadávania</div>' + rs.map(r => '<div class="sp-row" data-sp-q="' + esc(r) + '"><i class="bi bi-clock-history"></i><span class="flex-grow-1 text-truncate">' + esc(r) + '</span><button type="button" class="btn btn-icon btn-sm" data-sp-forget="' + esc(r) + '" title="Odstrániť"><i class="bi bi-x"></i></button></div>').join('');
+    } else {
+      h += '<div class="sp-row" data-sp-q="' + esc(q) + '"><i class="bi bi-search"></i><span class="flex-grow-1 text-truncate">Hľadať „<b>' + esc(q) + '</b>“</span><span class="small text-body-secondary d-none d-sm-inline">Enter</span></div>';
+      const r = await api('api.php?action=suggest', { q });
+      if (t !== sugTicket || sInput.value.trim() !== q) return;
+      if (r.ok) {
+        (r.tags || []).forEach(tg => { h += '<div class="sp-row" data-sp-tag="' + tg.id + '"><i class="bi bi-tag-fill" style="color:' + (safeColor(tg.color) || '#5f6368') + '"></i><span class="flex-grow-1 text-truncate">Štítok: ' + esc(tg.name) + '</span></div>'; });
+        state.sugItems = r.items || [];
+        state.sugItems.forEach((it, i) => {
+          const sub = it.owner ? it.owner : (it.path || (it.type === 'd' ? 'Zložka' : ''));
+          h += '<div class="sp-row" data-sp-item="' + i + '"><span class="sp-ic">' + (it.type === 'd' ? '<i class="bi bi-folder-fill" style="color:#5f6368"></i>' : '<i class="bi ' + fileIcon(it) + '"></i>') + '</span><span class="flex-grow-1 min-w-0"><span class="d-block text-truncate">' + hlq(it.name, q) + '</span>'
+            + (sub ? '<span class="d-block small text-body-secondary text-truncate">' + esc(sub) + '</span>' : '') + '</span><span class="small text-body-secondary d-none d-sm-inline">' + esc(fmtDate(it.updated)) + '</span></div>';
+        });
+      }
+    }
+    h += '<div class="sp-foot"><button type="button" class="btn btn-link btn-sm text-decoration-none" data-sp-adv><i class="bi bi-sliders2 me-1"></i>Rozšírené vyhľadávanie</button>'
+      + '<span class="small text-body-secondary d-none d-md-inline">Tip: type:pdf, owner:me, after:2024-01-01, size>10mb</span></div>';
+    sPop.innerHTML = h;
+    sPop.classList.remove('d-none');
+  }
+  function hlq(name, q) {
+    const i = name.toLowerCase().indexOf(q.toLowerCase());
+    return i < 0 ? esc(name) : esc(name.slice(0, i)) + '<b>' + esc(name.slice(i, i + q.length)) + '</b>' + esc(name.slice(i + q.length));
+  }
+  function fileIcon(it) {
+    const m = it.mime || '', n = it.name.toLowerCase();
+    if (m.startsWith('image/')) return 'bi-image text-danger';
+    if (m.startsWith('video/')) return 'bi-camera-video text-danger';
+    if (m.startsWith('audio/')) return 'bi-music-note-beamed text-info';
+    if (n.endsWith('.pdf')) return 'bi-file-earmark-pdf text-danger';
+    if (/\.(docx?|odt|rtf)$/.test(n)) return 'bi-file-earmark-word text-primary';
+    if (/\.(xlsx?|ods|csv)$/.test(n)) return 'bi-file-earmark-spreadsheet text-success';
+    if (/\.(pptx?|odp)$/.test(n)) return 'bi-file-earmark-slides text-warning';
+    if (/\.(zip|rar|7z|gz|tar)$/.test(n)) return 'bi-file-earmark-zip';
+    return 'bi-file-earmark-text';
+  }
+  sInput.addEventListener('focus', () => { if (sAdv.classList.contains('d-none')) showSuggest(); });
+  sInput.addEventListener('input', () => {
+    clearTimeout(sugT); sugT = setTimeout(showSuggest, 180);
+    // vo výsledkoch hľadania sa zoznam spresňuje priebežne
+    clearTimeout(liveT);
+    if (state.view === 'search') liveT = setTimeout(() => { const v = sInput.value.trim(); if (v !== state.q) { const sf = state.sf; go('#search/' + encodeURIComponent(v) + (Object.keys(sf || {}).length ? '?' + new URLSearchParams(sf) : '')); } }, 700);
+  });
+  sInput.addEventListener('keydown', (e) => {
+    const rows = popRows(), cur = sPop.querySelector('.sp-row.active'), idx = rows.indexOf(cur);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!rows.length) return;
+      e.preventDefault();
+      const n = rows[(idx + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length];
+      rows.forEach(r => r.classList.toggle('active', r === n)); n.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault(); clearTimeout(liveT);
+      if (cur) cur.click(); else goSearch(sInput.value, state.view === 'search' ? state.sf : {});
+      sInput.blur();
+    } else if (e.key === 'Escape') { closeSearchPop(); closeAdv(); sInput.blur(); }
+  });
+  $('#searchForm').addEventListener('submit', (e) => { e.preventDefault(); goSearch(sInput.value, state.view === 'search' ? state.sf : {}); });
+  sClear.addEventListener('click', () => { sInput.value = ''; sClear.classList.add('d-none'); if (state.view === 'search') go('#'); else sInput.focus(); });
+  sPop.addEventListener('mousedown', (e) => e.preventDefault()); // nech políčko nestratí fokus
+  sPop.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-sp-forget]');
+    if (f) { e.stopPropagation(); try { localStorage.setItem(RS_KEY, JSON.stringify(recentSearches().filter(x => x !== f.dataset.spForget))); } catch (er) {} showSuggest(); return; }
+    const el = e.target.closest('[data-sp-type],[data-sp-q],[data-sp-tag],[data-sp-item],[data-sp-adv]');
+    if (!el) return;
+    if (el.dataset.spType) { goSearch(sInput.value, { type: el.dataset.spType }); return; }
+    if (el.dataset.spQ !== undefined) { sInput.value = el.dataset.spQ; goSearch(el.dataset.spQ, state.view === 'search' ? state.sf : {}); return; }
+    if (el.dataset.spTag) { closeSearchPop(); sInput.blur(); go('#tag/' + el.dataset.spTag); return; }
+    if (el.dataset.spAdv !== undefined) { closeSearchPop(); openAdv(); return; }
+    const it = state.sugItems[+el.dataset.spItem];
+    if (!it) return;
+    if (sInput.value.trim()) rememberSearch(sInput.value.trim());
+    closeSearchPop(); sInput.blur();
+    if (it.type === 'd') go('#folder/' + it.id); else preview(it);
+  });
+  document.addEventListener('mousedown', (e) => { if (!e.target.closest('#searchForm')) { closeSearchPop(); if (!e.target.closest('.select2-container, .datepicker')) closeAdv(); } });
+
+  // rozšírené vyhľadávanie (panel)
+  const opts = (map, val) => Object.entries(map).map(([k, v]) => '<option value="' + esc(k) + '"' + (k === (val || '') ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
+  async function openAdv() {
+    const meta = await searchMeta();
+    const sf = state.view === 'search' ? (state.sf || {}) : {};
+    const here = state.view === 'folder' && state.folder ? { id: state.folder, name: (state.crumbs.at(-1) || {}).name } : (sf.where === 'here' ? { id: sf.wid, name: sf.wn } : null);
+    const whereMap = Object.assign({}, SF.where); if (here) whereMap.here = 'V zložke „' + (here.name || '…') + '“';
+    const typeMap = { '': 'Akýkoľvek' }; meta.types.forEach(t => typeMap[t.id] = t.label);
+    const tagMap = { '': 'Akýkoľvek' }; meta.tags.forEach(t => tagMap[t.id] = t.name);
+    const row = (label, ctl) => '<div class="adv-row"><label>' + label + '</label><div class="flex-grow-1 min-w-0">' + ctl + '</div></div>';
+    sAdv.innerHTML = '<div class="d-flex align-items-center mb-2"><span class="fw-semibold me-auto">Rozšírené vyhľadávanie</span><button type="button" class="btn btn-icon btn-sm" data-adv-close aria-label="Zavrieť"><i class="bi bi-x-lg"></i></button></div>'
+      + row('Typ', '<select class="form-select form-select-sm" name="type">' + opts(typeMap, sf.type) + '</select>')
+      + row('Vlastník', '<select class="form-select form-select-sm" name="owner">' + opts(SF.owner, sf.owner) + '</select>')
+      + row('Obsahuje slová', '<input class="form-control form-control-sm" name="q" placeholder="Zadaj výraz, ktorý sa nachádza v názve' + (meta.content ? ' alebo v obsahu' : '') + '" value="' + esc(sInput.value) + '">')
+      + row('Umiestnenie', '<select class="form-select form-select-sm" name="where">' + opts(whereMap, sf.where) + '</select>')
+      + row('Dátum zmeny', '<select class="form-select form-select-sm" name="modified">' + opts(SF.modified, sf.modified) + '</select>'
+          + '<div class="d-flex gap-2 mt-2 adv-dates' + (sf.modified === 'custom' ? '' : ' d-none') + '"><input type="date" class="form-control form-control-sm" name="after" value="' + esc(sf.after || '') + '" aria-label="Od"><input type="date" class="form-control form-control-sm" name="before" value="' + esc(sf.before || '') + '" aria-label="Do"></div>')
+      + row('Veľkosť', '<select class="form-select form-select-sm" name="size">' + opts(SF.size, sf.size) + '</select>')
+      + (meta.tags.length ? row('Štítok', '<select class="form-select form-select-sm" name="tag">' + opts(tagMap, sf.tag) + '</select>') : '')
+      + (meta.content ? '<div class="form-check form-switch my-2"><input class="form-check-input" type="checkbox" id="advContent" name="content"' + (sf.content === '0' ? '' : ' checked') + '><label class="form-check-label small" for="advContent">Hľadať aj v obsahu dokumentov</label></div>' : '')
+      + '<div class="d-flex gap-2 justify-content-end mt-3"><button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-adv-reset>Obnoviť</button><button type="button" class="btn btn-sm btn-primary rounded-pill px-3" data-adv-go>Hľadať</button></div>';
+    sAdv.dataset.wid = here ? here.id : ''; sAdv.dataset.wn = here ? (here.name || '') : '';
+    sAdv.classList.remove('d-none');
+    closeSearchPop();
+  }
+  sAdv.addEventListener('change', (e) => { if (e.target.name === 'modified') sAdv.querySelector('.adv-dates').classList.toggle('d-none', e.target.value !== 'custom'); });
+  sAdv.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); sAdv.querySelector('[data-adv-go]').click(); } if (e.key === 'Escape') closeAdv(); });
+  sAdv.addEventListener('click', (e) => {
+    if (e.target.closest('[data-adv-close]')) { closeAdv(); return; }
+    if (e.target.closest('[data-adv-reset]')) { sAdv.querySelectorAll('select').forEach(s => s.value = ''); sAdv.querySelectorAll('input:not([type=checkbox])').forEach(i => i.value = ''); sAdv.querySelector('.adv-dates').classList.add('d-none'); const c = sAdv.querySelector('[name=content]'); if (c) c.checked = true; return; }
+    if (!e.target.closest('[data-adv-go]')) return;
+    const v = (n) => (sAdv.querySelector('[name="' + n + '"]') || {}).value || '';
+    const sf = { type: v('type'), owner: v('owner'), where: v('where'), modified: v('modified'), after: v('after'), before: v('before'), size: v('size'), tag: v('tag') };
+    if (sf.where === 'here') { sf.wid = sAdv.dataset.wid; sf.wn = sAdv.dataset.wn; }
+    const c = sAdv.querySelector('[name=content]'); if (c && !c.checked) sf.content = '0';
+    sInput.value = v('q');
+    goSearch(v('q'), sf);
+  });
+  $('#searchFilterBtn').addEventListener('click', () => { sAdv.classList.contains('d-none') ? openAdv() : closeAdv(); });
+
+  // čipy filtrov nad výsledkami
+  async function renderSearchChips() {
+    const box = $('#searchChips');
+    if (!box) return;
+    if (state.view !== 'search') { box.classList.add('d-none'); box.innerHTML = ''; return; }
+    const meta = await searchMeta();
+    const sf = state.sf || {};
+    const typeMap = { '': 'Typ' }; meta.types.forEach(t => typeMap[t.id] = t.label);
+    const whereMap = Object.assign({}, SF.where, { '': 'Umiestnenie' }); if (sf.where === 'here') whereMap.here = sf.wn || 'Zložka';
+    const tagMap = { '': 'Štítok' }; meta.tags.forEach(t => tagMap[t.id] = t.name);
+    const chip = (key, map, label, icons) => {
+      const val = sf[key] || '', on = !!val;
+      const cap = on ? (key === 'modified' && val === 'custom' ? [sf.after, sf.before].filter(Boolean).map(d => fmtDate(d)).join(' – ') || 'Vlastný rozsah' : map[val]) : label;
+      return '<div class="dropdown d-inline-block"><button type="button" class="s-chip' + (on ? ' on' : '') + '" data-bs-toggle="dropdown">'
+        + (on && icons ? '<i class="bi ' + typeIcon(val) + '"></i>' : '') + '<span>' + esc(cap) + '</span>'
+        + (on ? '<i class="bi bi-x-lg s-chip-x" data-chip-clear="' + key + '" title="Zrušiť filter"></i>' : '<i class="bi bi-caret-down-fill small"></i>') + '</button>'
+        + '<ul class="dropdown-menu shadow">' + Object.entries(map).filter(([k]) => k !== '' && k !== 'custom').map(([k, v]) => '<li><a class="dropdown-item' + (k === val ? ' active' : '') + '" href="#" data-chip="' + key + '" data-val="' + esc(k) + '">'
+          + (icons ? '<i class="bi ' + typeIcon(k) + ' me-2"></i>' : '') + esc(v) + '</a></li>').join('')
+        + (key === 'modified' ? '<li><a class="dropdown-item" href="#" data-chip-custom>Vlastný rozsah…</a></li>' : '') + '</ul></div>';
+    };
+    const any = ['type', 'owner', 'modified', 'where', 'size', 'tag'].some(k => sf[k]) || sf.content === '0';
+    box.innerHTML = chip('type', typeMap, 'Typ', true) + chip('owner', Object.assign({}, SF.owner, { '': 'Vlastník' }), 'Vlastník')
+      + chip('modified', Object.assign({}, SF.modified, { '': 'Dátum zmeny' }), 'Dátum zmeny') + chip('where', whereMap, 'Umiestnenie')
+      + chip('size', Object.assign({}, SF.size, { '': 'Veľkosť' }), 'Veľkosť') + (meta.tags.length ? chip('tag', tagMap, 'Štítok') : '')
+      + (meta.content && state.q ? '<button type="button" class="s-chip' + (sf.content === '0' ? '' : ' on') + '" data-chip-content title="Hľadať aj v obsahu dokumentov"><i class="bi bi-text-paragraph"></i><span>V obsahu</span></button>' : '')
+      + (any ? '<button type="button" class="btn btn-link btn-sm text-decoration-none" data-chip-reset>Vymazať filtre</button>' : '')
+      + '<span class="s-count small text-body-secondary ms-auto">' + (state.items.length >= 300 ? '300+' : state.items.length) + ' ' + (state.items.length === 1 ? 'výsledok' : state.items.length > 1 && state.items.length < 5 ? 'výsledky' : 'výsledkov') + '</span>';
+    box.classList.remove('d-none');
+  }
+  $('#searchChips') && $('#searchChips').addEventListener('click', (e) => {
+    const sf = Object.assign({}, state.sf || {});
+    const x = e.target.closest('[data-chip-clear]');
+    if (x) { e.preventDefault(); e.stopPropagation(); const k = x.dataset.chipClear; delete sf[k]; if (k === 'modified') { delete sf.after; delete sf.before; } goSearch(state.q, sf); return; }
+    const a = e.target.closest('[data-chip]');
+    if (a) { e.preventDefault(); sf[a.dataset.chip] = a.dataset.val; if (a.dataset.chip === 'where' && a.dataset.val !== 'here') { delete sf.wid; delete sf.wn; } goSearch(state.q, sf); return; }
+    if (e.target.closest('[data-chip-custom]')) { e.preventDefault(); openAdv().then(() => { const m = sAdv.querySelector('[name=modified]'); m.value = 'custom'; sAdv.querySelector('.adv-dates').classList.remove('d-none'); }); return; }
+    if (e.target.closest('[data-chip-content]')) { if (sf.content === '0') delete sf.content; else sf.content = '0'; goSearch(state.q, sf); return; }
+    if (e.target.closest('[data-chip-reset]')) goSearch(state.q, {});
+  });
+  // klávesová skratka „/“ ako v Google Disku
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('.modal.show')) { e.preventDefault(); sInput.focus(); }
   });
 
   /* ---------------- nahrávanie po častiach (s obnovením po výpadku) ---------------- */
