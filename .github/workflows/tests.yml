@@ -121,3 +121,41 @@ jobs:
                   print(f"{s}: {i.get('id')}: {i.get('message')} @ {loc.get('file').split('/src/main/')[-1] if loc is not None else ''}:{loc.get('line') if loc is not None else ''}")
           print({k: len(v) for k, v in sev.items()})
           PY
+
+  server-mariadb:
+    name: Server na MariaDB 10.11 + PHP 8.2 (ako Raspberry Pi OS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: cloud
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v6
+      - name: PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, gd, zip, mbstring, openssl, fileinfo, exif, curl
+          coverage: none
+      - name: Príprava databázy a konfigurácie
+        run: php tests/setup.php
+      - name: Spustenie servera
+        run: |
+          PHP_CLI_SERVER_WORKERS=4 nohup php -d upload_max_filesize=2M -d post_max_size=8M \
+            -d display_errors=0 -d log_errors=1 -d error_log=/tmp/php-errors.log -d error_reporting=E_ALL \
+            -S 127.0.0.1:8080 -t server > /tmp/php-server.log 2>&1 &
+          sleep 2
+      - name: End-to-end testy
+        run: php tests/e2e.php
+      - name: Chyby PHP
+        if: always()
+        run: |
+          if [ -s /tmp/php-errors.log ]; then cat /tmp/php-errors.log; exit 1; fi
+          echo "Bez chýb PHP"

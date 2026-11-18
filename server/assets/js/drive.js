@@ -81,6 +81,9 @@
     if (!keepSel) state.limit = 300;
     if (!keepSel) state.sel.clear(); else if (!state.partial) state.sel = new Set([...state.sel].filter(byKey));
     render(); updateQuota(r.quota);
+    // duplicity: kým server dopočítava kontrolné súčty, obnoviť o chvíľu
+    clearTimeout(state.dupT);
+    if (state.view === 'dupes' && r.nohash) state.dupT = setTimeout(() => { if (state.view === 'dupes') load(true); }, 15000);
     if (r.total > r.items.length) {
       const rest = await api('api.php?action=list', Object.assign({ offset: r.items.length }, params));
       if (ticket !== state.loadTicket || !rest.ok) return;
@@ -168,7 +171,7 @@
     const sb = $('#sharedBar');
     if (state.view === 'shared') { sb.classList.remove('d-none'); sb.querySelector('span').textContent = 'Súbory a zložky, ktoré s tebou zdieľajú iní používatelia.'; }
     else if (state.view === 'folder' && state.root === 'shared') { sb.classList.remove('d-none'); sb.querySelector('span').textContent = state.perm === 'edit' ? 'Zdieľaná zložka – môžeš pridávať a upravovať.' : 'Zdieľaná zložka – iba na čítanie.'; }
-    else if (state.view === 'dupes') { sb.classList.remove('d-none'); sb.querySelector('span').textContent = 'Súbory s rovnakým obsahom. Vyber kópie, ktoré nepotrebuješ, a zmaž ich – uvoľníš miesto.' + (state.nohash ? ' (' + state.nohash + ' starších súborov sa ešte kontroluje.)' : ''); }
+    else if (state.view === 'dupes') { sb.classList.remove('d-none'); sb.querySelector('span').textContent = 'Súbory s rovnakým obsahom. Vyber kópie, ktoré nepotrebuješ, a zmaž ich – uvoľníš miesto.' + (state.nohash ? ' (' + state.nohash + ' súborov sa ešte kontroluje na pozadí – výsledok sa o chvíľu obnoví.)' : ''); }
     else sb.classList.add('d-none');
 
     const box = $('#items');

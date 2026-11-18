@@ -394,10 +394,11 @@ function purge_trash(int $owner, ?int $olderThanDays = null): int {
 }
 
 /** Doplní kontrolný súčet (SHA-256) starším súborom – potrebné pre hľadanie duplicít. */
-function backfill_hashes(?int $uid, float $seconds): int {
+function backfill_hashes(?int $uid, float $seconds, int $maxSize = 0): int {
     $t0 = microtime(true); $n = 0;
-    @set_time_limit((int)$seconds + 30);
-    $rows = q('SELECT * FROM ' . P . 'files WHERE sha256 IS NULL AND deleted_at IS NULL' . ($uid ? ' AND user_id = ' . (int)$uid : '') . ' ORDER BY size LIMIT 500')->fetchAll();
+    @set_time_limit(0); // veľké videá sa na Raspberry Pi kontrolujú aj minútu
+    $rows = q('SELECT * FROM ' . P . 'files WHERE sha256 IS NULL AND deleted_at IS NULL' . ($uid ? ' AND user_id = ' . (int)$uid : '')
+        . ($maxSize > 0 ? ' AND size <= ' . $maxSize : '') . ' ORDER BY size LIMIT 500')->fetchAll();
     foreach ($rows as $r) {
         if (microtime(true) - $t0 > $seconds) break;
         try { q('UPDATE ' . P . 'files SET sha256 = ? WHERE id = ?', [stored_sha256($r), $r['id']]); $n++; } catch (Throwable $e) {

@@ -146,9 +146,11 @@ try {
             }
             $crumbs = [['id' => (int)$tag['id'], 'name' => $tag['name'], 'color' => $tag['color']]];
         } elseif ($view === 'dupes') { // rovnaké súbory (rovnaký obsah podľa SHA-256)
-            try { backfill_hashes($uid, 8); } catch (Throwable $e) {}
+            // malé súbory skontrolujeme hneď, veľké až po odpovedi (inak by požiadavka na pomalom serveri vypršala)
+            try { backfill_hashes($uid, 3, 20 * 1048576); } catch (Throwable $e) {}
+            defer_task(fn() => backfill_hashes($uid, 300));
             $groups = q("SELECT sha256, COUNT(*) c, MAX(size) sz FROM $F WHERE user_id = ? AND deleted_at IS NULL AND sha256 IS NOT NULL AND sha256 <> '' AND size > 0
-                         GROUP BY sha256 HAVING c > 1 ORDER BY sz * (c - 1) DESC LIMIT 300", [$uid])->fetchAll();
+                         GROUP BY sha256 HAVING COUNT(*) > 1 ORDER BY MAX(size) * (COUNT(*) - 1) DESC LIMIT 300", [$uid])->fetchAll();
             if ($groups) {
                 $shas = array_column($groups, 'sha256');
                 $ph = implode(',', array_fill(0, count($shas), '?'));
