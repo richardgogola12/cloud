@@ -223,6 +223,20 @@ function photo_date(string $path, string $mime): ?string {
  * @return array{id:int,name:string,versioned:bool,size:int,unchanged?:bool}
  */
 function store_file(int $owner, ?int $folder, string $name, string $src, bool $isUploaded): array {
+    $r = store_file_inner($owner, $folder, $name, $src, $isUploaded);
+    if (!empty($r['id']) && empty($r['unchanged'])) {
+        $fid = (int)$r['id'];
+        defer_task(function () use ($fid) { // miniatúra hneď po nahratí, nie až pri prvom zobrazení
+            $row = q('SELECT * FROM ' . P . 'files WHERE id = ?', [$fid])->fetch();
+            if ($row && is_thumbable($row['mime'])) {
+                @unlink(data_path('thumbs/' . (int)$row['user_id'] . '/' . $row['stored_name'] . '.jpg'));
+                thumb_ensure($row);
+            }
+        });
+    }
+    return $r;
+}
+function store_file_inner(int $owner, ?int $folder, string $name, string $src, bool $isUploaded): array {
     // 1) dočasný súbor s otvoreným textom
     $plain = tmp_file();
     $ok = $isUploaded ? move_uploaded_file($src, $plain) : rename($src, $plain);
@@ -420,6 +434,7 @@ function housekeeping(): void {
     setting_set('housekeeping_day', date('Y-m-d'));
     try { check_disk_warning(); } catch (Throwable $e) {}
     try { backfill_hashes(null, 120); } catch (Throwable $e) {}
+    try { backfill_thumbs(120); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY
@@ -553,27 +568,50 @@ function make_thumb(string $src, string $dst, int $max): bool {
     imagedestroy($img); imagedestroy($t);
     return $ok;
 }
-function send_thumb(array $f): never {
-    if (!is_thumbable($f['mime'])) { http_response_code(404); exit; }
+/** Vytvorí (zašifrovanú) miniatúru, ak ešte nie je. Vráti cestu k nej alebo null. */
+function thumb_ensure(array $f): ?string {
+    if (!is_thumbable($f['mime'])) return null;
     $owner = (int)$f['user_id'];
     $tdir = data_path('thumbs/' . $owner);
     $tpath = $tdir . '/' . $f['stored_name'] . '.jpg';
+    if (is_file($tpath)) return $tpath;
+    if (!is_dir($tdir)) @mkdir($tdir, 0750, true);
+    $video = str_starts_with($f['mime'], 'video/');
+    if ((int)$f['size'] > ($video ? 600 : 40) * 1024 * 1024) return null;
+    @set_time_limit(180);
     $key = row_key($f);
-    if (!is_file($tpath)) {
-        if (!is_dir($tdir)) mkdir($tdir, 0750, true);
-        $video = str_starts_with($f['mime'], 'video/');
-        if ((int)$f['size'] > ($video ? 600 : 40) * 1024 * 1024) { http_response_code(404); exit; }
-        @set_time_limit(180);
-        $src = stored_to_temp($f);
-        $plainThumb = tmp_file();
-        try {
-            if (!($video ? make_video_thumb($src, $plainThumb, 400) : make_thumb($src, $plainThumb, 400))) { http_response_code(404); exit; }
-            if ($key !== null) crypto_encrypt_file($plainThumb, $tpath, $key); // miniatúry sú šifrované kľúčom súboru
-            else rename($plainThumb, $tpath);
-        } finally { @unlink($src); if (is_file($plainThumb)) @unlink($plainThumb); }
+    $src = stored_to_temp($f);
+    $plainThumb = tmp_file();
+    try {
+        if (!($video ? make_video_thumb($src, $plainThumb, 400) : make_thumb($src, $plainThumb, 400))) return null;
+        $tmpEnc = $tpath . '.part' . bin2hex(random_bytes(3));
+        if ($key !== null) crypto_encrypt_file($plainThumb, $tmpEnc, $key); // miniatúry sú šifrované kľúčom súboru
+        else rename($plainThumb, $tmpEnc);
+        rename($tmpEnc, $tpath);
+        return $tpath;
+    } finally { @unlink($src); if (is_file($plainThumb)) @unlink($plainThumb); }
+}
+
+/** Miniatúry pre nahraté súbory vopred (na pozadí), aby sa zoznam zobrazil hneď. */
+function backfill_thumbs(float $seconds): int {
+    $t0 = microtime(true); $n = 0;
+    $last = (int)setting('thumbs_backfill_id', '0');
+    $rows = q("SELECT * FROM " . P . "files WHERE id > ? AND deleted_at IS NULL AND (mime IN ('image/jpeg','image/png','image/gif','image/webp') OR mime LIKE 'video/%') ORDER BY id LIMIT 400", [$last])->fetchAll();
+    foreach ($rows as $r) {
+        if (microtime(true) - $t0 > $seconds) break;
+        try { if (!is_file(data_path('thumbs/' . (int)$r['user_id'] . '/' . $r['stored_name'] . '.jpg')) && thumb_ensure($r)) $n++; } catch (Throwable $e) {}
+        $last = (int)$r['id'];
     }
+    setting_set('thumbs_backfill_id', count($rows) < 400 && microtime(true) - $t0 <= $seconds ? '0' : (string)$last);
+    return $n;
+}
+
+function send_thumb(array $f): never {
+    $tpath = thumb_ensure($f);
+    if (!$tpath) { http_response_code(404); exit; }
+    $key = row_key($f);
     header('Content-Type: image/jpeg');
-    header('Cache-Control: private, max-age=604800');
+    header('Cache-Control: private, max-age=2592000' . (isset($_GET['v']) ? ', immutable' : '')); // adresa obsahuje verziu súboru
     if ($key === null) {
         header('Content-Length: ' . filesize($tpath));
         readfile($tpath);

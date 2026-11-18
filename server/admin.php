@@ -425,8 +425,18 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <dt class="col-sm-3 text-body-secondary fw-normal">Systém</dt><dd class="col-sm-9"><?= e($hh['os']) ?></dd>
     <dt class="col-sm-3 text-body-secondary fw-normal">Softvér</dt><dd class="col-sm-9">PHP <?= e($hh['php']) ?><?= $hh['db'] ? ' · databáza ' . e($hh['db']) : '' ?><?= $hh['web'] ? ' · ' . e($hh['web']) : '' ?></dd>
     <?php if ($hh['db_size'] !== null): ?><dt class="col-sm-3 text-body-secondary fw-normal">Veľkosť databázy</dt><dd class="col-sm-9"><?= format_bytes((int)$hh['db_size']) ?></dd><?php endif; ?>
+    <dt class="col-sm-3 text-body-secondary fw-normal">PHP OPcache</dt><dd class="col-sm-9"><?= $hh['opcache'] && $hh['opcache']['on'] ? '<span class="text-success">✓ zapnutý</span>' . ($hh['opcache']['hit'] !== null ? ' · úspešnosť ' . $hh['opcache']['hit'] . ' %' : '') . ' · ' . format_bytes($hh['opcache']['mem']) : '<span class="text-danger">vypnutý</span>' ?></dd>
+    <?php if ($hh['storage_dev']): $sdLabel = ['sd' => 'SD karta', 'usb' => 'USB / SATA disk (SSD)', 'ssd' => 'NVMe SSD', 'hdd' => 'pevný disk (HDD)'][$hh['storage_dev']['type']] ?? 'disk'; ?>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Úložisko súborov</dt><dd class="col-sm-9"><?= e($sdLabel) ?> · <code><?= e($hh['storage_dev']['dev']) ?></code> · <?= e($hh['storage_dev']['fs']) ?></dd>
+    <?php endif; ?>
     <dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><?= $hh['ffmpeg'] ? '<span class="text-success">✓ ffmpeg je nainštalovaný</span>' : 'vypnuté – nainštaluj <code>ffmpeg</code> (napr. <code>sudo apt install ffmpeg</code>)' ?></dd>
   </dl>
+  <?php $tips = speed_tips($hh); if ($tips): ?>
+  <h3 class="h6 fw-bold mt-3 mb-2"><i class="bi bi-lightning-charge me-1"></i>Ako zrýchliť server</h3>
+  <?php foreach ($tips as [$lvl, $txt]): ?><div class="alert alert-<?= $lvl ?> small py-2 mb-2"><?= $txt ?></div><?php endforeach; ?>
+  <?php else: ?>
+  <div class="small text-success mt-3"><i class="bi bi-lightning-charge-fill me-1"></i>Server je nastavený na rýchly chod.</div>
+  <?php endif; ?>
 </div></div>
 <script>
 (() => {

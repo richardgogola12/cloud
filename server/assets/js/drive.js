@@ -69,14 +69,26 @@
   async function load(keepSel) {
     const skT = keepSel ? null : setTimeout(() => { $('#loading').classList.add('d-none'); skeleton(); }, 120);
     if (keepSel) $('#loading').classList.remove('d-none');
-    const r = await api('api.php?action=list', { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir });
+    const params = { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir };
+    const ticket = state.loadTicket = (state.loadTicket || 0) + 1;
+    // najprv prvých 250 položiek → zoznam je hneď na obrazovke, zvyšok sa dotiahne na pozadí
+    const r = await api('api.php?action=list', Object.assign({ limit: 250 }, params));
+    if (ticket !== state.loadTicket) return; // medzitým sa otvorila iná zložka
     clearTimeout(skT);
     $('#loading').classList.add('d-none');
     if (!r.ok) { toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
-    Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0 });
+    Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
     if (!keepSel) state.limit = 300;
-    if (!keepSel) state.sel.clear(); else state.sel = new Set([...state.sel].filter(byKey));
+    if (!keepSel) state.sel.clear(); else if (!state.partial) state.sel = new Set([...state.sel].filter(byKey));
     render(); updateQuota(r.quota);
+    if (r.total > r.items.length) {
+      const rest = await api('api.php?action=list', Object.assign({ offset: r.items.length }, params));
+      if (ticket !== state.loadTicket || !rest.ok) return;
+      state.items = state.items.concat(rest.items);
+      state.partial = false;
+      if (keepSel) state.sel = new Set([...state.sel].filter(byKey));
+      render();
+    }
   }
 
   function renderCrumbs() {
@@ -198,7 +210,7 @@
         if (m !== month) { if (month) h += '</div>'; month = m; h += '<div class="section-title photo-month">' + esc(m) + '</div><div class="photo-grid">'; }
         const vid = (it.mime || '').startsWith('video/');
         h += '<div class="item photo-item' + (it.thumb ? ' thumb-loading' : ' photo-noimg') + '" data-key="' + key(it) + '" data-year="' + d.getFullYear() + '"><input type="checkbox" class="form-check-input item-check" tabindex="-1">'
-          + (it.thumb ? '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary\')">' : '<i class="bi ' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary"></i>')
+          + (it.thumb ? '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary\')">' : '<i class="bi ' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary"></i>')
           + (vid ? '<span class="photo-play"><i class="bi bi-play-fill"></i></span>' : '') + '</div>';
       });
       if (month) h += '</div>';
@@ -241,7 +253,7 @@
   window.thumbErr = (img, cls) => { const p = img.parentNode; if (p) p.classList.remove('thumb-loading'); img.replaceWith(Object.assign(document.createElement('i'), { className: 'bi ' + cls })); };
   function thumbHtml(it, big) {
     const [ic, cls] = fileIcon(it);
-    if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + ic + ' ' + cls + '\')">';
+    if (it.type === 'f' && it.thumb && !it.deleted) return '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + ic + ' ' + cls + '\')">';
     return '<i class="bi ' + ic + ' ' + cls + (big ? ' big' : '') + '"' + iconStyle(it) + '></i>';
   }
   function shareSummary(it) {
@@ -759,7 +771,7 @@
     bootstrap.Modal.getOrCreateInstance($('#previewModal')).show();
     if (/^image\/(jpeg|png|gif|webp|bmp)/.test(m)) {
       // najprv rozmazaná miniatúra + spinner, potom plná fotka
-      body.innerHTML = '<div class="pv-img">' + (it.thumb ? '<img class="pv-low" src="' + base + 'api.php?action=thumb&id=' + it.id + '" alt="">' : '')
+      body.innerHTML = '<div class="pv-img">' + (it.thumb ? '<img class="pv-low" src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="">' : '')
         + '<div class="pv-spin spinner-border text-light"></div><img class="pv-full" src="' + u + '" alt=""></div>';
       const box = body.firstChild, full = box.querySelector('.pv-full');
       const done = () => box.classList.add('loaded');

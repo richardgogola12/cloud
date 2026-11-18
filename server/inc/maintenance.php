@@ -145,7 +145,63 @@ function server_health(): array {
         $h['db_size'] = (int)db()->query("SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '" . str_replace('_', '\\_', P) . "%'")->fetchColumn();
     } catch (Throwable $e) { $h['db_size'] = null; }
     $h['ffmpeg'] = ffmpeg_bin() !== null;
+    // OPcache – bez neho PHP pri každej požiadavke znova spracúva všetky skripty
+    $h['opcache'] = null;
+    if (function_exists('opcache_get_status')) {
+        $st = @opcache_get_status(false);
+        if (is_array($st)) {
+            $hits = (float)($st['opcache_statistics']['hits'] ?? 0); $miss = (float)($st['opcache_statistics']['misses'] ?? 0);
+            $h['opcache'] = ['on' => !empty($st['opcache_enabled']), 'hit' => $hits + $miss > 0 ? round($hits / ($hits + $miss) * 100) : null,
+                             'mem' => (int)($st['memory_usage']['used_memory'] ?? 0)];
+        } else $h['opcache'] = ['on' => false, 'hit' => null, 'mem' => 0];
+    }
+    $h['storage_dev'] = storage_device((string)cfg('storage_path'));
     return $h;
+}
+
+/** Na akom zariadení je úložisko: sd (SD karta), usb, ssd (NVMe), hdd, alebo null. */
+function storage_device(string $path): ?array {
+    $real = realpath($path) ?: $path;
+    $mounts = @file('/proc/mounts', FILE_IGNORE_NEW_LINES);
+    if (!$mounts) return null;
+    $best = null; $bestLen = -1;
+    foreach ($mounts as $line) {
+        $p = explode(' ', $line);
+        if (count($p) < 3) continue;
+        $mp = str_replace('\\040', ' ', $p[1]);
+        if (($real === $mp || str_starts_with($real, rtrim($mp, '/') . '/') || $mp === '/') && strlen($mp) > $bestLen) { $best = $p; $bestLen = strlen($mp); }
+    }
+    if (!$best) return null;
+    $dev = $best[0];
+    if ($dev === '/dev/root') { // Raspberry Pi OS: zistiť skutočné zariadenie z parametrov jadra
+        $cmd = (string)@file_get_contents('/proc/cmdline');
+        if (preg_match('/root=(\S+)/', $cmd, $m)) {
+            $dev = $m[1];
+            if (str_starts_with($dev, 'PARTUUID=')) { $l = @readlink('/dev/disk/by-partuuid/' . strtolower(substr($dev, 9))); if ($l) $dev = '/dev/' . basename($l); }
+        }
+    }
+    $base = basename($dev);
+    $type = null;
+    if (str_starts_with($base, 'mmcblk')) $type = 'sd';
+    elseif (str_starts_with($base, 'nvme')) $type = 'ssd';
+    elseif (preg_match('/^sd([a-z]+)/', $base, $m)) {
+        $rot = trim((string)@file_get_contents('/sys/block/sd' . $m[1] . '/queue/rotational'));
+        $type = $rot === '1' ? 'hdd' : 'usb';
+    }
+    return ['dev' => $dev, 'mount' => $best[1], 'fs' => $best[2], 'type' => $type];
+}
+
+/** Odporúčania na zrýchlenie podľa stavu servera. */
+function speed_tips(array $h): array {
+    $t = [];
+    if ($h['opcache'] === null || !$h['opcache']['on']) $t[] = ['danger', 'OPcache je vypnutý – zapni ho v php.ini (<code>opcache.enable=1</code>) a reštartuj PHP. Stránky budú 2–3× rýchlejšie.'];
+    if (version_compare(PHP_VERSION, '8.2', '<')) $t[] = ['warning', 'PHP ' . e(PHP_VERSION) . ' je staršie – novšie PHP (8.2+) je citeľne rýchlejšie.'];
+    if (($h['storage_dev']['type'] ?? null) === 'sd') $t[] = ['warning', 'Súbory sú na <b>SD karte</b> (' . e($h['storage_dev']['dev']) . '). USB disk alebo SSD je pri Raspberry Pi niekoľkonásobne rýchlejší a SD karta sa častým zápisom opotrebúva.'];
+    if (($h['storage_dev']['type'] ?? null) === 'hdd') $t[] = ['info', 'Súbory sú na klasickom pevnom disku – SSD by zrýchlil najmä miniatúry a hľadanie duplicít.'];
+    if (!$h['ffmpeg']) $t[] = ['info', 'Bez ffmpeg sa nevytvárajú miniatúry videí (<code>sudo apt install ffmpeg</code>).'];
+    if ($h['mem_total'] && $h['mem_used'] / $h['mem_total'] > 0.9) $t[] = ['warning', 'Pamäť RAM je takmer plná – server môže spomaľovať.'];
+    if (($h['temp'] ?? 0) >= 80) $t[] = ['danger', 'Procesor je prehriaty a spomaľuje sa – pridaj chladič alebo ventilátor.'];
+    return $t;
 }
 
 function fmt_uptime(int $s): string {

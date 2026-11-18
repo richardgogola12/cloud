@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -29,6 +29,7 @@ function migrate(): void {
         if ($v < 7) migrate_v7();
         if ($v < 8) migrate_v8();
         if ($v < 9) migrate_v9();
+        if ($v < 10) migrate_v10();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -262,3 +263,51 @@ function migrate_v9(): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     htaccess_dav_patch();
 }
+
+/* v10: indexy pre rýchlosť (Fotky, duplicity, hľadanie podľa názvu, zdieľané mnou, sieťový disk) */
+function migrate_v10(): void {
+    $p = P;
+    $idx = [
+        ["{$p}files", 'idx_cloud_files_sha', '(user_id, sha256(16))'],
+        ["{$p}files", 'idx_cloud_files_taken', '(user_id, deleted_at, taken_at)'],
+        ["{$p}files", 'idx_cloud_files_fname', '(user_id, folder_id, name(64))'],
+        ["{$p}folders", 'idx_cloud_folders_name', '(user_id, parent_id, name(64))'],
+        ["{$p}user_shares", 'idx_cloud_ushares_owner', '(owner_id)'],
+        ["{$p}shares", 'idx_cloud_shares_user', '(user_id)'],
+    ];
+    foreach ($idx as [$t, $name, $cols]) {
+        try { if (!idx_exists($t, $name)) db()->exec("CREATE INDEX $name ON $t $cols"); } catch (Throwable $e) { error_log('[cloud] index ' . $name . ': ' . $e->getMessage()); }
+    }
+    htaccess_perf_patch();
+}
+
+/** Kompresia a dlhá cache pre súbory stránky (CSS, JS, písma, ikony) – doplní sa do existujúceho .htaccess. */
+function htaccess_perf_patch(): void {
+    $f = APP_ROOT . '/.htaccess';
+    if (!is_file($f) || !is_writable($f)) return;
+    $cur = (string)@file_get_contents($f);
+    if (str_contains($cur, 'CLOUD-PERF')) return;
+    @file_put_contents($f, rtrim($cur, "\n") . "\n" . HTACCESS_PERF);
+}
+const HTACCESS_PERF = <<<'HT'
+
+# >>> CLOUD-PERF (rýchlosť: kompresia a cache súborov stránky)
+<IfModule mod_deflate.c>
+<IfModule mod_filter.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript text/javascript application/json image/svg+xml application/manifest+json
+</IfModule>
+</IfModule>
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(woff2?|png|svg|ico|webp|jpg)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
+</IfModule>
+# <<< CLOUD-PERF
+
+HT;

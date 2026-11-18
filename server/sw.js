@@ -1,5 +1,6 @@
 /* Service worker – Cloud PWA */
-const VERSION = 'cloud-v3';
+const VERSION = 'cloud-v4';
+const THUMBS = 'cloud-thumbs'; // miniatúry (adresa obsahuje verziu súboru → bezpečné držať dlho)
 const SHELL = [
   'offline.html',
   'assets/icons/icon-192.png',
@@ -10,7 +11,7 @@ self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new URL(u, self.registration.scope)))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== INBOX).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== INBOX && k !== THUMBS).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 const INBOX = 'cloud-share-inbox';
@@ -36,6 +37,17 @@ self.addEventListener('fetch', (e) => {
   if (req.method === 'POST' && url.pathname.endsWith('/share-target.php')) { e.respondWith(handleShare(req)); return; }
   if (req.method !== 'GET') return;
 
+  // miniatúry: najprv z telefónu/počítača, sieť iba ak tam nie sú
+  if (url.origin === location.origin && url.pathname.endsWith('/api.php') && url.searchParams.get('action') === 'thumb' && url.searchParams.has('v')) {
+    e.respondWith(caches.open(THUMBS).then(async (c) => {
+      const hit = await c.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) { c.put(req, res.clone()); trimThumbs(c); }
+      return res;
+    }));
+    return;
+  }
   // dynamické dáta a súbory nikdy necacheujeme
   if (url.origin === location.origin && /\/(api|passkey|logout|admin)\.php/.test(url.pathname)) return;
 
@@ -54,3 +66,11 @@ self.addEventListener('fetch', (e) => {
     }));
   }
 });
+
+/* najviac ~3000 miniatúr (~60 MB), najstaršie preč */
+let trimming = false;
+async function trimThumbs(c) {
+  if (trimming || Math.random() > 0.05) return;
+  trimming = true;
+  try { const keys = await c.keys(); for (let i = 0; i < keys.length - 3000; i++) await c.delete(keys[i]); } finally { trimming = false; }
+}

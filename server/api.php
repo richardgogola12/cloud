@@ -205,8 +205,18 @@ try {
             $files   = q("SELECT f.*, $vcnt FROM $F f WHERE f.user_id = ? AND f.folder_id <=> ? AND f.deleted_at IS NULL ORDER BY $orderF", [$owner, $folderId])->fetchAll();
             $crumbs  = breadcrumbs($uid, $folderId);
         }
+        // veľké zložky po častiach: najprv prvých N položiek (rýchle zobrazenie), zvyšok hneď potom
+        $total = count($folders) + count($files);
+        $offset = max(0, (int)($_POST['offset'] ?? 0));
+        $limit = max(0, (int)($_POST['limit'] ?? 0));
+        if ($offset || $limit) {
+            $nd = count($folders);
+            $end = $limit ? $offset + $limit : $total;
+            $folders = array_slice($folders, min($offset, $nd), max(0, min($end, $nd) - min($offset, $nd)));
+            $files = array_slice($files, max(0, $offset - $nd), max(0, $end - max($offset, $nd)));
+        }
         json_out(['ok' => true, 'folder' => $folderId, 'crumbs' => $crumbs, 'perm' => $perm, 'root' => $root,
-                  'items' => rows_out($uid, $folders, $files, $extra), 'quota' => quota_info($user),
+                  'items' => rows_out($uid, $folders, $files, $extra), 'total' => $total, 'offset' => $offset, 'quota' => quota_info($user),
                   'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0]);
     }
 
@@ -326,8 +336,8 @@ try {
         $r = store_file($owner, $folder, $up['name'], $path, false);
         q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
         if (empty($r['unchanged'])) log_action($uid, 'upload', $r['name'] . ' (' . format_bytes($r['size']) . ')' . ($r['versioned'] ? ' – nová verzia' : ''));
-        check_quota_warning($owner);
-        try { check_disk_warning(); } catch (Throwable $e) {}
+        defer_task(fn() => check_quota_warning($owner)); // až po odpovedi – ďalší súbor sa môže začať nahrávať hneď
+        defer_task(fn() => check_disk_warning());
         json_out(['ok' => true, 'done' => true, 'received' => $have, 'file' => $r, 'quota' => quota_info($user)]);
     }
 
@@ -390,7 +400,7 @@ try {
             store_file($tacc['owner'], $target, unique_name($tacc['owner'], $target, $f['name'], 'f'), $tmp, false);
         }
         log_action($uid, 'copy', count($rows) . ' súborov');
-        check_quota_warning($tacc['owner']);
+        defer_task(fn() => check_quota_warning($tacc['owner']));
         json_out(['ok' => true]);
     }
 

@@ -142,6 +142,12 @@ function public_url(): string {
     if ($u === '') $u = request_base_url();
     return rtrim($u, '/');
 }
+/** Knižnica z vlastného servera (assets/vendor), ak tam je – inak z CDN. */
+function lib(string $local, string $cdn): string {
+    static $has = [];
+    $has[$local] ??= is_file(APP_ROOT . '/assets/vendor/' . $local);
+    return $has[$local] ? url('assets/vendor/' . $local) . '?v=' . APP_VERSION : $cdn;
+}
 function url(string $path = ''): string { return app_base_path() . ltrim($path, '/'); }
 function redirect(string $path): never { header('Location: ' . url($path)); exit; }
 function client_ip(): string { return substr($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 0, 45); }
@@ -193,8 +199,40 @@ function json_out(array $data, int $code = 200): never {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    $body = (string)json_encode($data, JSON_UNESCAPED_UNICODE);
+    // väčšie odpovede (zoznamy zložiek) komprimujeme – na pomalšej linke až 10× menej dát
+    if (strlen($body) > 2048 && str_contains((string)($_SERVER['HTTP_ACCEPT_ENCODING'] ?? ''), 'gzip') && function_exists('gzencode')
+        && !ini_get('zlib.output_compression') && !headers_sent()) {
+        $body = (string)gzencode($body, 5);
+        header('Content-Encoding: gzip');
+        header('Vary: Accept-Encoding');
+    }
+    header('Content-Length: ' . strlen($body));
+    echo $body;
     exit;
+}
+
+/**
+ * Úloha po odoslaní odpovede (miniatúry, upozornenia, údržba) – používateľ nečaká.
+ * Pri PHP-FPM sa spojenie ukončí cez fastcgi_finish_request, inak pomôže Content-Length.
+ */
+function defer_task(callable $fn): void {
+    if (!isset($GLOBALS['_deferred'])) {
+        $GLOBALS['_deferred'] = [];
+        register_shutdown_function(function () {
+            while (ob_get_level() > 0) @ob_end_flush();
+            @flush();
+            if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+            elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
+            ignore_user_abort(true);
+            @set_time_limit(600);
+            if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+            foreach ($GLOBALS['_deferred'] as $task) {
+                try { $task(); } catch (Throwable $e) { error_log('[cloud] úloha na pozadí: ' . $e->getMessage()); }
+            }
+        });
+    }
+    $GLOBALS['_deferred'][] = $fn;
 }
 
 /* ---------- Autentifikácia ---------- */
@@ -380,8 +418,5 @@ if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SC
     try { migrate(); } catch (Throwable $e) { error_log('[cloud] migrácia zlyhala: ' . $e->getMessage()); }
 }
 if (!empty($GLOBALS['_settings_ok']) && setting('housekeeping_day') !== date('Y-m-d')) {
-    register_shutdown_function(function () {
-        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-        try { housekeeping(); } catch (Throwable $e) { error_log('[cloud] údržba: ' . $e->getMessage()); }
-    });
+    defer_task(function () { housekeeping(); });
 }

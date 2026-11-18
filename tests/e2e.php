@@ -139,6 +139,8 @@ $fileId = (int)($up['file']['id'] ?? 0);
 $disk = $fileId ? stored_file_of($fileId) : null;
 ok($disk && is_file($disk) && substr(file_get_contents($disk, false, null, 0, 6), 0, 6) === "CLDE1\0", 'súbor je na disku zašifrovaný');
 ok($disk && !str_contains(file_get_contents($disk), substr($img, 200, 64)), 'na disku nie je čitateľný obsah');
+usleep(300000);
+ok($disk && is_file(STORAGE . '/thumbs/' . basename(dirname($disk)) . '/' . basename($disk) . '.jpg'), 'miniatúra sa vytvorí hneď po nahratí (na pozadí)');
 
 $r = $web->get("api.php?action=download&id=$fileId");
 ok($r['code'] === 200 && $r['body'] === $img, 'stiahnutie vráti presne pôvodný obsah', "HTTP {$r['code']} len " . strlen($r['body']));
@@ -461,9 +463,21 @@ $tr = $web->api('list', ['view' => 'trash']);
 ok(in_array('Kopia disku', array_column($tr['items'] ?? [], 'name'), true), 'WebDAV: zmazaná zložka je v koši');
 ok(dav('OPTIONS', '/', ['pw' => ''])['code'] === 200, 'WebDAV: OPTIONS bez prihlásenia');
 
+section('Rýchlosť');
+$pf = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Veľa súborov'])['id'] ?? 0);
+for ($i = 1; $i <= 5; $i++) upload($web, $pf, "subor-$i.txt", "obsah $i");
+$a = $web->api('list', ['folder' => $pf, 'limit' => 2]);
+$b = $web->api('list', ['folder' => $pf, 'offset' => 2]);
+ok(count($a['items'] ?? []) === 2 && ($a['total'] ?? 0) === 5 && count($b['items'] ?? []) === 3
+   && !array_intersect(array_column($a['items'], 'id'), array_column($b['items'], 'id')), 'zoznam po častiach (prvé položky hneď, zvyšok potom)', json_encode([$a['total'] ?? null, count($b['items'] ?? [])]));
+$gz = $web->req('POST', 'api.php?action=list', ['ajax' => true, 'form' => ['view' => 'recent'], 'headers' => ['Accept-Encoding: gzip']]);
+ok(stripos($gz['headers'], 'Content-Encoding: gzip') !== false && is_array(json_decode((string)@gzdecode($gz['body']), true)), 'odpovede API sú komprimované (gzip)');
+$home = $web->get('index.php')['body'];
+ok(!is_dir(__DIR__ . '/../server/assets/vendor/bootstrap') || (str_contains($home, 'assets/vendor/bootstrap/bootstrap.min.css') && !str_contains($home, 'cdn.jsdelivr.net')), 'knižnice sa načítajú z vlastného servera');
+
 section('Stav servera');
 $r = $web->get('admin.php');
-ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť RAM'), 'admin: stav servera');
+ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť RAM') && str_contains($r['body'], 'PHP OPcache'), 'admin: stav servera (aj OPcache)');
 $web->loadCsrf($r['body']);
 $h = $web->req('POST', 'admin.php?ajax=health', ['ajax' => true, 'form' => ['_csrf' => $web->csrf]])['json'];
 ok(!empty($h['ok']) && !empty($h['h']['mem_total']), 'stav servera sa obnovuje (RAM, záťaž)', json_encode($h));
