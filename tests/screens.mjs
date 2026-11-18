@@ -32,7 +32,7 @@ for (const [name, opts] of sizes) {
   }, name);
   await page.goto(base + 'index.php#folder/' + ids[2]); await page.waitForTimeout(1500);
   await page.screenshot({ path: `screens/${name}-1-dlha-cesta.png` });
-  const icons = await page.evaluate(() => [...document.querySelectorAll('#items .item-icon i')].filter(i => /\bbi-[a-z]/.test(i.className) && i.getBoundingClientRect().width > 0).length + document.querySelectorAll('#items .item-icon img').length);
+  const icons = await page.evaluate(() => [...document.querySelectorAll('#items i.bi')].filter(i => /bi-(file|folder|image|camera|music)/.test(i.className)).filter(i => /\bbi-[a-z]/.test(i.className) && i.getBoundingClientRect().width > 0).length + document.querySelectorAll('#items .item-icon img').length);
   if (icons < 2) { console.log(`CHYBA [${name}]: v zozname chýbajú ikony súborov (${icons})`); process.exitCode = 1; }
   await page.goto(base + 'index.php#folder/' + ids[0]); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-2-cesta-2-urovne.png` });
