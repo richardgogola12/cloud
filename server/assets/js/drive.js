@@ -180,7 +180,7 @@
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
     $('#colsDrop').classList.toggle('d-none', layout !== 'list');
     state.cols = colsNow();
-    state.colsShown = state.cols.slice(0, maxCols());
+    state.colsShown = fitCols(state.cols);
     renderHeader(box);
     $('#empty').classList.toggle('d-none', state.items.length > 0);
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
@@ -329,23 +329,37 @@
   }
   const colText = (c, it) => { const v = colVal(c, it); return v == null ? null : v.replace(/<[^>]+>/g, ''); };
   // koľko stĺpcov sa zmestí vedľa názvu (na užšej obrazovke len prvé; v mobile sú pod názvom)
-  const maxCols = () => innerWidth < 992 ? 2 : innerWidth < 1200 ? 3 : innerWidth < 1500 ? 5 : 8;
-  let lastMax = maxCols();
-  addEventListener('resize', () => { const m = maxCols(); if (m !== lastMax) { lastMax = m; if (state.items.length) render(); } });
+  // najmenšie šírky stĺpcov (px) – podľa nich sa určí, koľko stĺpcov sa zmestí vedľa názvu
+  const COLMIN = { size: 96, kind: 150, updated: 120, created: 120, taken: 120, location: 150, owner: 140, sharing: 150, versions: 64, tags: 110, deleted: 120 };
+  const nameMin = () => colWidths.name || 240;
+  /** stĺpce, ktoré sa zmestia (názov má prednosť) – ostatné sa ukážu na širšej obrazovke */
+  function fitCols(cols) {
+    const avail = ($('#items').clientWidth || $('.drive-head')?.clientWidth || innerWidth) - 36 - 44 - 16 - 24;
+    let used = nameMin(); const out = [];
+    for (const c of cols) {
+      const w = (colWidths[c] || COLMIN[c] || 120) + 12;
+      if (used + w > avail) break;
+      used += w; out.push(c);
+    }
+    return out;
+  }
+  let lastW = innerWidth, rT;
+  addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (innerWidth !== lastW && state.items.length) { lastW = innerWidth; render(); } }, 120); });
   // šírky stĺpcov upravené ťahaním (uložené v tomto zariadení – závisia od veľkosti obrazovky)
   let colWidths = {};
   try { colWidths = JSON.parse(localStorage.getItem('cloud-colw') || '{}') || {}; } catch (e) {}
   const colTpl = (cols) => cols.map(c => colWidths[c] ? colWidths[c] + 'px' : (COLW[c] || '120px')).join(' ');
   function applyColWidths() {
     const w = colTpl(state.colsShown || []);
-    [$('#items'), $('#listHeader')].forEach(el => el.style.setProperty('--cols', w));
+    const nm = colWidths.name ? 'minmax(' + colWidths.name + 'px, 1fr)' : 'minmax(200px, 1.6fr)';
+    [$('#items'), $('#listHeader')].forEach(el => { el.style.setProperty('--cols', w); el.style.setProperty('--name-col', nm); });
   }
   function renderHeader(box) {
     const cols = state.colsShown || [];
     applyColWidths();
     const arrow = (k) => state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
     const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
-      + '<div class="c-name sortable" data-sort-col="name">Názov' + arrow('name') + '</div>'
+      + '<div class="c-name sortable" data-sort-col="name"><span class="col-label">Názov' + arrow('name') + '</span><span class="col-resize" data-resize="name" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>'
       + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '" data-col="' + c + '">'
           + '<span class="col-label">' + esc(COLDEF.labels[c]) + (SORTCOL[c] ? arrow(SORTCOL[c]) : '') + '</span>'
           + '<span class="col-resize" data-resize="' + c + '" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>').join('')
@@ -359,7 +373,7 @@
     return '<div class="item row-item' + colorCls(it) + '"' + colorAttr(it) + ' data-key="' + k + '" draggable="' + (it.deleted ? 'false' : 'true') + '"' + (it.type === 'd' && !it.deleted ? ' data-drop-folder="' + it.id + '"' : '') + '>'
       + '<div class="c-check"><input type="checkbox" class="form-check-input item-check" tabindex="-1"></div>'
       + '<div class="c-name"><span class="item-icon' + (hasThumb(it) ? ' thumb-loading' : '') + '">' + thumbHtml(it) + '</span>'
-      + '<div class="name-wrap"><div class="name-line"><span class="item-name text-truncate">' + esc(it.name) + '</span>' + badges(it) + ((state.colsShown || []).includes('tags') ? '<span class="d-md-none d-inline-flex">' + tagChips(it) + '</span>' : tagChips(it)) + '</div>'
+      + '<div class="name-wrap"><div class="name-line"><span class="item-name text-truncate" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' + badges(it) + ((state.colsShown || []).includes('tags') ? '<span class="d-md-none d-inline-flex">' + tagChips(it) + '</span>' : tagChips(it)) + '</div>'
       + (meta ? '<div class="item-meta text-truncate">' + esc(meta) + '</div>' : '') + '</div></div>'
       + (state.colsShown || []).map(c => '<div class="c-col c-' + c + '">' + (colVal(c, it) ?? '<span class="opacity-50">—</span>') + '</div>').join('')
       + '<div class="c-act"><button class="btn btn-icon btn-sm item-menu" aria-label="Akcie"><i class="bi bi-three-dots-vertical"></i></button></div></div>';
@@ -404,13 +418,14 @@
   });
   $('#listHeader').addEventListener('pointermove', (e) => {
     if (!resizing) return;
-    colWidths[resizing.col] = Math.round(Math.max(56, Math.min(640, resizing.w + e.clientX - resizing.x)));
+    colWidths[resizing.col] = Math.round(Math.max(resizing.col === 'name' ? 140 : 56, Math.min(resizing.col === 'name' ? 1200 : 640, resizing.w + e.clientX - resizing.x)));
     applyColWidths();
   });
   const endResize = () => {
     if (!resizing) return;
     resizing = null; document.body.classList.remove('col-resizing');
     try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (e) {}
+    render(); // prepočítať, koľko stĺpcov sa zmestí
     setTimeout(() => { justResized = false; }, 0);
   };
   let justResized = false;
@@ -420,7 +435,7 @@
     const hnd = e.target.closest('.col-resize'); if (!hnd) return;
     delete colWidths[hnd.dataset.resize];
     try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (x) {}
-    applyColWidths();
+    render();
   });
   // triedenie kliknutím na hlavičku stĺpca
   $('#listHeader').addEventListener('click', (e) => {

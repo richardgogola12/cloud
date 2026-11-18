@@ -72,6 +72,16 @@ for (const [name, opts] of sizes) {
     const rowW = (await page.locator('.row-item .c-col.c-kind').first().boundingBox()).width;
     console.log('[šírka stĺpca] pred: ' + Math.round(w0) + ' po: ' + Math.round(w1) + ' riadok: ' + Math.round(rowW));
     if (!(w1 > w0 + 60) || Math.abs(rowW - w1) > 2) { console.log('CHYBA: zmena šírky stĺpca nefunguje'); process.exitCode = 1; }
+    // šírka stĺpca Názov + stránka nesmie pretekať do strany
+    const n0 = (await page.locator('#listHeader .c-name').boundingBox()).width;
+    const nh = await page.locator('.col-resize[data-resize="name"]').boundingBox();
+    await page.mouse.move(nh.x + nh.width / 2, nh.y + nh.height / 2); await page.mouse.down();
+    await page.mouse.move(nh.x + nh.width / 2 + 300, nh.y + nh.height / 2, { steps: 8 }); await page.mouse.up();
+    await page.waitForTimeout(400);
+    const n1 = (await page.locator('#listHeader .c-name').boundingBox()).width;
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    console.log('[šírka názvu] pred: ' + Math.round(n0) + ' po: ' + Math.round(n1) + ' · pretečenie stránky: ' + over + ' px');
+    if (!(n1 > n0 + 100) || over > 2) { console.log('CHYBA: šírka názvu / pretekanie'); process.exitCode = 1; }
     await page.screenshot({ path: `screens/${name}-11-sirka-stlpca.png` });
     await page.click('[data-view="grid"]');
     await page.goto(base + 'admin.php'); await page.waitForTimeout(800);
