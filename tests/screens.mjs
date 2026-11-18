@@ -55,6 +55,11 @@ for (const [name, opts] of sizes) {
     await page.screenshot({ path: `screens/${name}-6-zdielane-mnou.png` });
     await page.click('.side-toggle'); await page.waitForTimeout(500);
     await page.screenshot({ path: `screens/${name}-7-menu-nastavenia.png` });
+    await page.goto(base + 'admin.php'); await page.waitForTimeout(800);
+    await page.locator('#healthCard').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `screens/${name}-8-admin-stav.png` });
+    await page.goto(base + 'index.php#dupes'); await page.waitForTimeout(1200);
+    await page.screenshot({ path: `screens/${name}-9-duplicity.png` });
   }
   if (name === 'mobil') {
     await page.click('button[data-bs-target="#sidebar"]'); await page.waitForTimeout(800);
