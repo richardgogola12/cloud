@@ -710,6 +710,35 @@ ok(str_contains($r['body'], 'id="searchFilterBtn"') && str_contains($r['body'], 
 no_php_errors($web->get('admin.php?tab=maintenance')['body'], 'údržba s indexom obsahu');
 $web->api('delete', ['items' => ["d:$sd"]]);
 
+section('SSH terminál (administrácia)');
+$tr = fn(Client $c, string $op, array $f = []) => $c->req('POST', 'term.php?op=' . $op, ['ajax' => true, 'form' => $f])['json'] ?? ['ok' => false];
+$r = $web->get('admin.php?tab=terminal');
+ok($r['code'] === 200 && (str_contains($r['body'], 'id="termForm"') || str_contains($r['body'], 'Terminál nie je dostupný')), 'záložka Terminál sa zobrazí', substr(strip_tags($r['body']), 0, 200));
+no_php_errors($r['body'], 'admin.php?tab=terminal');
+ok(str_contains($r['body'], 'id="termForm"'), 'na serveri sú python3 aj ssh – terminál je dostupný');
+$j = $tr($web, 'start', ['user' => 'nobody', 'host' => '127.0.0.1', 'port' => 1]);
+ok(empty($j['ok']) && !empty($j['locked']), 'bez overenia heslom sa terminál neotvorí', json_encode($j));
+$j = $tr($web, 'unlock', ['password' => 'zle']);
+ok(empty($j['ok']), 'nesprávne heslo neodomkne terminál');
+$j = $tr($beata, 'unlock', ['password' => 'Heslo1234']);
+ok(empty($j['ok']), 'bežný používateľ nemá prístup k terminálu');
+$j = $tr($web, 'unlock', ['password' => 'Heslo1234']);
+ok(!empty($j['ok']), 'overenie heslom', json_encode($j));
+$j = $tr($web, 'start', ['user' => 'x; rm -rf /', 'host' => '127.0.0.1', 'port' => 22]);
+ok(empty($j['ok']), 'neplatné meno sa odmietne (žiadne vloženie príkazu)');
+$j = $tr($web, 'start', ['user' => 'nobody', 'host' => '127.0.0.1', 'port' => 1, 'rows' => 24, 'cols' => 80]);
+ok(!empty($j['ok']) && preg_match('/^[a-f0-9]{32}$/', $j['id'] ?? ''), 'spustenie SSH relácie', json_encode($j));
+$tid = $j['id'] ?? ''; $out = ''; $off = 0; $end = false;
+for ($i = 0; $i < 10 && !$end; $i++) {
+    $j = $tr($web, 'read', ['id' => $tid, 'off' => $off]);
+    if (empty($j['ok'])) break;
+    $out .= base64_decode($j['data']); $off = $j['off']; $end = !empty($j['ended']);
+}
+ok(stripos($out, 'refused') !== false || stripos($out, 'port 1') !== false, 'výstup ssh príde do prehliadača', $out);
+ok($end, 'po skončení ssh sa relácia ukončí');
+ok(empty($tr($web, 'read', ['id' => $tid, 'off' => 0])['ok']), 'ukončená relácia sa uprace');
+ok(empty($tr($beata, 'read', ['id' => $tid, 'off' => 0])['ok']), 'cudzia relácia je neprístupná');
+
 section('Rýchle prepínanie účtov');
 $sw = new Client();
 $sw->loadCsrf($sw->get('login.php')['body']);

@@ -476,6 +476,7 @@ function housekeeping(): void {
     try { backfill_hashes(null, 120); } catch (Throwable $e) {}
     try { backfill_thumbs(120); } catch (Throwable $e) {}
     try { backfill_text(120); } catch (Throwable $e) {}
+    try { require_once __DIR__ . '/maintenance.php'; term_cleanup(); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY

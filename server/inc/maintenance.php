@@ -223,3 +223,27 @@ function ffmpeg_why(): string {
     if ($out && str_contains(implode(' ', $out), 'ffmpeg') && !str_contains(implode(' ', $out), 'No such')) return 'ffmpeg existuje (' . e(implode('; ', $out)) . '), ale PHP ho nevie spustiť' . ($ob !== '' ? ' – skontroluj <code>open_basedir</code> (' . e($ob) . ')' : '') . '.';
     return 'Webserver ffmpeg nenašiel v /usr/bin ani /usr/local/bin. Nainštaluj ho na <b>tomto</b> serveri: <code>sudo apt install ffmpeg</code> a potom <code>sudo systemctl restart apache2</code>.';
 }
+
+/** Čo chýba pre webový terminál (null = všetko je v poriadku). */
+function term_requirements(): ?string {
+    $disabled = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+    if (!function_exists('exec') || in_array('exec', $disabled, true)) return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
+    if (!ffmpeg_bin('python3')) return 'Chýba <code>python3</code> – nainštaluj ho: <code>sudo apt install python3</code>.';
+    if (!ffmpeg_bin('ssh')) return 'Chýba SSH klient – nainštaluj ho: <code>sudo apt install openssh-client</code>.';
+    $d = data_path('term');
+    if (!is_dir($d)) @mkdir($d, 0700, true);
+    if (!is_dir($d) || !is_writable($d)) return 'Priečinok <code>' . e($d) . '</code> nie je zapisovateľný.';
+    return null;
+}
+/** Upratanie starých relácií terminálu. */
+function term_cleanup(): void {
+    foreach (glob(rtrim(data_path('term'), '/') . '/*', GLOB_ONLYDIR) ?: [] as $d) {
+        if (!preg_match('#/[a-f0-9]{32}$#', $d)) continue;
+        $alive = @filemtime("$d/alive") ?: @filemtime($d);
+        if (is_file("$d/ended") || time() - $alive > 3600) {
+            if (!is_file("$d/ended")) { @touch("$d/close"); if (time() - $alive < 7200) continue; }
+            foreach (['in', 'out', 'pid', 'alive', 'resize', 'close', 'ended'] as $f) @unlink("$d/$f");
+            @rmdir($d);
+        }
+    }
+}
