@@ -449,7 +449,15 @@
   async function info(it) {
     const r = await api('api.php?action=info', { type: it.type, id: it.id });
     if (!r.ok) return toast(r.error, 'danger');
-    $('#infoBody').innerHTML = Object.entries(r.info).map(([k, v]) => '<dt class="col-5 text-body-secondary fw-normal">' + esc(k) + '</dt><dd class="col-7 text-break">' + esc(v) + '</dd>').join('');
+    const row = (k, v) => '<dt class="col-5 text-body-secondary fw-normal">' + esc(k) + '</dt><dd class="col-7 text-break">' + v + '</dd>';
+    const rows = Object.entries(r.info).map(([k, v]) => row(k, esc(v)));
+    if (r.location) { // umiestnenie hneď pod názvom – s odkazom do zložky
+      const href = r.location.folder ? '#folder/' + r.location.folder : '#';
+      rows.splice(1, 0, row('Umiestnenie', '<i class="bi bi-folder2 me-1 text-body-secondary"></i>' + esc(r.location.path)
+        + '<br><a href="' + href + '" class="small" data-info-open>Otvoriť zložku</a>'));
+    }
+    $('#infoBody').innerHTML = rows.join('');
+    $$('#infoBody [data-info-open]').forEach(a => a.addEventListener('click', () => bootstrap.Modal.getInstance($('#infoModal'))?.hide()));
     bootstrap.Modal.getOrCreateInstance($('#infoModal')).show();
   }
 

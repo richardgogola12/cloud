@@ -418,6 +418,9 @@ $j = $web->api('list', ['view' => 'dupes']);
 $grp = array_values(array_filter($j['items'] ?? [], fn($i) => in_array($i['name'], ['kopia-a.bin', 'kopia-b.bin'], true)));
 ok(count($grp) === 2 && ($grp[0]['dup']['g'] ?? 1) === ($grp[1]['dup']['g'] ?? 2) && ($grp[0]['dup']['n'] ?? 0) === 2, 'duplicitné súbory sa nájdu v jednej skupine', json_encode($grp));
 ok(str_contains(json_encode($grp, JSON_UNESCAPED_UNICODE), 'Schránka'), 'pri duplicite je cesta k zložke');
+$ka = array_values(array_filter($grp, fn($i) => $i['name'] === 'kopia-a.bin'))[0] ?? null;
+$inf = $ka ? $web->api('info', ['type' => 'f', 'id' => $ka['id']]) : [];
+ok(($inf['location']['path'] ?? '') === 'Môj disk / Schránka' && ($inf['location']['folder'] ?? 0) === $upFolder, 'informácie ukazujú umiestnenie (cestu)', json_encode($inf['location'] ?? null, JSON_UNESCAPED_UNICODE));
 
 section('Sieťový disk (WebDAV)');
 $r = $web->get('profile.php');

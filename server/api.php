@@ -476,6 +476,13 @@ try {
         }
         if ($a['perm'] !== 'owner') $info['Vlastník'] = owner_row($a['owner'])['name'];
         $info['Tvoje oprávnenie'] = $permTxt[$a['perm']];
+        // umiestnenie (cesta k nadradenej zložke) – napr. pri duplicitách vidno, ktorá je ktorá
+        $parent = $type === 'd' ? ($d['parent_id'] ? (int)$d['parent_id'] : null) : ($f['folder_id'] ? (int)$f['folder_id'] : null);
+        $loc = null;
+        try {
+            $cr = $parent ? breadcrumbs($uid, $parent) : [];
+            $loc = ['path' => implode(' / ', array_merge([$a['perm'] === 'owner' ? 'Môj disk' : 'Zdieľané so mnou'], array_column($cr, 'name'))), 'folder' => $parent ?? 0];
+        } catch (Throwable $e) {}
         $info['Vytvorené'] = date('d.m.Y H:i', strtotime($d['created_at']));
         $info['Zmenené'] = date('d.m.Y H:i', strtotime($d['updated_at']));
         if ($a['perm'] === 'owner') {
@@ -483,7 +490,7 @@ try {
             $su = q('SELECT COUNT(*) FROM ' . P . 'user_shares WHERE item_type = ? AND item_id = ?', [$type, $id])->fetchColumn();
             $info['Zdieľanie'] = ($sl ? 'verejný odkaz' : 'bez odkazu') . ', ' . $su . ' používateľov';
         }
-        json_out(['ok' => true, 'info' => $info]);
+        json_out(['ok' => true, 'info' => $info, 'location' => $loc]);
     }
 
     /* ---------------- textový editor ---------------- */
