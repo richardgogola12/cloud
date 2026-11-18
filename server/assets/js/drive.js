@@ -332,14 +332,23 @@
   const maxCols = () => innerWidth < 992 ? 2 : innerWidth < 1200 ? 3 : innerWidth < 1500 ? 5 : 8;
   let lastMax = maxCols();
   addEventListener('resize', () => { const m = maxCols(); if (m !== lastMax) { lastMax = m; if (state.items.length) render(); } });
+  // šírky stĺpcov upravené ťahaním (uložené v tomto zariadení – závisia od veľkosti obrazovky)
+  let colWidths = {};
+  try { colWidths = JSON.parse(localStorage.getItem('cloud-colw') || '{}') || {}; } catch (e) {}
+  const colTpl = (cols) => cols.map(c => colWidths[c] ? colWidths[c] + 'px' : (COLW[c] || '120px')).join(' ');
+  function applyColWidths() {
+    const w = colTpl(state.colsShown || []);
+    [$('#items'), $('#listHeader')].forEach(el => el.style.setProperty('--cols', w));
+  }
   function renderHeader(box) {
     const cols = state.colsShown || [];
-    const w = cols.map(c => COLW[c] || '120px').join(' ');
-    [box, $('#listHeader')].forEach(el => el.style.setProperty('--cols', w));
+    applyColWidths();
     const arrow = (k) => state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
     const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
       + '<div class="c-name sortable" data-sort-col="name">Názov' + arrow('name') + '</div>'
-      + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '">' + esc(COLDEF.labels[c]) + (SORTCOL[c] ? arrow(SORTCOL[c]) : '') + '</div>').join('')
+      + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '" data-col="' + c + '">'
+          + '<span class="col-label">' + esc(COLDEF.labels[c]) + (SORTCOL[c] ? arrow(SORTCOL[c]) : '') + '</span>'
+          + '<span class="col-resize" data-resize="' + c + '" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>').join('')
       + '<div class="c-act"></div>';
     const h = $('#listHeader');
     if (h.dataset.html !== html) { h.innerHTML = html; h.dataset.html = html; }
@@ -383,8 +392,39 @@
     delete COLDEF.mine[colView()]; saveCols(); render();
     const cur = colsNow(); $$('#colsMenu [data-col]').forEach(x => { x.checked = cur.includes(x.dataset.col); });
   });
+  // zmena šírky stĺpca ťahaním za okraj hlavičky (iba myšou na počítači)
+  let resizing = null;
+  $('#listHeader').addEventListener('pointerdown', (e) => {
+    const hnd = e.target.closest('.col-resize'); if (!hnd || e.pointerType === 'touch') return;
+    e.preventDefault(); e.stopPropagation();
+    const cell = hnd.parentElement;
+    resizing = { col: hnd.dataset.resize, x: e.clientX, w: cell.getBoundingClientRect().width };
+    hnd.setPointerCapture(e.pointerId);
+    document.body.classList.add('col-resizing');
+  });
+  $('#listHeader').addEventListener('pointermove', (e) => {
+    if (!resizing) return;
+    colWidths[resizing.col] = Math.round(Math.max(56, Math.min(640, resizing.w + e.clientX - resizing.x)));
+    applyColWidths();
+  });
+  const endResize = () => {
+    if (!resizing) return;
+    resizing = null; document.body.classList.remove('col-resizing');
+    try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (e) {}
+    setTimeout(() => { justResized = false; }, 0);
+  };
+  let justResized = false;
+  $('#listHeader').addEventListener('pointerup', () => { if (resizing) justResized = true; endResize(); });
+  $('#listHeader').addEventListener('pointercancel', endResize);
+  $('#listHeader').addEventListener('dblclick', (e) => {
+    const hnd = e.target.closest('.col-resize'); if (!hnd) return;
+    delete colWidths[hnd.dataset.resize];
+    try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (x) {}
+    applyColWidths();
+  });
   // triedenie kliknutím na hlavičku stĺpca
   $('#listHeader').addEventListener('click', (e) => {
+    if (justResized || e.target.closest('.col-resize')) return;
     const h = e.target.closest('.sortable'); if (!h || !h.dataset.sortCol) return;
     const k = h.dataset.sortCol;
     if (state.sort === k) state.dir = state.dir === 'asc' ? 'desc' : 'asc';

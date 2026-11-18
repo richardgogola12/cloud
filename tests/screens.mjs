@@ -60,7 +60,19 @@ for (const [name, opts] of sizes) {
     await page.click('[data-view="list"]'); await page.waitForTimeout(600);
     await page.click('#colsDrop > button'); await page.waitForTimeout(500);
     await page.screenshot({ path: `screens/${name}-10-stlpce.png` });
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    // zmena šírky stĺpca ťahaním
+    const cell = page.locator('#listHeader .c-col[data-col="kind"]');
+    const w0 = (await cell.boundingBox()).width;
+    const hb = await page.locator('.col-resize[data-resize="kind"]').boundingBox();
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2); await page.mouse.down();
+    await page.mouse.move(hb.x + hb.width / 2 + 90, hb.y + hb.height / 2, { steps: 6 }); await page.mouse.up();
+    await page.waitForTimeout(300);
+    const w1 = (await cell.boundingBox()).width;
+    const rowW = (await page.locator('.row-item .c-col.c-kind').first().boundingBox()).width;
+    console.log('[šírka stĺpca] pred: ' + Math.round(w0) + ' po: ' + Math.round(w1) + ' riadok: ' + Math.round(rowW));
+    if (!(w1 > w0 + 60) || Math.abs(rowW - w1) > 2) { console.log('CHYBA: zmena šírky stĺpca nefunguje'); process.exitCode = 1; }
+    await page.screenshot({ path: `screens/${name}-11-sirka-stlpca.png` });
     await page.click('[data-view="grid"]');
     await page.goto(base + 'admin.php'); await page.waitForTimeout(800);
     await page.locator('#healthCard').scrollIntoViewIfNeeded();
