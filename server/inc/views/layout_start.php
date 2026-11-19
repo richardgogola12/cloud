@@ -13,6 +13,7 @@ $navGroups = [
         ['recent',  'index.php#recent',  'bi-clock-history', 'Nedávne'],
         ['starred', 'index.php#starred', 'bi-star',          'S hviezdičkou'],
         ['photos',  'index.php#photos',  'bi-images',        'Fotky'],
+        ['activity', 'index.php#activity', 'bi-activity',    'Aktivita'],
     ], false],
     ['Zdieľanie', [
         ['shared',  'index.php#shared',  'bi-people',        'Zdieľané so mnou'],

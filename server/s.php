@@ -106,6 +106,7 @@ if (isset($_GET['up']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
             q('UPDATE ' . P . 'uploads SET received = ? WHERE id = ?', [$have, $id]);
             if ($have < $up['size']) json_out(['ok' => true, 'received' => $have]);
             $folder = $up['folder_id'] ? (int)$up['folder_id'] : null;
+            $GLOBALS['CLOUD_ACTOR'] = 0;
             $r = store_file($owner, $folder, free_name($owner, $folder, $up['name']), $path, false);
             q('DELETE FROM ' . P . 'uploads WHERE id = ?', [$id]);
             q('UPDATE ' . P . 'shares SET uploads = uploads + 1 WHERE id = ?', [$share['id']]);

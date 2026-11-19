@@ -6,6 +6,7 @@ require __DIR__ . '/inc/core.php';
 
 $user = require_login();
 $uid  = (int)$user['id'];
+$GLOBALS['CLOUD_ACTOR'] = $uid;
 $action = $_GET['action'] ?? '';
 $F = P . 'files';
 $D = P . 'folders';
@@ -151,6 +152,15 @@ try {
                         ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 3000", [$uid])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
+        } elseif ($view === 'album') {
+            $al = album_get($uid, (int)($_POST['album'] ?? 0));
+            $files = q("SELECT f.*, 0 vcnt FROM $F f JOIN " . P . "album_items ai ON ai.file_id = f.id WHERE ai.album_id = ? AND f.deleted_at IS NULL
+                        ORDER BY COALESCE(f.taken_at, f.created_at) DESC", [$al['id']])->fetchAll();
+            foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
+            unset($f);
+            $files = array_values(array_filter($files, function ($f) use ($uid) { try { file_access($uid, (int)$f['id']); return true; } catch (Throwable $e) { return false; } }));
+            $crumbs = [['id' => (int)$al['id'], 'name' => $al['name']]];
+            $root = 'album';
         } elseif ($view === 'tag') {
             $tag = q('SELECT * FROM ' . P . 'tags WHERE id = ? AND user_id = ?', [(int)($_POST['tag'] ?? 0), $uid])->fetch();
             if (!$tag) throw new RuntimeException('Štítok neexistuje.');
@@ -238,7 +248,7 @@ try {
         // obsah zamknutých zložiek sa mimo nich (hľadanie, nedávne, fotky…) neukazuje
         if ($view !== 'folder') filter_locked($folders, $files);
         // umiestnenie (cesta) vlastných položiek mimo zobrazenia zložky – stĺpec „Umiestnenie“
-        if ($view !== 'folder' && $view !== 'photos' && empty($extra['dup'])) {
+        if (!in_array($view, ['folder', 'photos', 'album'], true) && empty($extra['dup'])) {
             $need = [];
             foreach ($files as $f) if ((int)$f['user_id'] === $uid) $need[(int)($f['folder_id'] ?? 0)] = 1;
             foreach ($folders as $d) if ((int)$d['user_id'] === $uid) $need[(int)($d['parent_id'] ?? 0)] = 1;
@@ -284,6 +294,7 @@ try {
         }
         if ($op === 'remove') {
             q('UPDATE ' . P . 'folders SET lock_hash = NULL WHERE id = ?', [$id]);
+            activity_by_id('unlock', 'd', $id);
             log_action($uid, 'folder_lock_remove', $f['name']);
             json_out(['ok' => true]);
         }
@@ -296,6 +307,7 @@ try {
         q('UPDATE ' . P . 'folders SET lock_hash = ?' . ($mode ? ', lock_mode = ?' : '') . ' WHERE id = ?', array_merge([password_hash($new, PASSWORD_DEFAULT)], $mode ? [$mode] : [], [$id]));
         // verejné odkazy na zamknutú zložku prestanú fungovať
         $links = (int)q('SELECT COUNT(*) FROM ' . P . "shares WHERE item_type = 'd' AND item_id = ?", [$id])->fetchColumn();
+        if ($op === 'set') activity_by_id('lock', 'd', $id);
         log_action($uid, $op === 'set' ? 'folder_lock' : 'folder_lock_change', $f['name']);
         json_out(['ok' => true, 'links' => $links]);
     }
@@ -308,6 +320,85 @@ try {
         $items = rows_out($uid, array_slice($ds, 0, 3), array_slice($fs, 0, 8 - min(3, count($ds))));
         $tags = q('SELECT id, name, color FROM ' . P . 'tags WHERE user_id = ? AND name LIKE ? ORDER BY name LIMIT 3', [$uid, like_esc($qq)])->fetchAll();
         json_out(['ok' => true, 'items' => $items, 'tags' => $tags]);
+    }
+
+    /* ---------------- aktivita ---------------- */
+    case 'activity': {
+        $type = $_POST['type'] ?? '';
+        $id = (int)($_POST['id'] ?? 0);
+        $scope = null;
+        if ($type === 'f' && $id) { file_access($uid, $id); $scope = ['f', $id]; }
+        elseif ($type === 'd' && $id) { folder_access($uid, $id); $scope = ['d', $id]; }
+        json_out(['ok' => true] + activity_list($uid, $scope, (int)($_POST['before'] ?? 0)));
+    }
+    case 'folder_rewind': { // vrátenie zložky do stavu k dátumu (najprv náhľad, potom vykonanie)
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) throw new RuntimeException('Vyber zložku.');
+        $res = folder_rewind($uid, $id, (string)($_POST['at'] ?? ''), !empty($_POST['trash_new']), !empty($_POST['apply']));
+        if (!empty($_POST['apply'])) log_action($uid, 'rewind', $id . ' → ' . ($_POST['at'] ?? ''));
+        json_out(['ok' => true, 'result' => $res]);
+    }
+
+    /* ---------------- fotky: albumy, mapa, spomienky ---------------- */
+    case 'albums': {
+        json_out(['ok' => true, 'albums' => albums_list($uid)]);
+    }
+    case 'album_save': {
+        $name = clean_name((string)($_POST['name'] ?? ''));
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id) { album_get($uid, $id); q('UPDATE ' . P . 'albums SET name = ?, updated_at = NOW() WHERE id = ?', [$name, $id]); }
+        else { q('INSERT INTO ' . P . 'albums (user_id, name) VALUES (?,?)', [$uid, $name]); $id = (int)db()->lastInsertId(); }
+        json_out(['ok' => true, 'id' => $id]);
+    }
+    case 'album_delete': {
+        album_get($uid, (int)($_POST['id'] ?? 0));
+        q('DELETE FROM ' . P . 'albums WHERE id = ? AND user_id = ?', [(int)$_POST['id'], $uid]);
+        json_out(['ok' => true]);
+    }
+    case 'album_add': {
+        $al = album_get($uid, (int)($_POST['album'] ?? 0));
+        $n = 0;
+        foreach (parse_items()['f'] as $fid) {
+            file_access($uid, $fid);
+            $n += q('INSERT IGNORE INTO ' . P . 'album_items (album_id, file_id) VALUES (?,?)', [$al['id'], $fid])->rowCount();
+        }
+        q('UPDATE ' . P . 'albums SET updated_at = NOW() WHERE id = ?', [$al['id']]);
+        json_out(['ok' => true, 'added' => $n, 'name' => $al['name']]);
+    }
+    case 'album_remove': {
+        $al = album_get($uid, (int)($_POST['album'] ?? 0));
+        $ids = parse_items()['f'];
+        if ($ids) q('DELETE FROM ' . P . 'album_items WHERE album_id = ? AND file_id IN (' . implode(',', array_map('intval', $ids)) . ')', [$al['id']]);
+        json_out(['ok' => true]);
+    }
+    case 'album_cover': {
+        $al = album_get($uid, (int)($_POST['album'] ?? 0));
+        q('UPDATE ' . P . 'albums SET cover_id = ? WHERE id = ?', [(int)($_POST['file'] ?? 0) ?: null, $al['id']]);
+        json_out(['ok' => true]);
+    }
+    case 'photo_map': {
+        $pending = photo_meta_pending($uid);
+        if ($pending) defer_task(fn() => backfill_photo_meta($uid, 60)); // staršie fotky sa doplnia na pozadí
+        $rows = q("SELECT f.id, f.name, f.folder_id, f.user_id, f.lat, f.lng, f.updated_at, f.taken_at, f.created_at, f.mime FROM $F f
+                   WHERE f.user_id = ? AND f.deleted_at IS NULL AND f.lat IS NOT NULL ORDER BY COALESCE(f.taken_at, f.created_at) DESC LIMIT 5000", [$uid])->fetchAll();
+        $none = [];
+        filter_locked($none, $rows);
+        json_out(['ok' => true, 'pending' => $pending, 'points' => array_map(fn($r) => [(int)$r['id'], (float)$r['lat'], (float)$r['lng'], $r['name'], $r['taken_at'] ?: $r['created_at'], $r['updated_at']], $rows)]);
+    }
+    case 'memories': {
+        json_out(['ok' => true, 'groups' => photo_memories($uid)]);
+    }
+
+    case 'digest_preview': { // obsah súhrnu bez odoslania
+        $d = digest_data($user) ?? ['uploaded' => 0, 'uploaded_size' => 0, 'by_others' => [], 'public' => 0, 'shared' => [], 'trash' => 0, 'trash_size' => 0, 'used' => used_space($uid), 'quota' => (int)$user['quota'], 'memories' => 0];
+        json_out(['ok' => true, 'data' => $d, 'html' => digest_html($user, $d)]);
+    }
+    case 'digest_test': { // ukážka týždenného súhrnu e-mailom hneď teraz
+        $d = digest_data($user) ?? ['uploaded' => 0, 'uploaded_size' => 0, 'by_others' => [], 'public' => 0, 'shared' => [], 'trash' => 0, 'trash_size' => 0, 'used' => used_space($uid), 'quota' => (int)$user['quota'], 'memories' => 0];
+        $err = null;
+        if (!send_mail($user['email'], 'Týždenný prehľad – ' . cfg('app_name'), 'Tvoj týždeň v ' . cfg('app_name'), digest_html($user, $d), 'Otvoriť disk', public_url() . '/index.php', $err))
+            throw new RuntimeException('E-mail sa nepodarilo odoslať' . ($err ? ': ' . $err : '') . '.');
+        json_out(['ok' => true]);
     }
 
     case 'search_meta': { // údaje pre panel rozšíreného vyhľadávania
@@ -358,6 +449,7 @@ try {
         if (name_exists($acc['owner'], $parent, $name, 'd')) throw new RuntimeException('Zložka s týmto názvom už existuje.');
         q("INSERT INTO $D (user_id, parent_id, name) VALUES (?,?,?)", [$acc['owner'], $parent, $name]);
         $newId = (int)db()->lastInsertId(); // ID treba prečítať hneď – log_action vkladá ďalší riadok
+        activity_by_id('create', 'd', $newId);
         log_action($uid, 'mkdir', $name);
         json_out(['ok' => true, 'id' => $newId]);
     }
@@ -453,10 +545,12 @@ try {
             $a = need(folder_access($uid, $id), 'edit'); $d = $a['row'];
             if (name_exists($a['owner'], $d['parent_id'] ? (int)$d['parent_id'] : null, $name, 'd', $id)) throw new RuntimeException('Zložka s týmto názvom už existuje.');
             q("UPDATE $D SET name = ? WHERE id = ?", [$name, $id]);
+            if ($name !== $d['name']) activity_by_id('rename', 'd', $id, ['from' => $d['name']]);
         } else {
             $a = need(file_access($uid, $id), 'edit'); $f = $a['row'];
             if (name_exists($a['owner'], $f['folder_id'] ? (int)$f['folder_id'] : null, $name, 'f', $id)) throw new RuntimeException('Súbor s týmto názvom už existuje.');
             q("UPDATE $F SET name = ? WHERE id = ?", [$name, $id]);
+            if ($name !== $f['name']) activity_by_id('rename', 'f', $id, ['from' => $f['name']]);
         }
         log_action($uid, 'rename', $name);
         json_out(['ok' => true]);
@@ -474,12 +568,14 @@ try {
             if ($a['share_root'] === $id) throw new RuntimeException('Zdieľanú zložku nemôžeš presunúť.');
             if ($target && in_array($target, descendants($a['owner'], $id), true)) throw new RuntimeException('Zložku nemožno presunúť do seba samej.');
             q("UPDATE $D SET parent_id = ?, name = ? WHERE id = ?", [$target, unique_name($a['owner'], $target, $a['row']['name'], 'd'), $id]); $moved++;
+            activity_by_id('move', 'd', $id, ['from' => $a['row']['parent_id'] ? (int)$a['row']['parent_id'] : null, 'to' => $target]);
         }
         foreach ($items['f'] as $id) {
             $a = need(file_access($uid, $id), 'edit');
             if ($a['owner'] !== $tacc['owner']) throw new RuntimeException('Presun medzi rôznymi vlastníkmi nie je možný – použi kópiu.');
             if (($a['row']['folder_id'] ? (int)$a['row']['folder_id'] : null) === $target) continue;
             q("UPDATE $F SET folder_id = ?, name = ? WHERE id = ?", [$target, unique_name($a['owner'], $target, $a['row']['name'], 'f'), $id]); $moved++;
+            activity_by_id('move', 'f', $id, ['from' => $a['row']['folder_id'] ? (int)$a['row']['folder_id'] : null, 'to' => $target]);
         }
         db()->commit();
         log_action($uid, 'move', "$moved položiek");
@@ -492,6 +588,7 @@ try {
         $items = parse_items();
         $rows = array_map(fn($id) => file_access($uid, $id)['row'], $items['f']);
         check_space($tacc['owner'], array_sum(array_column($rows, 'size')));
+        $GLOBALS['CLOUD_ACT_HINT'] = 'copy';
         foreach ($rows as $f) {
             $tmp = stored_to_temp($f);
             store_file($tacc['owner'], $target, unique_name($tacc['owner'], $target, $f['name'], 'f'), $tmp, false);
@@ -508,16 +605,17 @@ try {
             $a = need(folder_access($uid, $id), 'edit');
             if ($a['share_root'] === $id) throw new RuntimeException('Zdieľanú zložku môže zmazať iba vlastník. Môžeš ju odstrániť zo zdieľaných.');
             trash_folder($a['owner'], $id); $count++;
+            activity('trash', 'd', $a['row']);
         }
-        foreach ($items['f'] as $id) { $a = need(file_access($uid, $id), 'edit'); trash_file($a['owner'], $id); $count++; }
+        foreach ($items['f'] as $id) { $a = need(file_access($uid, $id), 'edit'); trash_file($a['owner'], $id); $count++; activity('trash', 'f', $a['row']); }
         log_action($uid, 'trash', "$count položiek");
         json_out(['ok' => true, 'count' => $count]);
     }
 
     case 'restore': {
         $items = parse_items();
-        foreach ($items['d'] as $id) restore_item($uid, 'd', $id);
-        foreach ($items['f'] as $id) restore_item($uid, 'f', $id);
+        foreach ($items['d'] as $id) { restore_item($uid, 'd', $id); activity_by_id('restore', 'd', $id); }
+        foreach ($items['f'] as $id) { restore_item($uid, 'f', $id); activity_by_id('restore', 'f', $id); }
         log_action($uid, 'restore', count($items['d']) + count($items['f']) . ' položiek');
         json_out(['ok' => true]);
     }
@@ -526,11 +624,13 @@ try {
         $items = parse_items();
         foreach ($items['d'] as $id) {
             if (!q("SELECT id FROM $D WHERE id = ? AND user_id = ? AND trash_root = 1", [$id, $uid])->fetch()) throw new RuntimeException('Položka nie je v koši.');
+            activity_by_id('purge', 'd', $id);
             purge_folder($uid, $id);
         }
         foreach ($items['f'] as $id) {
             $f = q("SELECT * FROM $F WHERE id = ? AND user_id = ? AND trash_root = 1", [$id, $uid])->fetch();
             if (!$f) throw new RuntimeException('Položka nie je v koši.');
+            activity('purge', 'f', $f);
             purge_file($f);
         }
         q('UPDATE ' . P . 'users SET quota_warned = 0 WHERE id = ? AND quota_warned = 1', [$uid]);
@@ -554,6 +654,12 @@ try {
 
     case 'prefs_save': { // osobné nastavenia zobrazenia (napr. stĺpce v zozname) – platia na webe aj v aplikácii
         $key = (string)($_POST['key'] ?? '');
+        if ($key === 'digest') {
+            $prefs = user_prefs($user);
+            $prefs['digest'] = ($_POST['value'] ?? '1') === '1';
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            json_out(['ok' => true]);
+        }
         if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
         $val = json_decode((string)($_POST['value'] ?? ''), true);
         $clean = [];
@@ -619,6 +725,7 @@ try {
         check_space($a['owner'], strlen($content));
         $tmp = tmp_file();
         file_put_contents($tmp, $content);
+        $GLOBALS['CLOUD_ACT_HINT'] = 'edit';
         store_file($a['owner'], $f['folder_id'] ? (int)$f['folder_id'] : null, $f['name'], $tmp, false);
         log_action($uid, 'edit', $f['name']);
         $upd = q("SELECT updated_at FROM $F WHERE id = ?", [$f['id']])->fetchColumn();
@@ -648,6 +755,7 @@ try {
         q("DELETE FROM $V WHERE id = ?", [$vid]);
         db()->commit();
         @unlink(data_path('thumbs/' . $f['user_id'] . '/' . $f['stored_name'] . '.jpg'));
+        activity('version', 'f', $f, ['date' => $v['created_at']]);
         log_action($uid, 'version_restore', $f['name']);
         json_out(['ok' => true]);
     }
@@ -700,6 +808,7 @@ try {
         } else {
             $token = bin2hex(random_bytes(16));
             q('INSERT INTO ' . P . 'shares (user_id, item_type, item_id, token, password, expires_at, mode) VALUES (?,?,?,?,?,?,?)', [$uid, $type, $id, $token, $pw, $exp, $mode]);
+            activity_by_id('link', $type, $id, ['mode' => $mode]);
             log_action($uid, 'share_link', "$type:$id");
         }
         json_out(['ok' => true, 'url' => share_url($token)]);
@@ -709,7 +818,7 @@ try {
         $type = ($_POST['type'] ?? '') === 'd' ? 'd' : 'f';
         $id = (int)($_POST['id'] ?? 0);
         need($type === 'd' ? folder_access($uid, $id) : file_access($uid, $id), 'owner');
-        q('DELETE FROM ' . P . 'shares WHERE item_type = ? AND item_id = ? AND user_id = ?', [$type, $id, $uid]);
+        if (q('DELETE FROM ' . P . 'shares WHERE item_type = ? AND item_id = ? AND user_id = ?', [$type, $id, $uid])->rowCount()) activity_by_id('unlink', $type, $id);
         json_out(['ok' => true]);
     }
 
@@ -750,6 +859,7 @@ try {
                     . ' (' . ($perm === 'edit' ? 'môžeš upravovať' : 'iba na čítanie') . ').</p><p>Nájdeš ju v sekcii <b>Zdieľané so mnou</b>.</p>',
                     'Otvoriť', public_url() . '/index.php#shared');
             }
+            activity('share', $type, $a['row'], ['to' => $t['name'], 'perm' => $perm]);
             log_action($uid, 'share_user', "$type:$id → " . $t['email']);
         }
         json_out(['ok' => true]);
@@ -763,6 +873,8 @@ try {
     }
 
     case 'share_user_remove': {
+        $s = q('SELECT s.*, u.name FROM ' . P . 'user_shares s JOIN ' . P . 'users u ON u.id = s.target_id WHERE s.id = ? AND s.owner_id = ?', [(int)($_POST['sid'] ?? 0), $uid])->fetch();
+        if ($s) activity_by_id('unshare', $s['item_type'], (int)$s['item_id'], ['to' => $s['name']]);
         q('DELETE FROM ' . P . 'user_shares WHERE id = ? AND owner_id = ?', [(int)($_POST['sid'] ?? 0), $uid]);
         json_out(['ok' => true]);
     }

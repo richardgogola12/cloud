@@ -69,6 +69,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll"></div>
   <div class="c-name sortable" data-sort-col="name">Názov</div><div class="c-cols" id="headCols"></div><div class="c-act"></div>
 </div>
+<div class="photo-bar d-none" id="photoBar"></div>
 <div id="items" class="items"></div>
 <div id="empty" class="empty-state d-none">
   <div class="empty-icon"><i class="bi bi-cloud-arrow-up"></i></div>
@@ -122,6 +123,11 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="star"><i class="bi bi-star me-2"></i><span>Pridať hviezdičku</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="versions"><i class="bi bi-clock-history me-2"></i>Verzie</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="info"><i class="bi bi-info-circle me-2"></i>Informácie</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="albumadd"><i class="bi bi-journal-plus me-2"></i>Pridať do albumu…</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="albumremove"><i class="bi bi-journal-minus me-2"></i>Odstrániť z albumu</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="albumcover"><i class="bi bi-image me-2"></i>Nastaviť ako obal albumu</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="activity"><i class="bi bi-activity me-2"></i>Aktivita</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="rewind"><i class="bi bi-rewind me-2"></i>Vrátiť do stavu k…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="lock"><i class="bi bi-lock me-2"></i>Zamknúť heslom…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="lockedit"><i class="bi bi-key me-2"></i>Heslo zložky…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="relock"><i class="bi bi-lock-fill me-2"></i>Zamknúť teraz</a></li>
@@ -155,6 +161,7 @@ require __DIR__ . '/inc/views/layout_start.php';
         <span class="text-truncate flex-grow-1 fw-semibold" id="previewName"></span>
         <a class="btn btn-icon text-white d-none" id="previewOpenApp" title="Otvoriť v aplikácii"><i class="bi bi-box-arrow-up-right"></i></a>
         <a class="btn btn-icon text-white d-none" id="previewSend" title="Poslať"><i class="bi bi-send"></i></a>
+        <button class="btn btn-icon text-white" id="previewPlay" title="Prezentácia"><i class="bi bi-play-circle"></i></button>
         <a class="btn btn-icon text-white" id="previewDownload" title="Stiahnuť"><i class="bi bi-download"></i></a>
       </div>
       <button class="preview-nav prev" id="previewPrev"><i class="bi bi-chevron-left"></i></button>
@@ -169,7 +176,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Informácie</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body"><dl class="row mb-0" id="infoBody"></dl></div>
+      <div class="modal-body"><dl class="row mb-0" id="infoBody"></dl><div id="infoAct" class="info-act"></div></div>
     </div>
   </div>
 </div>
@@ -307,6 +314,12 @@ require __DIR__ . '/inc/views/layout_start.php';
 </div>
 <script>
   // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
+  window.CLOUD_LIB = <?= json_encode([
+    'leafletJs' => lib('leaflet/leaflet.js', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'),
+    'leafletCss' => lib('leaflet/leaflet.css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'),
+    'clusterJs' => lib('leaflet/leaflet.markercluster.js', 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'),
+    'clusterCss' => lib('leaflet/MarkerCluster.css', 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css'),
+  ], JSON_UNESCAPED_SLASHES) ?>;
   window.CLOUD_UID = <?= (int)$user['id'] ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>

@@ -49,6 +49,19 @@ for (const [name, opts] of sizes) {
   console.log(`[${name}] cache zoznamu: ${early}/${nItems} položiek pred odpoveďou servera`);
   if (nItems > 0 && early < 1) { console.log('CHYBA: zoznam sa neukázal z cache'); process.exitCode = 1; }
   await page.waitForTimeout(2500); await page.unroute('**/api.php?action=list*');
+  // aktivita, albumy, mapa
+  await page.evaluate(() => { location.hash = '#activity'; }); await page.waitForTimeout(1200);
+  const actRows = await page.locator('#items .act-row').count();
+  console.log(`[${name}] aktivita: ${actRows} záznamov`);
+  await page.screenshot({ path: `screens/${name}-17-aktivita.png` });
+  await page.evaluate(() => { location.hash = '#photos'; }); await page.waitForTimeout(1200);
+  if (!(await page.locator('#photoBar .pb-tab').count())) { console.log('CHYBA: chýba lišta fotiek'); process.exitCode = 1; }
+  await page.screenshot({ path: `screens/${name}-18-fotky.png` });
+  await page.evaluate(() => { location.hash = '#albums'; }); await page.waitForTimeout(1000);
+  await page.screenshot({ path: `screens/${name}-19-albumy.png` });
+  await page.evaluate(() => { location.hash = '#map'; }); await page.waitForTimeout(2500);
+  await page.screenshot({ path: `screens/${name}-20-mapa.png` });
+  await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(1000);
   // vyhľadávanie: návrhy, výsledky s čipmi filtrov, rozšírené vyhľadávanie
   await page.click('#searchInput'); await page.waitForTimeout(500);
   await page.screenshot({ path: `screens/${name}-12-hladanie-prazdne.png` });

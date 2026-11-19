@@ -253,6 +253,31 @@ $used = used_space($uid);
       });
     })();
     </script>
+    <div class="card card-soft mb-4" id="digest">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-envelope-paper me-2"></i>Týždenný súhrn</h2>
+        <p class="small text-body-secondary">Každý pondelok ti príde e-mail: čo pribudlo, kto ti čo nahral alebo s tebou zdieľal, koľko miesta ostáva a fotky „v tento deň“ z minulých rokov. Ak sa za týždeň nič nestalo, nepríde nič.</p>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="digestOn" <?= digest_enabled($user) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="digestOn">Posielať týždenný súhrn na <?= e($user['email']) ?></label>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm rounded-pill" type="button" id="digestTest"><i class="bi bi-send me-1"></i>Poslať ukážku teraz</button>
+      </div>
+    </div>
+    <script>
+    (() => {
+      document.getElementById('digestOn').addEventListener('change', async (e) => {
+        const r = await Cloud.api('api.php?action=prefs_save', { key: 'digest', value: e.target.checked ? '1' : '0' });
+        Cloud.toast(r.ok ? (e.target.checked ? 'Súhrn bude chodiť každý pondelok' : 'Súhrn je vypnutý') : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
+      });
+      document.getElementById('digestTest').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const r = await Cloud.api('api.php?action=digest_test', {});
+        e.target.disabled = false;
+        Cloud.toast(r.ok ? 'Ukážka odoslaná – pozri e-mail' : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
+      });
+    })();
+    </script>
     <div class="card card-soft mb-4" id="dav">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-hdd-network me-2"></i>Sieťový disk (WebDAV)</h2>

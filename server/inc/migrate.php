@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -35,6 +35,7 @@ function migrate(): void {
         if ($v < 13) migrate_v13();
         if ($v < 14) migrate_v14();
         if ($v < 15) migrate_v15();
+        if ($v < 16) migrate_v16();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -360,4 +361,46 @@ function migrate_v15(): void {
     $p = P;
     $has = db()->query("SHOW COLUMNS FROM {$p}folders LIKE 'lock_mode'")->fetch();
     if (!$has) db()->exec("ALTER TABLE {$p}folders ADD lock_mode VARCHAR(10) NOT NULL DEFAULT 'close'");
+}
+
+/* v16: aktivita (história zmien), albumy fotiek, poloha fotiek */
+function migrate_v16(): void {
+    $p = P;
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}activity (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        owner_id INT UNSIGNED NOT NULL,
+        actor_id INT UNSIGNED NULL,
+        action VARCHAR(24) NOT NULL,
+        item_type CHAR(1) NOT NULL,
+        item_id INT UNSIGNED NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        folder_id INT UNSIGNED NULL,
+        extra TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_act_owner (owner_id, created_at),
+        INDEX idx_act_item (item_type, item_id),
+        INDEX idx_act_folder (folder_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}albums (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        cover_id INT UNSIGNED NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}album_items (
+        album_id INT UNSIGNED NOT NULL,
+        file_id INT UNSIGNED NOT NULL,
+        added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (album_id, file_id),
+        INDEX (file_id),
+        CONSTRAINT fk_{$p}ai_album FOREIGN KEY (album_id) REFERENCES {$p}albums(id) ON DELETE CASCADE,
+        CONSTRAINT fk_{$p}ai_file FOREIGN KEY (file_id) REFERENCES {$p}files(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    add_col("{$p}files", 'lat', 'DECIMAL(9,6) NULL');
+    add_col("{$p}files", 'lng', 'DECIMAL(9,6) NULL');
+    add_col("{$p}files", 'meta_done', 'TINYINT NOT NULL DEFAULT 0');
+    if (!idx_exists("{$p}files", 'idx_cloud_files_geo')) db()->exec("ALTER TABLE {$p}files ADD INDEX idx_cloud_files_geo (user_id, lat)");
 }

@@ -19,6 +19,8 @@
     dir: localStorage.getItem('cloud-dir') || 'asc',
   };
   const key = (it) => it.type + ':' + it.id;
+  const isPhotoView = () => state.view === 'photos' || state.view === 'album';
+  const CUSTOM_VIEWS = ['albums', 'map', 'activity'];
   const byKey = (k) => state.items.find(i => key(i) === k);
   const canEditHere = () => state.view !== 'folder' || PERM[state.perm] >= 2; // mimo zložky sa nahráva do Môj disk
 
@@ -57,7 +59,7 @@
   // kostra zoznamu, kým sa načítava (blikajúce plochy namiesto prázdnej stránky)
   function skeleton() {
     const box = $('#items');
-    const layout = state.view === 'photos' ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
+    const layout = isPhotoView() ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#empty').classList.add('d-none');
     const n = (k) => Array.from({ length: k });
@@ -70,7 +72,7 @@
   const LC_KEY = 'cloud-lc-' + (window.CLOUD_UID || 0), LC_PERSIST = ['folder', 'recent', 'starred', 'photos', 'shared', 'byme', 'tag'];
   const lcMem = new Map();
   try { Object.entries(JSON.parse(localStorage.getItem(LC_KEY) || '{}')).forEach(([k, v]) => lcMem.set(k, v)); } catch (e) {}
-  const lcKey = (p) => p.view === 'search' || p.view === 'dupes' ? null : [p.view, p.folder || 0, p.view === 'tag' ? p.tag : 0, p.sort, p.dir].join('|');
+  const lcKey = (p) => p.view === 'search' || p.view === 'dupes' ? null : [p.view, p.folder || 0, p.view === 'tag' ? p.tag : p.view === 'album' ? p.album : 0, p.sort, p.dir].join('|');
   let lcT;
   function lcPut(k, r) {
     if (!k) return;
@@ -88,6 +90,7 @@
   const lcSame = (a, b) => a.items.length === b.items.length && (a.total || 0) === (b.total || 0) && JSON.stringify([a.items, a.crumbs, a.perm]) === JSON.stringify([b.items, b.crumbs, b.perm]);
   function listParams() {
     const params = { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir };
+    if (state.view === 'album') params.album = state.albumId || 0;
     if (state.view === 'search') { Object.assign(params, searchParams(state.sf || {})); params.folder = 0; }
     return params;
   }
@@ -177,6 +180,7 @@
   }
 
   async function load(keepSel) {
+    if (CUSTOM_VIEWS.includes(state.view)) return loadCustom();
     const params = listParams(), ck = lcKey(params);
     const cached = !keepSel && ck ? lcMem.get(ck) : null;
     const ticket = state.loadTicket = (state.loadTicket || 0) + 1;
@@ -212,7 +216,7 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
-    const titles = { recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: state.q ? 'Výsledky pre „' + state.q + '“' : 'Výsledky hľadania' };
+    const titles = { album: 'Album: ' + ((state.crumbs[0] || {}).name || ''), albums: 'Albumy', map: 'Mapa fotiek', activity: 'Aktivita', recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: state.q ? 'Výsledky pre „' + state.q + '“' : 'Výsledky hľadania' };
     const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
       const t = state.crumbs[0] || {};
@@ -275,7 +279,8 @@
     renderSearchChips();
     $('#relockBtn').classList.toggle('d-none', !(state.view === 'folder' && state.lockHere));
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
-    const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : state.view;
+    const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
+    renderPhotoBar();
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
     $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
     $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
@@ -293,7 +298,7 @@
     else sb.classList.add('d-none');
 
     const box = $('#items');
-    const layout = state.view === 'photos' ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
+    const layout = isPhotoView() ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
     $('#colsDrop').classList.toggle('d-none', layout !== 'list');
@@ -304,7 +309,7 @@
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
       trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''], byme: ['Zatiaľ nič nezdieľaš', 'Súbor alebo zložku zdieľaš cez ⋮ → Zdieľať.'],
       tag: ['S týmto štítkom zatiaľ nič nie je', 'Štítok pridáš cez ⋮ → Štítky a farba.'],
-      photos: ['Zatiaľ žiadne fotky', 'Nahraj obrázky – zoradia sa podľa dátumu.'], dupes: ['Žiadne duplicity', 'Každý súbor máš iba raz. 👍'], recent: ['Žiadne nedávne súbory', ''] }[state.view] || ['Zatiaľ tu nič nie je', 'Pretiahni sem súbory alebo použi tlačidlo Nový.'];
+      photos: ['Zatiaľ žiadne fotky', 'Nahraj obrázky – zoradia sa podľa dátumu.'], album: ['Album je prázdny', 'Fotky pridáš cez ⋮ → Pridať do albumu.'], dupes: ['Žiadne duplicity', 'Každý súbor máš iba raz. 👍'], recent: ['Žiadne nedávne súbory', ''] }[state.view] || ['Zatiaľ tu nič nie je', 'Pretiahni sem súbory alebo použi tlačidlo Nový.'];
     $('#empty h5').textContent = emptyTxt[0];
     $('#empty p').textContent = emptyTxt[1];
     $('#empty .btn').classList.toggle('d-none', !canEditHere() || !['folder', 'photos'].includes(state.view));
@@ -325,6 +330,7 @@
         h += listItem(it);
       });
     } else if (layout === 'photos') {
+      if (state.view === 'photos') h += memoriesHtml();
       let month = '';
       const years = [...new Set(state.items.map(it => new Date((it.taken || it.updated).replace(' ', 'T')).getFullYear()))].filter(y => !isNaN(y));
       if (years.length > 1) h += '<div class="photo-years">' + years.map(y => '<button class="btn btn-sm btn-light rounded-pill" data-year-jump="' + y + '">' + y + '</button>').join('') + '</div>';
@@ -646,7 +652,8 @@
   function route() {
     const h = decodeURIComponent(location.hash.slice(1));
     if (h.startsWith('folder/')) { state.view = 'folder'; state.folder = parseInt(h.slice(7)) || null; }
-    else if (['recent', 'starred', 'trash', 'shared', 'byme', 'dupes', 'photos'].includes(h)) { state.view = h; state.folder = null; }
+    else if (['recent', 'starred', 'trash', 'shared', 'byme', 'dupes', 'photos', 'albums', 'map', 'activity'].includes(h)) { state.view = h; state.folder = null; }
+    else if (h.startsWith('album/')) { state.view = 'album'; state.albumId = parseInt(h.slice(6)) || 0; state.folder = null; }
     else if (h.startsWith('tag/')) { state.view = 'tag'; state.tagId = parseInt(h.slice(4)) || null; state.folder = null; }
     else if (h.startsWith('search/')) {
       const raw = location.hash.slice(8), qi = raw.indexOf('?');
@@ -767,6 +774,8 @@
         + '<br><a href="' + href + '" class="small" data-info-open>Otvoriť zložku</a>'));
     }
     $('#infoBody').innerHTML = rows.join('');
+    $('#infoAct').innerHTML = '';
+    loadActivity($('#infoAct'), { type: it.type, id: it.id }, 8, true);
     $$('#infoBody [data-info-open]').forEach(a => a.addEventListener('click', () => bootstrap.Modal.getInstance($('#infoModal'))?.hide()));
     bootstrap.Modal.getOrCreateInstance($('#infoModal')).show();
   }
@@ -1077,7 +1086,7 @@
 
   /* ---------------- náhľad ---------------- */
   let pvIdx = -1;
-  const pvList = () => state.items.filter(i => i.type === 'f');
+  const pvList = () => (typeof pvOverride !== 'undefined' && pvOverride) || state.items.filter(i => i.type === 'f');
   async function preview(it) {
     const files = pvList();
     pvIdx = files.findIndex(f => f.id === it.id);
@@ -1186,6 +1195,9 @@
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
       info: single && !trash, tags: !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
+      albumadd: !trash && items.every(i => i.type === 'f' && /^(image|video)\//.test(i.mime || '')),
+      albumremove: state.view === 'album', albumcover: state.view === 'album' && single && single.thumb,
+      activity: single && !trash, rewind: single && !trash && single.type === 'd' && minPerm >= 2,
       lock: single && !trash && single.type === 'd' && single.perm === 'owner' && !single.locked,
       lockedit: single && !trash && single.type === 'd' && single.perm === 'owner' && !!single.locked,
       relock: single && !trash && single.type === 'd' && !!single.unlocked,
@@ -1209,6 +1221,8 @@
     ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
        info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items),
+       albumadd: () => albumAddDialog(items), albumremove: () => albumRemove(items), albumcover: () => albumCover(it),
+       activity: () => activityDialog(it), rewind: () => rewindDialog(it),
        lock: () => lockDialog(it, 'set'), lockedit: () => lockDialog(it, 'edit'), relock: () => relock(it.id) })[a.dataset.ctx]();
   });
 
@@ -1296,9 +1310,273 @@
   $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); state.dir = a.dataset.dir; localStorage.setItem('cloud-dir', state.dir); load(); });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
   $$('.side-nav [data-nav]').forEach(a => {
-    const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', dupes: '#dupes', photos: '#photos' };
+    const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', dupes: '#dupes', photos: '#photos', activity: '#activity' };
     if (map[a.dataset.nav] !== undefined) a.addEventListener('click', (e) => { e.preventDefault(); go(map[a.dataset.nav]); });
   });
+
+  /* ================= Fotky: lišta, spomienky, albumy, mapa, prezentácia ================= */
+  function renderPhotoBar() {
+    const bar = $('#photoBar');
+    const show = ['photos', 'album', 'albums', 'map'].includes(state.view);
+    bar.classList.toggle('d-none', !show);
+    if (!show) return;
+    const tab = (v, href, ic, t) => '<a class="pb-tab' + (state.view === v || (v === 'albums' && state.view === 'album') ? ' active' : '') + '" href="' + href + '"><i class="bi ' + ic + '"></i><span>' + t + '</span></a>';
+    let right = '';
+    if (isPhotoView() && state.items.some(i => i.type === 'f')) right += '<button class="btn btn-sm btn-light rounded-pill" data-pb="slideshow"><i class="bi bi-play-fill me-1"></i>Prezentácia</button>';
+    if (state.view === 'albums') right += '<button class="btn btn-sm btn-primary rounded-pill" data-pb="newalbum"><i class="bi bi-plus-lg me-1"></i>Nový album</button>';
+    if (state.view === 'album') right += '<div class="dropdown d-inline-block"><button class="btn btn-sm btn-light rounded-pill" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end shadow">'
+      + '<li><a class="dropdown-item" href="#" data-pb="renamealbum"><i class="bi bi-input-cursor-text me-2"></i>Premenovať album</a></li>'
+      + '<li><a class="dropdown-item text-danger" href="#" data-pb="delalbum"><i class="bi bi-trash3 me-2"></i>Zmazať album</a></li></ul></div>';
+    bar.innerHTML = '<div class="pb-tabs">' + tab('photos', '#photos', 'bi-images', 'Fotky') + tab('albums', '#albums', 'bi-journals', 'Albumy') + tab('map', '#map', 'bi-geo-alt', 'Mapa') + '</div><div class="pb-right">' + right + '</div>';
+  }
+  $('#photoBar').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pb]'); if (!b) return;
+    e.preventDefault();
+    const act = b.dataset.pb;
+    if (act === 'slideshow') return startSlideshow();
+    if (act === 'newalbum') { const n = await Cloud.prompt('Nový album', '', 'Vytvoriť', 'Názov albumu'); if (!n) return; const r = await api('api.php?action=album_save', { name: n }); r.ok ? go('#album/' + r.id) : toast(r.error, 'danger'); return; }
+    if (act === 'renamealbum') { const n = await Cloud.prompt('Premenovať album', (state.crumbs[0] || {}).name || '', 'Uložiť'); if (!n) return; const r = await api('api.php?action=album_save', { id: state.albumId, name: n }); r.ok ? load(true) : toast(r.error, 'danger'); return; }
+    if (act === 'delalbum') { if (!await Cloud.confirm('Zmazať album?', 'Fotky ostanú na disku – zmaže sa iba album.', 'Zmazať')) return; const r = await api('api.php?action=album_delete', { id: state.albumId }); r.ok ? (toast('Album zmazaný', 'success'), go('#albums')) : toast(r.error, 'danger'); }
+  });
+
+  // „V tento deň“
+  let memories = null, memDay = '';
+  function memoriesHtml() {
+    const today = new Date().toDateString();
+    if (memDay !== today) { memDay = today; memories = null; api('api.php?action=memories', {}).then(r => { memories = r.ok ? r.groups : []; if (state.view === 'photos' && memories.length) render(); }); }
+    if (!memories || !memories.length) return '';
+    return '<div class="memories"><div class="section-title mt-0"><i class="bi bi-clock-history me-1"></i>V tento deň</div><div class="mem-row">' + memories.map(g => {
+      const c = g.items[0];
+      return '<button class="mem-card" data-mem="' + g.year + '"><img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + c.id + '&v=' + encodeURIComponent(c.updated || '') + '" alt=""><span><b>Pred ' + g.ago + ' ' + (g.ago === 1 ? 'rokom' : 'rokmi') + '</b><small>' + g.year + ' · ' + g.items.length + ' ' + (g.items.length === 1 ? 'fotka' : g.items.length < 5 ? 'fotky' : 'fotiek') + '</small></span></button>';
+    }).join('') + '</div></div>';
+  }
+  document.addEventListener('click', (e) => {
+    const m = e.target.closest('[data-mem]'); if (!m || !memories) return;
+    const g = memories.find(x => String(x.year) === m.dataset.mem); if (!g) return;
+    pvOverride = g.items; preview(g.items[0]); startSlideshow(true);
+  });
+
+  // vlastné zobrazenia bez bežného zoznamu
+  async function loadCustom() {
+    const ticket = state.loadTicket = (state.loadTicket || 0) + 1;
+    Object.assign(state, { items: [], crumbs: [], partial: false, lockHere: null, perm: 'owner' });
+    state.sel.clear();
+    render();
+    const box = $('#items');
+    $('#empty').classList.add('d-none');
+    $('#listHeader').classList.add('d-none');
+    box.className = 'items items-custom';
+    box.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+    if (state.view === 'albums') {
+      const r = await api('api.php?action=albums', {});
+      if (ticket !== state.loadTicket) return;
+      if (!r.ok) return toast(r.error, 'danger');
+      box.innerHTML = r.albums.length ? '<div class="album-grid">' + r.albums.map(a => '<a class="album-card" href="#album/' + a.id + '"><div class="album-cover">'
+        + (a.cover ? '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + a.cover.id + '&v=' + encodeURIComponent(a.cover.v || '') + '" alt="">' : '<i class="bi bi-journals"></i>')
+        + '</div><div class="album-name text-truncate">' + esc(a.name) + '</div><div class="small text-body-secondary">' + a.count + ' ' + (a.count === 1 ? 'položka' : a.count > 1 && a.count < 5 ? 'položky' : 'položiek') + '</div></a>').join('') + '</div>'
+        : '<div class="text-center text-body-secondary py-5"><i class="bi bi-journals display-4 d-block mb-3"></i><h5>Zatiaľ žiadne albumy</h5><p>Vytvor album tlačidlom <b>Nový album</b> alebo vyber fotky a daj ⋮ → Pridať do albumu.</p></div>';
+    } else if (state.view === 'map') {
+      await renderMap(box, ticket);
+    } else if (state.view === 'activity') {
+      box.innerHTML = '';
+      loadActivity(box, {}, 60, false);
+    }
+  }
+
+  async function renderMap(box, ticket) {
+    const L0 = window.CLOUD_LIB || {};
+    const css = (href) => { if (!$$('link').some(l => l.href === href)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l); } };
+    try {
+      css(L0.leafletCss); css(L0.clusterCss);
+      await loadScript(L0.leafletJs); await loadScript(L0.clusterJs);
+    } catch (e) { box.innerHTML = '<div class="alert alert-warning">Mapu sa nepodarilo načítať (potrebuje pripojenie na internet).</div>'; return; }
+    const r = await api('api.php?action=photo_map', {});
+    if (ticket !== state.loadTicket) return;
+    if (!r.ok) return toast(r.error, 'danger');
+    box.innerHTML = (r.pending ? '<div class="small text-body-secondary mb-2"><i class="bi bi-hourglass-split me-1"></i>Polohu zisťujem ešte z ' + r.pending + ' starších fotiek – mapa sa doplní, obnov ju o chvíľu.</div>' : '')
+      + (r.points.length ? '' : '<div class="small text-body-secondary mb-2">Zatiaľ žiadne fotky s polohou. Poloha sa berie z fotiek s GPS (zapni ukladanie polohy v aplikácii Fotoaparát).</div>')
+      + '<div id="photoMap" class="photo-map"></div>';
+    const items = r.points.map(p => ({ type: 'f', id: p[0], name: p[3], taken: p[4], updated: p[5], mime: 'image/jpeg', thumb: true, size: 0, lat: p[1], lng: p[2] }));
+    state.items = items;
+    const map = L.map('photoMap', { worldCopyJump: true }).setView([48.7, 19.5], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+    const thumb = (it) => base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '');
+    const cl = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50,
+      iconCreateFunction: (c) => { const first = c.getAllChildMarkers()[0].options.item; return L.divIcon({ className: 'map-pin', html: '<img src="' + thumb(first) + '" alt=""><b>' + c.getChildCount() + '</b>', iconSize: [52, 52] }); } });
+    items.forEach(it => {
+      const m = L.marker([it.lat, it.lng], { item: it, icon: L.divIcon({ className: 'map-pin', html: '<img src="' + thumb(it) + '" alt="">', iconSize: [46, 46] }) });
+      m.on('click', () => preview(it));
+      cl.addLayer(m);
+    });
+    cl.on('clusterclick', (e) => { if (map.getZoom() >= 17) { const list = e.layer.getAllChildMarkers().map(m => m.options.item); pvOverride = list; preview(list[0]); } });
+    map.addLayer(cl);
+    if (items.length) map.fitBounds(cl.getBounds(), { padding: [30, 30], maxZoom: 14 });
+    setTimeout(() => map.invalidateSize(), 200);
+  }
+
+  // albumy z kontextového menu
+  async function albumAddDialog(items) {
+    const r = await api('api.php?action=albums', {});
+    if (!r.ok) return toast(r.error, 'danger');
+    const id = 'aa' + Date.now();
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form class="modal-content">
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="bi bi-journal-plus me-2"></i>Pridať do albumu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="list-group mb-3 album-pick">${r.albums.map(a => '<label class="list-group-item d-flex align-items-center gap-2"><input class="form-check-input m-0" type="radio" name="al" value="' + a.id + '"><span class="flex-grow-1 text-truncate">' + esc(a.name) + '</span><small class="text-body-secondary">' + a.count + '</small></label>').join('')}
+        <label class="list-group-item d-flex align-items-center gap-2"><input class="form-check-input m-0" type="radio" name="al" value="new" ${r.albums.length ? '' : 'checked'}><input class="form-control form-control-sm" name="newname" placeholder="Nový album – názov"></label></div></div>
+      <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button><button class="btn btn-primary rounded-pill px-4">Pridať</button></div></form></div></div>`);
+    const el = document.getElementById(id), form = el.querySelector('form'), m = new bootstrap.Modal(el);
+    form.newname.addEventListener('focus', () => { form.querySelector('[value="new"]').checked = true; });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let al = (form.querySelector('[name="al"]:checked') || {}).value;
+      if (!al) return toast('Vyber album.', 'warning');
+      if (al === 'new') {
+        const n = form.newname.value.trim(); if (!n) { form.newname.focus(); return; }
+        const c = await api('api.php?action=album_save', { name: n }); if (!c.ok) return toast(c.error, 'danger'); al = c.id;
+      }
+      const x = await api('api.php?action=album_add', { album: al, items: keysOf(items) });
+      if (!x.ok) return toast(x.error, 'danger');
+      m.hide(); state.sel.clear(); render();
+      toast('Pridané do albumu „' + x.name + '“', 'success');
+    });
+    el.addEventListener('hidden.bs.modal', () => el.remove());
+    m.show();
+  }
+  async function albumRemove(items) {
+    const r = await api('api.php?action=album_remove', { album: state.albumId, items: keysOf(items) });
+    r.ok ? (toast('Odstránené z albumu (súbory ostali na disku)', 'success'), load(true)) : toast(r.error, 'danger');
+  }
+  async function albumCover(it) {
+    const r = await api('api.php?action=album_cover', { album: state.albumId, file: it.id });
+    r.ok ? toast('Obal albumu nastavený', 'success') : toast(r.error, 'danger');
+  }
+
+  // prezentácia
+  let slideT = null, slideOn = false, pvOverride = null;
+  function startSlideshow(alreadyOpen) {
+    const list = pvList().filter(i => /^(image|video)\//.test(i.mime || ''));
+    if (!list.length) return toast('Žiadne fotky na prezentáciu', 'warning');
+    slideOn = true; $('#previewPlay i').className = 'bi bi-pause-circle';
+    if (!alreadyOpen) preview(list[0]);
+    scheduleSlide();
+  }
+  function stopSlideshow() { slideOn = false; clearTimeout(slideT); $('#previewPlay i').className = 'bi bi-play-circle'; }
+  function scheduleSlide() {
+    clearTimeout(slideT);
+    if (!slideOn) return;
+    const vid = $('#previewBody video');
+    if (vid) { vid.onended = () => slideOn && slideNext(); return; }
+    slideT = setTimeout(slideNext, 4000);
+  }
+  function slideNext() {
+    const list = pvList(), n = list[pvIdx + 1];
+    if (!n) { stopSlideshow(); return; }
+    preview(n).then(scheduleSlide);
+  }
+  $('#previewPlay').addEventListener('click', () => slideOn ? stopSlideshow() : startSlideshow(true));
+  $('#previewModal').addEventListener('hidden.bs.modal', () => { stopSlideshow(); pvOverride = null; });
+  ['#previewPrev', '#previewNext'].forEach(s => $(s).addEventListener('click', () => { if (slideOn) setTimeout(scheduleSlide, 50); }));
+
+  /* ================= Aktivita ================= */
+  function actText(a) {
+    const x = a.extra || {};
+    let t = '<b>' + esc(a.actor) + '</b> ' + esc(a.label) + ' ';
+    if (a.action === 'rewind') return t + '<b>' + esc(fmtFull(x.to || a.date)) + '</b> – zložka <a href="#folder/' + a.item + '">' + esc(a.name) + '</a>';
+    t += a.type === 'd' && !['purge', 'trash'].includes(a.action) ? '<a href="#folder/' + a.item + '"><i class="bi bi-folder-fill ic-folder me-1"></i>' + esc(a.name) + '</a>'
+      : a.folder !== undefined && !['purge'].includes(a.action) ? '<a href="' + (a.folder ? '#folder/' + a.folder : '#') + '"><i class="bi bi-file-earmark me-1 text-body-secondary"></i>' + esc(a.name) + '</a>' : '<b>' + esc(a.name) + '</b>';
+    if (a.action === 'rename' && x.from) t += ' <span class="text-body-secondary">(predtým „' + esc(x.from) + '“)</span>';
+    if ((a.action === 'share' || a.action === 'unshare') && x.to) t += ' <span class="text-body-secondary">' + (a.action === 'share' ? 's ' : '– ') + esc(x.to) + (x.perm === 'edit' ? ' (úpravy)' : '') + '</span>';
+    if ((a.action === 'upload' || a.action === 'update') && x.size) t += ' <span class="text-body-secondary">· ' + formatBytes(x.size) + '</span>';
+    return t;
+  }
+  async function loadActivity(box, scope, limit, compact, before) {
+    const r = await api('api.php?action=activity', Object.assign({ before: before || 0 }, scope));
+    if (!r.ok) { box.innerHTML = '<div class="small text-danger">' + esc(r.error) + '</div>'; return; }
+    box.querySelector('.act-more')?.remove();
+    if (!before) { delete box.dataset.lastDay; box.innerHTML = ''; }
+    if (!before) box.innerHTML = compact ? '<div class="fw-semibold small mt-3 mb-2"><i class="bi bi-activity me-1"></i>Aktivita</div>' : '';
+    if (!r.items.length && !before) { box.insertAdjacentHTML('beforeend', '<div class="small text-body-secondary">' + (compact ? 'Zatiaľ žiadne zaznamenané zmeny.' : '<div class="text-center py-5"><i class="bi bi-activity display-4 d-block mb-3"></i>Zatiaľ žiadna aktivita. Tu uvidíš, kto čo nahral, zmenil, presunul alebo zdieľal.</div>') + '</div>'); return; }
+    let day = box.dataset.lastDay || '', h = '';
+    r.items.slice(0, compact ? limit : 999).forEach(a => {
+      const d = new Date(a.date.replace(' ', 'T')), dk = d.toDateString();
+      if (!compact && dk !== day) { day = dk; h += '<div class="act-day">' + esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</div>'; }
+      h += '<div class="act-row"><span class="act-ic text-' + a.color + '"><i class="bi ' + a.icon + '"></i></span><div class="act-txt">' + actText(a)
+        + '<div class="small text-body-secondary">' + esc(compact ? fmtFull(a.date) : d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })) + '</div></div></div>';
+    });
+    box.dataset.lastDay = day;
+    box.insertAdjacentHTML('beforeend', h);
+    if (r.more && !compact) {
+      box.insertAdjacentHTML('beforeend', '<div class="text-center my-3 act-more"><button class="btn btn-light rounded-pill">Načítať staršie</button></div>');
+      box.querySelector('.act-more button').onclick = () => loadActivity(box, scope, limit, compact, r.more);
+    }
+    $$('a[href^="#"]', box).forEach(a => a.addEventListener('click', () => { bootstrap.Modal.getInstance(a.closest('.modal'))?.hide(); }));
+  }
+  function activityDialog(it) {
+    const id = 'ad' + Date.now();
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header border-0"><h5 class="modal-title text-truncate"><i class="bi bi-activity me-2"></i>Aktivita</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body pt-0"><div class="small text-body-secondary mb-2 text-break" data-n></div><div data-box></div></div></div></div></div>`);
+    const el = document.getElementById(id);
+    el.querySelector('[data-n]').textContent = it.name + (it.type === 'd' ? ' – vrátane obsahu zložky' : '');
+    loadActivity(el.querySelector('[data-box]'), { type: it.type, id: it.id }, 60, false);
+    el.addEventListener('hidden.bs.modal', () => el.remove());
+    new bootstrap.Modal(el).show();
+  }
+
+  // vrátenie zložky do stavu k dátumu
+  function rewindDialog(it) {
+    const id = 'rw' + Date.now();
+    const pad = (n) => String(n).padStart(2, '0'), d = new Date(Date.now() - 86400000);
+    const def = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form class="modal-content">
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="bi bi-rewind me-2"></i>Vrátiť zložku do stavu k…</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="fw-semibold text-break mb-2" data-n></div>
+        <p class="small text-body-secondary">Obnoví z koša, čo sa po tomto čase zmazalo, vráti staršie verzie zmenených súborov a vráti premenovania a presuny. Natrvalo zmazané položky sa obnoviť nedajú.</p>
+        <label class="form-label small mb-1">Dátum a čas</label><input type="datetime-local" class="form-control mb-2" name="at" value="${def}" required>
+        <div class="d-flex flex-wrap gap-1 mb-3">${[['1 h', 3600], ['dnes ráno', 'm'], ['včera', 86400], ['týždeň', 604800]].map(([l, v]) => '<button type="button" class="btn btn-sm btn-light rounded-pill" data-q="' + v + '">' + l + '</button>').join('')}</div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="trash_new" id="${id}t"><label class="form-check-label" for="${id}t">Presunúť do koša aj súbory a zložky vytvorené po tomto čase</label></div>
+        <div class="rw-res small mt-3" data-res></div></div>
+      <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button><button type="button" class="btn btn-outline-primary rounded-pill" data-prev>Ukázať zmeny</button><button class="btn btn-warning rounded-pill px-4" disabled data-go>Vrátiť</button></div></form></div></div>`);
+    const el = document.getElementById(id), form = el.querySelector('form'), res = el.querySelector('[data-res]'), goBtn = el.querySelector('[data-go]');
+    el.querySelector('[data-n]').textContent = it.name;
+    const m = new bootstrap.Modal(el);
+    const params = (apply) => ({ id: it.id, at: form.at.value.replace('T', ' ') + ':00', trash_new: form.trash_new.checked ? 1 : 0, apply: apply ? 1 : 0 });
+    const lbl = { restore: 'obnoviť z koša', content: 'vrátiť obsah', rename: 'vrátiť názov', move: 'vrátiť na pôvodné miesto', trash: 'do koša' };
+    const previewRun = async () => {
+      res.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div>';
+      const r = await api('api.php?action=folder_rewind', params(false));
+      if (!r.ok) { res.innerHTML = '<div class="text-danger">' + esc(r.error) + '</div>'; goBtn.disabled = true; return; }
+      const x = r.result, total = x.restore + x.content + x.renames + x.trash;
+      res.innerHTML = total ? '<div class="fw-semibold mb-1">Zmení sa ' + total + ' ' + (total === 1 ? 'položka' : total < 5 ? 'položky' : 'položiek') + ':</div><ul class="mb-1 ps-3">'
+        + (x.restore ? '<li>obnoviť z koša: <b>' + x.restore + '</b></li>' : '') + (x.content ? '<li>vrátiť staršiu verziu: <b>' + x.content + '</b></li>' : '')
+        + (x.renames ? '<li>vrátiť premenovanie / presun: <b>' + x.renames + '</b></li>' : '') + (x.trash ? '<li>presunúť do koša (nové): <b>' + x.trash + '</b></li>' : '') + '</ul>'
+        + '<div class="rw-list">' + x.items.map(([w, n]) => '<div><span class="badge text-bg-light me-1">' + esc(lbl[w] || w) + '</span>' + esc(n) + '</div>').join('') + '</div>'
+        + (x.missing ? '<div class="text-body-secondary mt-1">' + x.missing + ' súborov nemá z toho času zachovanú verziu – ostanú ako sú.</div>' : '')
+        : '<div class="text-body-secondary">Od tohto času sa v zložke nič, čo sa dá vrátiť, nezmenilo.</div>';
+      goBtn.disabled = !total;
+    };
+    el.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+      const now = new Date(); let t;
+      if (b.dataset.q === 'm') { t = new Date(now); t.setHours(6, 0, 0, 0); } else t = new Date(now - b.dataset.q * 1000);
+      form.at.value = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()) + 'T' + pad(t.getHours()) + ':' + pad(t.getMinutes());
+      previewRun();
+    });
+    form.at.addEventListener('change', previewRun); form.trash_new.addEventListener('change', previewRun);
+    el.querySelector('[data-prev]').onclick = previewRun;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      goBtn.disabled = true;
+      const r = await api('api.php?action=folder_rewind', params(true));
+      if (!r.ok) { goBtn.disabled = false; return toast(r.error, 'danger'); }
+      m.hide();
+      toast('Zložka je vrátená do stavu k ' + fmtFull(params(true).at), 'success');
+      for (const k of [...lcMem.keys()]) lcMem.delete(k);
+      load(true);
+    });
+    el.addEventListener('shown.bs.modal', previewRun);
+    el.addEventListener('hidden.bs.modal', () => el.remove());
+    m.show();
+  }
 
   /* ---------------- vyhľadávanie ako v Google Disku ---------------- */
   const SF = {

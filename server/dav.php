@@ -72,6 +72,7 @@ function dav_auth(): array {
 }
 $user = dav_auth();
 $uid = (int)$user['id'];
+$GLOBALS['CLOUD_ACTOR'] = $uid;
 
 /* ---------- prevod cesty na zložku / súbor ---------- */
 const DAV_JUNK = '/^(\._.*|\.DS_Store|desktop\.ini|Thumbs\.db|\.Spotlight-V100|\.Trashes|\.fseventsd|\.metadata_never_index.*)$/i';

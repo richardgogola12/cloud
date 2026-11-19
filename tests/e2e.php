@@ -806,6 +806,139 @@ $r = $web->get('index.php');
 ok(str_contains($r['body'], 'data-ctx="lock"') && str_contains($r['body'], 'id="relockBtn"'), 'v menu je zamknutie heslom');
 $web->api('delete', ['items' => ["d:$lk"]]);
 
+section('Aktivita a vrátenie zložky do stavu k dátumu');
+$pdoA = new PDO('mysql:host=127.0.0.1;dbname=cloud', 'root', 'root', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$names = fn(array $j) => array_column($j['items'] ?? [], 'name');
+$rw = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Vrátenie'])['id'] ?? 0);
+$rwSub = (int)($web->api('mkdir', ['parent' => $rw, 'name' => 'Pod'])['id'] ?? 0);
+$fA = (int)(upload($web, $rw, 'a.txt', 'verzia jedna')['file']['id'] ?? 0);
+$fB = (int)(upload($web, $rw, 'b.txt', 'bé')['file']['id'] ?? 0);
+$fE = (int)(upload($web, $rw, 'e.txt', 'é')['file']['id'] ?? 0);
+$fM = (int)(upload($web, $rw, 'm.txt', 'em')['file']['id'] ?? 0);
+ok($rw && $rwSub && $fA && $fB && $fE && $fM, 'zložka na vrátenie');
+sleep(2);
+$T = $pdoA->query('SELECT NOW()')->fetchColumn();
+sleep(2);
+upload($web, $rw, 'a.txt', 'verzia dva – prepísaná');
+$web->api('rename', ['type' => 'f', 'id' => $fB, 'name' => 'c.txt']);
+$web->api('move', ['items' => ["f:$fM"], 'target' => $rwSub]);
+$web->api('delete', ['items' => ["f:$fE"]]);
+$fN = (int)(upload($web, $rw, 'novy.txt', 'nový')['file']['id'] ?? 0);
+$share = $web->api('share_user_add', ['type' => 'd', 'id' => $rw, 'users' => [$bid2], 'permission' => 'edit', 'notify' => '']);
+upload($beata, $rw, 'od-beaty-2.txt', 'ahoj');
+$j = $web->api('activity');
+$acts = array_map(fn($a) => $a['action'] . ':' . $a['name'], $j['items'] ?? []);
+ok(!empty($j['ok']) && in_array('rename:c.txt', $acts, true) && in_array('update:a.txt', $acts, true) && in_array('move:m.txt', $acts, true)
+   && in_array('trash:e.txt', $acts, true) && in_array('create:Vrátenie', $acts, true) && in_array('share:Vrátenie', $acts, true), 'aktivita celého disku', json_encode(array_slice($acts, 0, 20)));
+$bAct = array_values(array_filter($j['items'] ?? [], fn($a) => $a['name'] === 'od-beaty-2.txt'))[0] ?? null;
+ok($bAct && $bAct['action'] === 'upload' && $bAct['actor'] !== 'Ty' && !$bAct['mine'], 'vidno, že súbor do mojej zložky nahrala Beáta', json_encode($bAct));
+$ren = array_values(array_filter($j['items'] ?? [], fn($a) => $a['action'] === 'rename' && $a['name'] === 'c.txt'))[0] ?? null;
+ok(($ren['extra']['from'] ?? '') === 'b.txt' && $ren['actor'] === 'Ty', 'pri premenovaní je pôvodný názov', json_encode($ren));
+$j = $web->api('activity', ['type' => 'f', 'id' => $fA]);
+ok(count($j['items'] ?? []) >= 2 && $j['items'][0]['action'] === 'update', 'aktivita jedného súboru', json_encode($j));
+$j = $web->api('activity', ['type' => 'd', 'id' => $rwSub]);
+ok(in_array('move', array_column($j['items'] ?? [], 'action'), true), 'aktivita zložky obsahuje aj zmeny vnútri');
+$j = $beata->api('activity', ['type' => 'd', 'id' => $rw]);
+ok(!empty($j['ok']) && count($j['items']) > 3, 'aktivitu zdieľanej zložky vidí aj príjemca');
+ok(empty($beata->api('activity', ['type' => 'f', 'id' => $lkFile ?? 999999])['ok']), 'aktivita cudzieho súboru bez prístupu sa neukáže');
+$j = $web->api('folder_rewind', ['id' => $rw, 'at' => $T, 'trash_new' => 1]);
+$x = $j['result'] ?? [];
+ok(!empty($j['ok']) && $x['restore'] === 1 && $x['content'] === 1 && $x['renames'] === 2 && $x['trash'] >= 2, 'náhľad vrátenia: čo sa zmení', json_encode($j));
+ok(in_array('a.txt', $names($web->api('list', ['view' => 'folder', 'folder' => $rw])), true) && $web->get("api.php?action=download&id=$fA")['body'] === 'verzia dva – prepísaná', 'náhľad nič nezmenil');
+ok(empty($web->api('folder_rewind', ['id' => $rw, 'at' => date('Y-m-d H:i:s', time() + 3600), 'apply' => 1])['ok']), 'dátum v budúcnosti sa odmietne');
+ok(empty($beata->api('folder_rewind', ['id' => $lkSub ?? 999999, 'at' => $T])['ok']), 'cudziu zložku bez prístupu vrátiť nejde');
+$j = $web->api('folder_rewind', ['id' => $rw, 'at' => $T, 'trash_new' => 1, 'apply' => 1]);
+ok(!empty($j['ok']), 'vrátenie zložky do stavu k dátumu', json_encode($j));
+$now = $names($web->api('list', ['view' => 'folder', 'folder' => $rw]));
+sort($now);
+ok($now === ['Pod', 'a.txt', 'b.txt', 'e.txt', 'm.txt'], 'obsah zložky je ako v danom čase', json_encode($now));
+ok($web->get("api.php?action=download&id=$fA")['body'] === 'verzia jedna', 'súbor má obsah z daného času');
+ok(!$names($web->api('list', ['view' => 'folder', 'folder' => $rwSub])), 'presunutý súbor je späť na pôvodnom mieste');
+ok(in_array('novy.txt', $names($web->api('list', ['view' => 'trash'])), true), 'neskôr vytvorený súbor je v koši (dá sa obnoviť)');
+$j = $web->api('versions', ['id' => $fA]);
+ok(count($j['versions'] ?? []) >= 2, 'prepísaný obsah ostal ako staršia verzia');
+ok(($web->api('activity', ['type' => 'd', 'id' => $rw])['items'][0]['action'] ?? '') === 'rewind', 'vrátenie je v aktivite');
+$r = $web->get('index.php');
+ok(str_contains($r['body'], 'data-ctx="rewind"') && str_contains($r['body'], 'data-ctx="activity"') && str_contains($r['body'], 'index.php#activity'), 'v menu je Aktivita a Vrátiť do stavu');
+$web->api('delete', ['items' => ["d:$rw"]]);
+
+section('Fotky: albumy, mapa, v tento deň, prezentácia');
+$gpsJpeg = function (int $seed): string { // JPEG s GPS polohou (Bratislava) v EXIF
+    $img = jpeg(320, 240, $seed);
+    $rat = fn(int $n, int $d) => pack('VV', $n, $d);
+    $tiff = 'II' . pack('v', 42) . pack('V', 8)
+        . pack('v', 1) . pack('vvVV', 0x8825, 4, 1, 26) . pack('V', 0)
+        . pack('v', 4)
+        . pack('vvV', 1, 2, 2) . "N\0\0\0"
+        . pack('vvVV', 2, 5, 3, 80)
+        . pack('vvV', 3, 2, 2) . "E\0\0\0"
+        . pack('vvVV', 4, 5, 3, 104)
+        . pack('V', 0)
+        . $rat(48, 1) . $rat(8, 1) . $rat(2400, 100)
+        . $rat(17, 1) . $rat(6, 1) . $rat(3600, 100);
+    $app1 = "\xFF\xE1" . pack('n', 2 + 6 + strlen($tiff)) . "Exif\0\0" . $tiff;
+    return substr($img, 0, 2) . $app1 . substr($img, 2);
+};
+$ph = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Dovolenka foto'])['id'] ?? 0);
+$p1 = (int)(upload($web, $ph, 'more1.jpg', $gpsJpeg(11))['file']['id'] ?? 0);
+$p2 = (int)(upload($web, $ph, 'more2.jpg', jpeg(320, 240, 12))['file']['id'] ?? 0);
+ok($p1 && $p2, 'fotky nahraté');
+$j = $web->api('photo_map');
+$pt = array_values(array_filter($j['points'] ?? [], fn($p) => $p[0] === $p1))[0] ?? null;
+ok($pt && abs($pt[1] - 48.14) < 0.001 && abs($pt[2] - 17.11) < 0.001, 'poloha z EXIF je na mape', json_encode($pt));
+ok(!array_filter($j['points'] ?? [], fn($p) => $p[0] === $p2), 'fotka bez GPS na mape nie je');
+// staršia fotka bez zistenej polohy sa doplní na pozadí
+$pdoA->exec("UPDATE cloud_files SET lat = NULL, lng = NULL, meta_done = 0 WHERE id = $p1");
+$j = $web->api('photo_map');
+ok(($j['pending'] ?? 0) >= 1, 'mapa hlási fotky čakajúce na zistenie polohy');
+$okBack = false;
+for ($i = 0; $i < 20 && !$okBack; $i++) { usleep(300000); $okBack = (bool)array_filter($web->api('photo_map')['points'] ?? [], fn($p) => $p[0] === $p1); }
+ok($okBack, 'poloha starších fotiek sa doplní na pozadí');
+// albumy
+$j = $web->api('album_save', ['name' => 'More 2026']);
+$al = (int)($j['id'] ?? 0);
+ok($al > 0, 'vytvorenie albumu');
+$j = $web->api('album_add', ['album' => $al, 'items' => ["f:$p1", "f:$p2"]]);
+ok(!empty($j['ok']) && $j['added'] === 2, 'pridanie fotiek do albumu', json_encode($j));
+ok(($web->api('album_add', ['album' => $al, 'items' => ["f:$p1"]])['added'] ?? -1) === 0, 'tá istá fotka sa nepridá dvakrát');
+$j = $web->api('albums');
+$a = array_values(array_filter($j['albums'] ?? [], fn($x) => $x['id'] === $al))[0] ?? null;
+ok($a && $a['count'] === 2 && $a['cover'], 'zoznam albumov s počtom a obalom', json_encode($a));
+$j = $web->api('list', ['view' => 'album', 'album' => $al]);
+ok(!empty($j['ok']) && count($j['items']) === 2 && ($j['crumbs'][0]['name'] ?? '') === 'More 2026', 'zobrazenie albumu', json_encode(array_diff_key($j, ['items' => 1])));
+ok(empty($beata->api('list', ['view' => 'album', 'album' => $al])['ok']), 'cudzí album sa nedá otvoriť');
+ok(empty($beata->api('album_add', ['album' => $al, 'items' => ["f:$p1"]])['ok']), 'do cudzieho albumu sa nedá pridávať');
+$web->api('album_cover', ['album' => $al, 'file' => $p2]);
+ok((array_values(array_filter($web->api('albums')['albums'], fn($x) => $x['id'] === $al))[0]['cover']['id'] ?? 0) === $p2, 'nastavenie obalu albumu');
+$web->api('album_remove', ['album' => $al, 'items' => ["f:$p2"]]);
+ok(count($web->api('list', ['view' => 'album', 'album' => $al])['items'] ?? []) === 1 && $web->get("api.php?action=thumb&id=$p2")['code'] === 200, 'odstránenie z albumu (súbor ostane)');
+$web->api('delete', ['items' => ["f:$p1"]]);
+ok(count($web->api('list', ['view' => 'album', 'album' => $al])['items'] ?? []) === 0, 'súbor v koši sa v albume neukáže');
+$web->api('restore', ['items' => ["f:$p1"]]);
+ok(!empty($web->api('album_save', ['id' => $al, 'name' => 'Leto'])['ok']), 'premenovanie albumu');
+// v tento deň
+$pdoA->exec("UPDATE cloud_files SET taken_at = NOW() - INTERVAL 2 YEAR WHERE id = $p2");
+$j = $web->api('memories');
+$g = $j['groups'][0] ?? null;
+ok($g && $g['ago'] === 2 && in_array($p2, array_column($g['items'], 'id'), true), '„V tento deň“ ukáže fotky spred rokov', json_encode($j));
+ok(!empty($web->api('album_delete', ['id' => $al])['ok']) && empty($web->api('list', ['view' => 'album', 'album' => $al])['ok']), 'zmazanie albumu');
+ok($web->get("api.php?action=thumb&id=$p1")['code'] === 200, 'fotky po zmazaní albumu ostali');
+$r = $web->get('index.php');
+ok(str_contains($r['body'], 'id="photoBar"') && str_contains($r['body'], 'id="previewPlay"') && str_contains($r['body'], 'leaflet'), 'na stránke je lišta fotiek, prezentácia a mapa');
+$web->api('delete', ['items' => ["d:$ph"]]);
+
+section('Týždenný súhrn e-mailom');
+$j = $web->api('digest_preview');
+ok(!empty($j['ok']) && str_contains($j['html'] ?? '', 'Využívaš') && ($j['data']['uploaded'] ?? 0) > 0, 'obsah súhrnu (nahraté súbory, miesto)', json_encode($j['data'] ?? $j));
+ok(str_contains($j['html'] ?? '', 'Beáta') || str_contains($j['html'] ?? '', 'Beata') || !empty($j['data']['by_others']), 'súhrn spomína, kto mi nahral súbory', json_encode($j['data']['by_others'] ?? []));
+$j = $web->api('digest_test');
+ok(!empty($j['ok']) || str_contains($j['error'] ?? '', 'E-mail sa nepodarilo odoslať'), 'odoslanie ukážky (alebo zrozumiteľná chyba bez SMTP)', json_encode($j));
+ok(!empty($web->api('prefs_save', ['key' => 'digest', 'value' => '0'])['ok']), 'vypnutie súhrnu');
+$r = $web->get('profile.php');
+ok(str_contains($r['body'], 'id="digestOn"') && !preg_match('/id="digestOn"[^>]*checked/', $r['body']), 'v profile je súhrn vypnutý');
+$web->api('prefs_save', ['key' => 'digest', 'value' => '1']);
+ok(preg_match('/id="digestOn"[^>]*checked/', $web->get('profile.php')['body']) === 1, 'zapnutie súhrnu');
+
 section('Terminál je odstránený');
 ok($web->get('term.php')['code'] === 404, 'term.php neexistuje');
 ok(!str_contains($web->get('admin.php')['body'], 'tab=terminal'), 'v administrácii nie je záložka Terminál');
