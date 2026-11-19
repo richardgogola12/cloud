@@ -1543,7 +1543,7 @@
     localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
     load();
   }
-  $$('#sortMenu [data-sort]').forEach(a => a.onclick = (e) => { e.preventDefault(); const cs = clientSortOf(); setSort(a.dataset.sort, cs ? cs.dir : null); });
+  $$('#sortMenu [data-sort]').forEach(a => a.onclick = (e) => { e.preventDefault(); const cs = clientSortOf(); if (cs && cs.k === a.dataset.sort) return; setSort(a.dataset.sort); });
   $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); setSort(null, a.dataset.dir); });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
   $$('.side-nav [data-nav]').forEach(a => {
