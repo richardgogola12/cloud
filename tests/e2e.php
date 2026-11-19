@@ -262,6 +262,8 @@ $r = $wv->get('index.php', ['app' => true]);
 ok($r['code'] === 200 && str_contains($r['body'], 'cloudapp://sync'), 'app: WebView má session a menu aplikácie');
 no_php_errors($r['body'], 'index.php v aplikácii');
 ok(!str_contains($r['body'], 'Pridať ďalší účet') && !str_contains($r['headers'], 'CLOUD_TEST_acc='), 'v Android aplikácii sa prepínanie účtov neponúka');
+$r = $wv->get('index.php'); // požiadavka cez service worker nemá v WebView vlastný User-Agent
+ok(!str_contains($r['body'], 'Pridať ďalší účet') && str_contains($r['body'], 'cloudapp://logout') && str_contains($r['body'], 'id="accountMenu"'), 'aplikácia sa rozpozná aj bez User-Agent (cookie)');
 $r = $app->get('app.php?action=notifications&after=0', ['ajax' => true]);
 ok(!empty($r['json']['ok']) && isset($r['json']['last']), 'app: upozornenia', $r['body']);
 $bad = new Client(); $bad->token = str_repeat('a', 64);
@@ -763,6 +765,43 @@ ok(!empty($web->api('folder_lock', ['id' => $lk, 'op' => 'change', 'password' =>
 ok(empty($web->api('folder_unlock', ['id' => $lk, 'password' => 'Trezor123'])['ok']) && !empty($web->api('folder_unlock', ['id' => $lk, 'password' => 'Nove1234'])['ok']), 'platí nové heslo');
 ok(!empty($web->api('folder_lock', ['id' => $lk, 'op' => 'remove', 'password' => 'Nove1234'])['ok']), 'zrušenie hesla');
 ok(!empty($beata->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), 'po zrušení hesla je zložka znova bežne dostupná');
+// kedy pýtať heslo znova
+$dropSession = function (Client $c) { // „zatvorenie prehliadača“: zmiznú cookies platné iba počas relácie
+    $l = array_filter(file($c->jar), fn($x) => !preg_match('/^(#HttpOnly_)?[^#\t]*\t\w+\t[^\t]*\t\w+\t0\t/', $x));
+    file_put_contents($c->jar, implode('', $l));
+};
+$bc = new Client();
+$bc->loadCsrf($bc->get('login.php')['body']);
+$bc->post('login.php', ['_csrf' => $bc->csrf, 'email' => 'admin@test.sk', 'password' => 'Heslo1234', 'remember' => '1']);
+$bc->loadCsrf($bc->get('index.php')['body']);
+ok(!empty($web->api('folder_lock', ['id' => $lk, 'op' => 'set', 'new' => 'Rezim123', 'mode' => 'always'])['ok']), 'zamknutie s voľbou „vždy“');
+$j = $web->api('list', ['view' => 'folder', 'folder' => 0]);
+$it = array_values(array_filter($j['items'] ?? [], fn($i) => $i['type'] === 'd' && $i['id'] === $lk))[0] ?? null;
+ok(($it['lock_mode'] ?? '') === 'always', 'voľba je v údajoch zložky', json_encode($it));
+ok(!empty($bc->api('folder_unlock', ['id' => $lk, 'password' => 'Rezim123'])['ok']) && !empty($bc->api('list', ['view' => 'folder', 'folder' => $lkSub])['ok']), '„vždy“: odomknutá, aj podzložka');
+$bc->api('list', ['view' => 'folder', 'folder' => 0]);
+ok(empty($bc->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), '„vždy“: po odchode zo zložky sa hneď zamkne');
+ok(empty($web->api('folder_lock', ['id' => $lk, 'op' => 'mode', 'password' => 'zle', 'mode' => 'close'])['ok']), 'zmena voľby vyžaduje heslo');
+ok(!empty($web->api('folder_lock', ['id' => $lk, 'op' => 'mode', 'password' => 'Rezim123', 'mode' => 'close'])['ok']), 'zmena voľby na „po zatvorení“');
+$r = $bc->req('POST', 'api.php?action=folder_unlock', ['ajax' => true, 'form' => ['id' => $lk, 'password' => 'Rezim123']]);
+ok(!empty($r['json']['ok']) && !str_contains($r['headers'], 'CLOUD_TEST_fu='), '„po zatvorení“: odomknutie iba v relácii');
+$bc->api('list', ['view' => 'folder', 'folder' => 0]);
+ok(!empty($bc->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), '„po zatvorení“: ostane odomknutá aj po odchode zo zložky');
+$dropSession($bc); $bc->loadCsrf($bc->get('index.php')['body']);
+ok(empty($bc->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), '„po zatvorení“: po zatvorení prehliadača je znova zamknutá');
+$web->api('folder_lock', ['id' => $lk, 'op' => 'mode', 'password' => 'Rezim123', 'mode' => 'logout']);
+$r = $bc->req('POST', 'api.php?action=folder_unlock', ['ajax' => true, 'form' => ['id' => $lk, 'password' => 'Rezim123']]);
+ok(!empty($r['json']['ok']) && str_contains($r['headers'], 'CLOUD_TEST_fu='), '„až po odhlásení“: odomknutie si pamätá cookie', $r['headers']);
+$dropSession($bc); $bc->loadCsrf($bc->get('index.php')['body']);
+ok(!empty($bc->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), '„až po odhlásení“: ostane odomknutá aj po zatvorení prehliadača');
+$r = $bc->post('logout.php', ['_csrf' => $bc->csrf]);
+ok(str_contains($r['headers'], 'CLOUD_TEST_fu=;') || str_contains($r['headers'], 'CLOUD_TEST_fu=deleted'), 'odhlásenie zmaže zapamätané odomknutia', $r['headers']);
+$bc->loadCsrf($bc->get('login.php')['body']);
+$bc->post('login.php', ['_csrf' => $bc->csrf, 'email' => 'admin@test.sk', 'password' => 'Heslo1234']);
+$bc->loadCsrf($bc->get('index.php')['body']);
+ok(empty($bc->api('list', ['view' => 'folder', 'folder' => $lk])['ok']), '„až po odhlásení“: po novom prihlásení je zamknutá');
+$web->api('folder_lock', ['id' => $lk, 'op' => 'remove', 'password' => 'Rezim123']);
+
 $r = $web->get('index.php');
 ok(str_contains($r['body'], 'data-ctx="lock"') && str_contains($r['body'], 'id="relockBtn"'), 'v menu je zamknutie heslom');
 $web->api('delete', ['items' => ["d:$lk"]]);

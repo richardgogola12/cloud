@@ -48,6 +48,8 @@ try {
     case 'web': { // WebView: token → bežná session, potom presmerovanie do disku
         $u = bearer_user();
         if (!$u) { header('Location: ' . url('login.php')); exit; }
+        setcookie('cloud_app', '1', ['expires' => 0, 'path' => app_base_path(), 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
+        $_COOKIE['cloud_app'] = '1';
         if (empty($_SESSION['uid']) || (int)$_SESSION['uid'] !== (int)$u['id']) login_user($u, true, 'aplikácia');
         $to = preg_match('#^[a-z0-9_\-]+\.php(\?[\w=&%\-]*)?(\#[\w/\-%]*)?$#i', (string)($_GET['to'] ?? '')) ? $_GET['to'] : 'index.php';
         header('Location: ' . url($to));

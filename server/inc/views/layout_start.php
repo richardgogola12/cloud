@@ -66,7 +66,7 @@ require __DIR__ . '/head.php';
     <button class="btn avatar-btn" data-bs-toggle="dropdown" aria-label="Účet">
       <?= avatar_html($user) ?>
     </button>
-    <ul class="dropdown-menu dropdown-menu-end shadow">
+    <ul class="dropdown-menu dropdown-menu-end shadow" id="accountMenu">
       <li class="px-3 py-2 d-flex align-items-center gap-2"><?= avatar_html($user, 'avatar-md') ?><div class="min-w-0"><div class="fw-semibold text-truncate"><?= e($user['name']) ?></div><div class="small text-body-secondary text-truncate"><?= e($user['email']) ?></div></div></li>
       <?php if (!$inApp): $others = saved_accounts((int)$user['id']); ?>
       <li><hr class="dropdown-divider"></li>

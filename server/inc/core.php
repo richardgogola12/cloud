@@ -11,7 +11,8 @@ date_default_timezone_set(cfg('timezone', 'Europe/Bratislava'));
 
 const P = 'cloud_'; // prefix tabuliek
 define('APP_VERSION', trim((string)@file_get_contents(APP_ROOT . '/VERSION')) ?: '0.0.0');
-function is_android_app(): bool { return str_contains($_SERVER['HTTP_USER_AGENT'] ?? '', 'CloudAndroid/'); }
+/** Beží stránka v Android aplikácii? (User-Agent; požiadavky cez service worker ho v WebView nemajú, preto aj cookie z prihlásenia aplikácie) */
+function is_android_app(): bool { return str_contains($_SERVER['HTTP_USER_AGENT'] ?? '', 'CloudAndroid/') || ($_COOKIE['cloud_app'] ?? '') === '1'; }
 
 function cfg(string $key, $default = null) { return $GLOBALS['CFG'][$key] ?? $default; }
 
@@ -376,6 +377,7 @@ function revoke_switch_tokens(int $uid): void {
     try { q('UPDATE ' . P . "tokens SET used = 1 WHERE user_id = ? AND type = 'switch'", [$uid]); } catch (Throwable $e) {}
 }
 function logout_user(): void {
+    lock_cookie_clear(); // odomknuté zamknuté zložky sa po odhlásení znova zamknú
     if (!empty($_SESSION['sid_row'])) {
         try { q('UPDATE ' . P . 'sessions SET revoked = 1 WHERE id = ?', [$_SESSION['sid_row']]); } catch (Throwable $e) {}
     }

@@ -248,6 +248,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
         $out[] = ['type' => 'd', 'id' => (int)$d['id'], 'name' => $d['name'], 'starred' => (bool)$d['starred'], 'updated' => $d['updated_at'],
                   'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
                   'locked' => folder_is_locked((int)$d['id']), 'unlocked' => folder_is_locked((int)$d['id']) && folder_unlocked((int)$d['id']),
+                  'lock_mode' => folder_is_locked((int)$d['id']) ? folder_lock_mode((int)$d['id']) : null,
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
                   'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? [],

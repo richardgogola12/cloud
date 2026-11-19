@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -34,6 +34,7 @@ function migrate(): void {
         if ($v < 12) migrate_v12();
         if ($v < 13) migrate_v13();
         if ($v < 14) migrate_v14();
+        if ($v < 15) migrate_v15();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -352,4 +353,11 @@ function migrate_v14(): void {
     $p = P;
     $has = db()->query("SHOW COLUMNS FROM {$p}folders LIKE 'lock_hash'")->fetch();
     if (!$has) db()->exec("ALTER TABLE {$p}folders ADD lock_hash VARCHAR(255) NULL DEFAULT NULL");
+}
+
+/* v15: kedy pýtať heslo zamknutej zložky znova */
+function migrate_v15(): void {
+    $p = P;
+    $has = db()->query("SHOW COLUMNS FROM {$p}folders LIKE 'lock_mode'")->fetch();
+    if (!$has) db()->exec("ALTER TABLE {$p}folders ADD lock_mode VARCHAR(10) NOT NULL DEFAULT 'close'");
 }

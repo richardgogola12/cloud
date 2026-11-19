@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
               if (nav && !document.querySelector('.side-nav [href^="cloudapp:"]')) {
                 items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
               }
-              var dd = document.querySelector('.app-topbar .dropdown-menu');
+              var dd = document.getElementById('accountMenu') || ((document.querySelector('.avatar-btn') || {}).nextElementSibling);
               if (dd && !dd.querySelector('[href^="cloudapp://sync"]')) {
                 var hr = dd.querySelector('hr');
                 items.forEach(function(i){
@@ -198,6 +198,11 @@ class MainActivity : AppCompatActivity() {
         if (!prefs.loggedIn) { goLogin(null); return }
         prefs.rememberCurrent()
         showLastCrash()
+        if (savedInstanceState == null) {
+            // nové spustenie aplikácie = nová relácia: zložky s voľbou „po zatvorení aplikácie“ sa znova zamknú
+            cookiesReady = false
+            CookieManager.getInstance().removeSessionCookies { runOnUiThread { cookiesReady = true; if (pendingLoad) { pendingLoad = false; loadWeb() } } }
+        }
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
         applySystemInsets(b.root)
@@ -430,7 +435,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Prihlási WebView tokenom a otvorí disk. */
+    private var cookiesReady = true
+    private var pendingLoad = false
+
     private fun loadWeb(target: String? = null) {
+        if (!cookiesReady) { pendingLoad = true; return }
         val to = target ?: pendingLink?.takeIf { Regex("^[a-z0-9_-]+\\.php([?#].*)?$", RegexOption.IGNORE_CASE).matches(it) } ?: "index.php"
         pendingLink = null
         loaded = true
@@ -543,7 +552,7 @@ class MainActivity : AppCompatActivity() {
         prefs.otherAccounts().forEach { arr.put(org.json.JSONObject().put("k", it.key).put("n", it.name).put("e", it.email).put("s", Uri.parse(it.server).host ?: "")) }
         val ms = prefs.accounts().map { it.server.lowercase() }.distinct().size > 1
         return """(function(acc, ms){
-          var dd = document.querySelector('.app-topbar .dropdown-menu');
+          var dd = document.getElementById('accountMenu') || ((document.querySelector('.avatar-btn') || {}).nextElementSibling);
           if (!dd || dd.querySelector('#appAccounts')) return;
           var first = dd.querySelector('li'); if (!first) return;
           function li(h){ var l = document.createElement('li'); l.innerHTML = h; return l; }

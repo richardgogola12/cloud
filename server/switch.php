@@ -44,6 +44,7 @@ if ($me && !empty($_SESSION['sid_row'])) {
     try { q('UPDATE ' . P . 'sessions SET revoked = 1 WHERE id = ?', [$_SESSION['sid_row']]); } catch (Throwable $e) {}
 }
 $_SESSION = [];
+lock_cookie_clear();
 login_user($u, true, 'prepnutie účtu');
 log_action($id, 'login', 'prepnutie účtu');
 redirect('index.php');

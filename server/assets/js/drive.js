@@ -109,9 +109,12 @@
         <div class="fw-semibold text-break mb-2" data-name></div>
         ${set ? '<p class="small text-body-secondary">Obsah zložky (aj podzložiek) uvidí iba ten, kto zadá heslo – aj ľudia, s ktorými ju zdieľaš. Po odomknutí ostane otvorená 2 hodiny alebo kým ju nezamkneš. Verejné odkazy a sieťový disk (WebDAV) k nej prístup nemajú.</p>'
               : '<label class="form-label small mb-1">Súčasné heslo zložky <span class="text-body-secondary">(alebo heslo k účtu, ak si ho zabudol)</span></label><input type="password" class="form-control mb-3" name="cur" autocomplete="current-password" required>'}
-        <label class="form-label small mb-1">${set ? 'Heslo zložky' : 'Nové heslo'} <span class="text-body-secondary">(aspoň 4 znaky)</span></label>
-        <input type="password" class="form-control mb-2" name="new" autocomplete="new-password" minlength="4" ${set ? 'required' : ''}>
+        <label class="form-label small mb-1">${set ? 'Heslo zložky' : 'Nové heslo'} <span class="text-body-secondary">${set ? '(aspoň 4 znaky)' : '(nechaj prázdne, ak meníš iba voľbu nižšie)'}</span></label>
+        <input type="password" class="form-control mb-2" name="new" autocomplete="new-password" ${set ? 'required minlength="4"' : ''}>
         <input type="password" class="form-control" name="new2" autocomplete="new-password" placeholder="Zopakuj heslo" ${set ? 'required' : ''}>
+        <div class="fw-semibold small mt-3 mb-1">Pýtať heslo znova</div>
+        ${[['always', 'Vždy pri otvorení zložky', 'po odchode zo zložky sa hneď zamkne'], ['close', 'Po zatvorení prehliadača alebo aplikácie', 'kým je web / aplikácia otvorená, ostane odomknutá'], ['logout', 'Až po odhlásení', 'ostane odomknutá aj po zatvorení, kým sa neodhlásiš']].map(([v, l, d]) =>
+          '<div class="form-check"><input class="form-check-input" type="radio" name="mode" id="' + id + v + '" value="' + v + '"' + ((it.lock_mode || 'close') === v ? ' checked' : '') + '><label class="form-check-label" for="' + id + v + '">' + l + '<span class="d-block small text-body-secondary">' + d + '</span></label></div>').join('')}
         <div class="small text-danger mt-2 d-none" data-err></div>
       </div>
       <div class="modal-footer border-0">${set ? '' : '<button type="button" class="btn btn-outline-danger rounded-pill me-auto" data-remove><i class="bi bi-unlock me-1"></i>Zrušiť heslo</button>'}
@@ -122,16 +125,19 @@
     const fail = (m) => { err.textContent = m; err.classList.remove('d-none'); };
     const m = new bootstrap.Modal(el);
     const send = async (op) => {
-      if (op !== 'remove') {
+      const mode = (form.querySelector('[name="mode"]:checked') || {}).value || 'close';
+      if (op === 'change' && !v('new') && !v('new2')) op = 'mode';
+      if (op === 'set' || op === 'change') {
         if (v('new').length < 4) return fail('Heslo musí mať aspoň 4 znaky.');
         if (v('new') !== v('new2')) return fail('Heslá sa nezhodujú.');
-      } else if (!v('cur')) return fail('Zadaj súčasné heslo zložky alebo heslo k účtu.');
-      const r = await api('api.php?action=folder_lock', { id: it.id, op, password: v('cur'), new: v('new') });
+      }
+      if (op !== 'set' && !v('cur')) return fail('Zadaj súčasné heslo zložky alebo heslo k účtu.');
+      const r = await api('api.php?action=folder_lock', { id: it.id, op, password: v('cur'), new: v('new'), mode });
       if (!r.ok) return fail(r.error);
-      if (A && A.forgetFolderKey) { try { A.forgetFolderKey(String(it.id)); } catch (e) {} }
-      if (op !== 'remove' && A && A.offerFolderKey) { try { A.offerFolderKey(String(it.id), it.name, v('new')); } catch (e) {} }
+      if (op !== 'mode' && A && A.forgetFolderKey) { try { A.forgetFolderKey(String(it.id)); } catch (e) {} }
+      if ((op === 'set' || op === 'change') && A && A.offerFolderKey) { try { A.offerFolderKey(String(it.id), it.name, v('new')); } catch (e) {} }
       m.hide();
-      toast(op === 'remove' ? 'Heslo zložky je zrušené' : op === 'set' ? 'Zložka je zamknutá heslom' + (r.links ? ' – verejný odkaz na ňu už nefunguje' : '') : 'Heslo zložky je zmenené', 'success');
+      toast(op === 'remove' ? 'Heslo zložky je zrušené' : op === 'set' ? 'Zložka je zamknutá heslom' + (r.links ? ' – verejný odkaz na ňu už nefunguje' : '') : op === 'mode' ? 'Nastavenie uložené' : 'Heslo zložky je zmenené', 'success');
       for (const k of [...lcMem.keys()]) lcMem.delete(k);
       try { localStorage.removeItem(LC_KEY); } catch (e) {}
       load(true);
