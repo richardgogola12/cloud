@@ -19,8 +19,9 @@ require __DIR__ . '/inc/views/layout_start.php';
   <nav aria-label="breadcrumb" class="flex-grow-1 min-w-0"><ol class="breadcrumb drive-crumbs mb-0" id="crumbs"></ol></nav>
   <button class="btn btn-sm btn-outline-secondary rounded-pill d-none relock-btn" id="relockBtn" title="Zamknúť zložku – obsah sa skryje, kým znova nezadáš heslo"><i class="bi bi-lock"></i><span class="d-none d-sm-inline ms-1">Zamknúť</span></button>
   <div class="btn-group view-switch" role="group">
-    <button class="btn btn-icon" data-view="list" title="Zoznam"><i class="bi bi-list-ul"></i></button>
-    <button class="btn btn-icon" data-view="grid" title="Mriežka"><i class="bi bi-grid-3x3-gap"></i></button>
+    <button class="btn btn-icon d-none" data-view="photos" title="Fotky podľa mesiacov (V)"><i class="bi bi-images"></i></button>
+    <button class="btn btn-icon" data-view="list" title="Zoznam (V)"><i class="bi bi-list-ul"></i></button>
+    <button class="btn btn-icon" data-view="grid" title="Mriežka (V)"><i class="bi bi-grid-3x3-gap"></i></button>
   </div>
   <div class="dropdown" id="colsDrop">
     <button class="btn btn-icon" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Stĺpce v zozname"><i class="bi bi-layout-three-columns"></i></button>
@@ -30,11 +31,15 @@ require __DIR__ . '/inc/views/layout_start.php';
     <button class="btn btn-icon" data-bs-toggle="dropdown" title="Zoradiť"><i class="bi bi-sort-down"></i></button>
     <ul class="dropdown-menu dropdown-menu-end shadow" id="sortMenu">
       <li><h6 class="dropdown-header">Zoradiť podľa</h6></li>
+      <li><a class="dropdown-item sort-act" href="#" data-sort="when">Čas zmeny</a></li>
+      <li><a class="dropdown-item sort-photo" href="#" data-sort="taken">Dátum fotenia</a></li>
       <li><a class="dropdown-item" href="#" data-sort="name">Názov</a></li>
-      <li><a class="dropdown-item" href="#" data-sort="updated">Dátum zmeny</a></li>
-      <li><a class="dropdown-item" href="#" data-sort="size">Veľkosť</a></li>
-      <li><a class="dropdown-item" href="#" data-sort="created">Dátum vytvorenia</a></li>
-      <li><a class="dropdown-item" href="#" data-sort="kind">Druh</a></li>
+      <li><a class="dropdown-item sort-act" href="#" data-sort="actor">Kto</a></li>
+      <li><a class="dropdown-item sort-act" href="#" data-sort="activity">Druh zmeny</a></li>
+      <li><a class="dropdown-item sort-std" href="#" data-sort="updated">Dátum zmeny</a></li>
+      <li><a class="dropdown-item sort-std" href="#" data-sort="size">Veľkosť</a></li>
+      <li><a class="dropdown-item sort-std" href="#" data-sort="created">Dátum vytvorenia</a></li>
+      <li><a class="dropdown-item sort-std" href="#" data-sort="kind">Druh</a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="#" data-dir="asc">Vzostupne</a></li>
       <li><a class="dropdown-item" href="#" data-dir="desc">Zostupne</a></li>
@@ -113,20 +118,20 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="openapp"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť v aplikácii…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="send"><i class="bi bi-send me-2"></i>Poslať…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="edit"><i class="bi bi-pencil-square me-2"></i>Upraviť text</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="download"><i class="bi bi-download me-2"></i>Stiahnuť</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="share"><i class="bi bi-person-plus me-2"></i>Zdieľať</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="download"><i class="bi bi-download me-2"></i>Stiahnuť<span class="kbd-hint d-none d-lg-inline">D</span></a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="share"><i class="bi bi-person-plus me-2"></i>Zdieľať<span class="kbd-hint d-none d-lg-inline">.</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="tags"><i class="bi bi-tags me-2"></i>Štítky a farba…</a></li>
   <li data-sep><hr class="dropdown-divider"></li>
-  <li><a class="dropdown-item" href="#" data-ctx="rename"><i class="bi bi-input-cursor-text me-2"></i>Premenovať</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="move"><i class="bi bi-folder-symlink me-2"></i>Presunúť</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="rename"><i class="bi bi-input-cursor-text me-2"></i>Premenovať<span class="kbd-hint d-none d-lg-inline">F2</span></a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="move"><i class="bi bi-folder-symlink me-2"></i>Presunúť<span class="kbd-hint d-none d-lg-inline">Z</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="copy"><i class="bi bi-copy me-2"></i>Vytvoriť kópiu</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="star"><i class="bi bi-star me-2"></i><span>Pridať hviezdičku</span></a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="star"><i class="bi bi-star me-2"></i><span>Pridať hviezdičku</span><span class="kbd-hint d-none d-lg-inline">S</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="versions"><i class="bi bi-clock-history me-2"></i>Verzie</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="info"><i class="bi bi-info-circle me-2"></i>Informácie</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="info"><i class="bi bi-info-circle me-2"></i>Informácie<span class="kbd-hint d-none d-lg-inline">I</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="albumadd"><i class="bi bi-journal-plus me-2"></i>Pridať do albumu…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="albumremove"><i class="bi bi-journal-minus me-2"></i>Odstrániť z albumu</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="albumcover"><i class="bi bi-image me-2"></i>Nastaviť ako obal albumu</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="activity"><i class="bi bi-activity me-2"></i>Aktivita</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="activity"><i class="bi bi-activity me-2"></i>Aktivita<span class="kbd-hint d-none d-lg-inline">H</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="rewind"><i class="bi bi-rewind me-2"></i>Vrátiť do stavu k…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="lock"><i class="bi bi-lock me-2"></i>Zamknúť heslom…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="lockedit"><i class="bi bi-key me-2"></i>Heslo zložky…</a></li>
@@ -134,7 +139,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="restore"><i class="bi bi-arrow-counterclockwise me-2"></i>Obnoviť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="leave"><i class="bi bi-person-dash me-2"></i>Odstrániť zo zdieľaných</a></li>
   <li data-sep2><hr class="dropdown-divider"></li>
-  <li><a class="dropdown-item text-danger" href="#" data-ctx="delete"><i class="bi bi-trash3 me-2"></i>Presunúť do koša</a></li>
+  <li><a class="dropdown-item text-danger" href="#" data-ctx="delete"><i class="bi bi-trash3 me-2"></i>Presunúť do koša<span class="kbd-hint d-none d-lg-inline">Del</span></a></li>
   <li><a class="dropdown-item text-danger" href="#" data-ctx="purge"><i class="bi bi-x-octagon me-2"></i>Zmazať natrvalo</a></li>
 </ul>
 

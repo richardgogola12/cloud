@@ -49,12 +49,21 @@ function activity_list(int $uid, ?array $scope, int $before = 0, int $limit = 60
     if ($before > 0) { $w[] = 'a.id < ?'; $p[] = $before; }
     $rows = q('SELECT a.*, u.name actor_name FROM ' . P . 'activity a LEFT JOIN ' . P . 'users u ON u.id = a.actor_id WHERE ' . implode(' AND ', $w)
         . ' ORDER BY a.id DESC LIMIT ' . (int)$limit, $p)->fetchAll();
+    // názvy zložiek (kde sa to stalo, odkiaľ a kam sa presúvalo)
+    $fids = [];
+    foreach ($rows as $r) {
+        if ($r['folder_id']) $fids[(int)$r['folder_id']] = 1;
+        $x = $r['extra'] ? (json_decode($r['extra'], true) ?: []) : [];
+        foreach (['from', 'to'] as $k) if ($r['action'] === 'move' && !empty($x[$k])) $fids[(int)$x[$k]] = 1;
+    }
+    $fnames = $fids ? q('SELECT id, name FROM ' . P . 'folders WHERE id IN (' . implode(',', array_keys($fids)) . ')')->fetchAll(PDO::FETCH_KEY_PAIR) : [];
     $out = [];
     foreach ($rows as $r) {
         if ($r['folder_id'] && locked_ancestor((int)$r['folder_id'])) continue;
         $lbl = ACTIVITY_LABELS[$r['action']] ?? [$r['action'], 'bi-dot', 'secondary'];
         $x = $r['extra'] ? (json_decode($r['extra'], true) ?: []) : [];
-        $out[] = ['id' => (int)$r['id'], 'action' => $r['action'], 'label' => $lbl[0], 'icon' => $lbl[1], 'color' => $lbl[2],
+        if ($r['action'] === 'move') { $x['from_name'] = !empty($x['from']) ? ($fnames[(int)$x['from']] ?? '?') : 'Môj disk'; $x['to_name'] = !empty($x['to']) ? ($fnames[(int)$x['to']] ?? '?') : 'Môj disk'; }
+        $out[] = ['folder_name' => $r['folder_id'] ? ($fnames[(int)$r['folder_id']] ?? '') : 'Môj disk','id' => (int)$r['id'], 'action' => $r['action'], 'label' => $lbl[0], 'icon' => $lbl[1], 'color' => $lbl[2],
             'type' => $r['item_type'], 'item' => (int)$r['item_id'], 'name' => $r['name'], 'folder' => $r['folder_id'] ? (int)$r['folder_id'] : 0, 'extra' => $x, 'date' => $r['created_at'],
             'actor' => $r['actor_id'] === null ? 'Systém' : ((int)$r['actor_id'] === 0 ? 'Verejný odkaz' : ((int)$r['actor_id'] === $uid ? 'Ty' : ($r['actor_name'] ?? 'Neznámy používateľ'))),
             'mine' => (int)$r['actor_id'] === $uid];

@@ -49,6 +49,21 @@ for (const [name, opts] of sizes) {
   console.log(`[${name}] cache zoznamu: ${early}/${nItems} položiek pred odpoveďou servera`);
   if (nItems > 0 && early < 1) { console.log('CHYBA: zoznam sa neukázal z cache'); process.exitCode = 1; }
   await page.waitForTimeout(2500); await page.unroute('**/api.php?action=list*');
+  // klávesové skratky (iba počítač)
+  if (name === 'pc') {
+    await page.keyboard.press('Escape'); await page.mouse.click(5, 300);
+    await page.keyboard.press('Shift+Slash'); await page.waitForTimeout(500);
+    const kb = await page.locator('#kbdModal.show .kbd-row').count();
+    console.log(`[${name}] skratky: ${kb} riadkov v pomocníkovi`);
+    if (kb < 10) { console.log('CHYBA: pomocník skratiek sa neotvoril'); process.exitCode = 1; }
+    await page.screenshot({ path: `screens/${name}-21-skratky.png` });
+    await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(200);
+    const cur = await page.locator('#items .kb-cursor').count(), sel = await page.locator('#items .item.selected').count();
+    console.log(`[${name}] šípky: kurzor ${cur}, vybraté ${sel}`);
+    if (cur !== 1) { console.log('CHYBA: šípky nepresúvajú výber'); process.exitCode = 1; }
+    await page.keyboard.press('Escape');
+  }
   // aktivita, albumy, mapa
   await page.evaluate(() => { location.hash = '#activity'; }); await page.waitForTimeout(1200);
   const actRows = await page.locator('#items .item').count();

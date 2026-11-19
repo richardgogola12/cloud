@@ -21,6 +21,20 @@
   const key = (it) => it.type + ':' + it.id;
   const isPhotoView = () => state.view === 'photos' || state.view === 'album';
   const CUSTOM_VIEWS = ['albums', 'map'];
+  // zoradenie a rozloženie, ktoré sa robí v prehliadači (Aktivita, Fotky, album)
+  const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+  state.actSort = { k: 'when', dir: 'desc' };
+  state.photoSort = { k: lsGet('cloud-psort', 'taken'), dir: lsGet('cloud-pdir', 'desc') };
+  state.photoLayout = lsGet('cloud-playout', 'photos');
+  const clientSortOf = () => state.view === 'activity' ? state.actSort : isPhotoView() ? state.photoSort : null;
+  function clientSort() {
+    const s0 = clientSortOf(); if (!s0) return;
+    const get = { name: i => (i.name || '').toLowerCase(), when: i => (i.act || {}).date || '', actor: i => ((i.act || {}).actor || '').toLowerCase(),
+      activity: i => (i.act || {}).label || '', location: i => (i.path || '').toLowerCase(), taken: i => i.taken || i.created || i.updated || '',
+      updated: i => i.updated || '', created: i => i.created || '', size: i => +i.size || 0, kind: i => i.mime || '' }[s0.k] || (() => '');
+    const d = s0.dir === 'asc' ? 1 : -1, tie = (a, b) => ((b.act || {}).ev || b.id) - ((a.act || {}).ev || a.id);
+    state.items.sort((a, b) => { const x = get(a), y = get(b); return (x < y ? -1 : x > y ? 1 : 0) * d || tie(a, b); });
+  }
   const byKey = (k) => state.items.find(i => key(i) === k);
   const canEditHere = () => state.view !== 'folder' || PERM[state.perm] >= 2; // mimo zložky sa nahráva do Môj disk
 
@@ -59,7 +73,7 @@
   // kostra zoznamu, kým sa načítava (blikajúce plochy namiesto prázdnej stránky)
   function skeleton() {
     const box = $('#items');
-    const layout = isPhotoView() ? 'photos' : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
+    const layout = isPhotoView() ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#empty').classList.add('d-none');
     const n = (k) => Array.from({ length: k });
@@ -164,9 +178,10 @@
     $('#items [data-unlock-now]').onclick = async () => { if (await Cloud.unlockFolder(lk)) load(); };
   }
   function applyList(r, keepSel) {
-    Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
+    Object.assign(state, { items: r.items.slice(), crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
     if (!keepSel) state.limit = 300;
     if (!keepSel) state.sel.clear(); else if (!state.partial) state.sel = new Set([...state.sel].filter(byKey));
+    clientSort();
     render(); if (r.quota) updateQuota(r.quota);
   }
   // prednačítanie zložky, keď na ňu ukážeš myšou / položíš prst
@@ -210,6 +225,7 @@
       if (ticket !== state.loadTicket || !rest.ok) return;
       state.items = state.items.concat(rest.items);
       state.partial = false;
+      clientSort();
       if (keepSel || cached) state.sel = new Set([...state.sel].filter(byKey));
       render();
     }
@@ -282,10 +298,16 @@
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
     renderPhotoBar();
-    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || state.view === 'activity'));
-    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
-    $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
-    $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
+    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || (state.view === 'activity' && el.classList.contains('view-switch'))));
+    const ph = isPhotoView();
+    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === (ph ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : state.layout)));
+    $$('[data-view="photos"]').forEach(b => b.classList.toggle('d-none', !ph));
+    $$('#sortMenu .sort-photo').forEach(a => a.closest('li').classList.toggle('d-none', !ph));
+    $$('#sortMenu .sort-act').forEach(a => a.closest('li').classList.toggle('d-none', state.view !== 'activity'));
+    $$('#sortMenu .sort-std').forEach(a => a.closest('li').classList.toggle('d-none', state.view === 'activity'));
+    const csr = clientSortOf();
+    $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === (csr ? csr.k : state.sort)));
+    $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === (csr ? csr.dir : state.dir)));
     $$('.side-nav [data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
     $$('#sideTags [data-tag]').forEach(a => a.classList.toggle('active', state.view === 'tag' && +a.dataset.tag === state.tagId));
     document.body.classList.toggle('readonly', !canEditHere());
@@ -336,11 +358,12 @@
       if (state.view === 'photos') h += memoriesHtml();
       let month = '';
       const years = [...new Set(state.items.map(it => new Date((it.taken || it.updated).replace(' ', 'T')).getFullYear()))].filter(y => !isNaN(y));
-      if (years.length > 1) h += '<div class="photo-years">' + years.map(y => '<button class="btn btn-sm btn-light rounded-pill" data-year-jump="' + y + '">' + y + '</button>').join('') + '</div>';
+      if (years.length > 1 && state.photoSort.k === 'taken') h += '<div class="photo-years">' + years.map(y => '<button class="btn btn-sm btn-light rounded-pill" data-year-jump="' + y + '">' + y + '</button>').join('') + '</div>';
       files.forEach(it => {
         const d = new Date((it.taken || it.updated).replace(' ', 'T'));
         const m = d.toLocaleDateString('sk-SK', { month: 'long', year: 'numeric' });
-        if (m !== month) { if (month) h += '</div>'; month = m; h += '<div class="section-title photo-month">' + esc(m) + '</div><div class="photo-grid">'; }
+        if (state.photoSort.k !== 'taken') { if (!month) { month = '-'; h += '<div class="photo-grid">'; } }
+        else if (m !== month) { if (month) h += '</div>'; month = m; h += '<div class="section-title photo-month">' + esc(m) + '</div><div class="photo-grid">'; }
         const vid = (it.mime || '').startsWith('video/');
         h += '<div class="item photo-item' + (it.thumb ? ' thumb-loading' : ' photo-noimg') + '" data-key="' + key(it) + '" data-year="' + d.getFullYear() + '"><input type="checkbox" class="form-check-input item-check" tabindex="-1">'
           + (it.thumb ? '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="" onload="thumbOk(this)" onerror="thumbErr(this,\'' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary\')">' : '<i class="bi ' + (vid ? 'bi-film' : 'bi-image') + ' text-body-secondary"></i>')
@@ -355,7 +378,7 @@
         let day = '';
         visible.forEach(it => {
           const d = new Date(it.act.date.replace(' ', 'T')), dk = d.toDateString();
-          if (dk !== day) { day = dk; h += '<div class="act-day act-day-row">' + esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</div>'; }
+          if (state.actSort.k === 'when' && dk !== day) { day = dk; h += '<div class="act-day act-day-row">' + esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</div>'; }
           h += listItem(it);
         });
         if (state.actMore && visible.length >= state.items.length) h += '<div class="text-center my-3"><button class="btn btn-light rounded-pill" data-act-more>Načítať staršie</button></div>';
@@ -506,9 +529,11 @@
   function renderHeader(box) {
     const cols = state.colsShown || [];
     applyColWidths();
-    const noSort = state.view === 'activity'; // aktivita je vždy od najnovšej zmeny
-    const SORTCOL = noSort ? {} : SORTCOL0;
-    const arrow = (k) => !noSort && state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
+    const noSort = false;
+    const cs = clientSortOf();
+    const SORTCOL = state.view === 'activity' ? { activity: 'activity', actor: 'actor', when: 'when', location: 'location' } : cs ? Object.assign({ taken: 'taken' }, SORTCOL0) : SORTCOL0;
+    const curK = cs ? cs.k : state.sort, curD = cs ? cs.dir : state.dir;
+    const arrow = (k) => curK === k ? ' <i class="bi bi-arrow-' + (curD === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
     const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
       + '<div class="c-name' + (noSort ? '' : ' sortable') + '" data-sort-col="' + (noSort ? '' : 'name') + '"><span class="col-label">Názov' + arrow('name') + '</span><span class="col-resize" data-resize="name" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>'
       + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '" data-col="' + c + '">'
@@ -613,6 +638,7 @@
     if (justResized || e.target.closest('.col-resize')) return;
     const h = e.target.closest('.sortable'); if (!h || !h.dataset.sortCol) return;
     const k = h.dataset.sortCol;
+    if (clientSortOf()) return setSort(k);
     if (state.sort === k) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
     else { state.sort = k; state.dir = ['updated', 'created', 'size'].includes(k) ? 'desc' : 'asc'; }
     localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
@@ -802,7 +828,7 @@
     }
     $('#infoBody').innerHTML = rows.join('');
     $('#infoAct').innerHTML = '';
-    loadActivity($('#infoAct'), { type: it.type, id: it.id }, 8, true);
+    loadActivity($('#infoAct'), { type: it.type, id: it.id }, 5, true);
     $$('#infoBody [data-info-open]').forEach(a => a.addEventListener('click', () => bootstrap.Modal.getInstance($('#infoModal'))?.hide()));
     bootstrap.Modal.getOrCreateInstance($('#infoModal')).show();
   }
@@ -1332,18 +1358,172 @@
        copy: () => moveDialog(items, 'copy'), star: () => star(items), delete: () => del(items), restore: () => restore(items), tags: () => tagsDialog(items),
        purge: () => purge(items), leave: () => leave(items) })[b.dataset.sel]();
   });
+  /* ---------------- klávesové skratky ---------------- */
+  const SHORTCUTS = [
+    ['Všeobecné', [['/', 'Hľadať'], ['?', 'Zoznam skratiek'], ['Shift + F', 'Nová zložka'], ['Shift + T', 'Nový textový súbor'], ['U', 'Nahrať súbory'], ['V', 'Prepnúť zoznam / mriežku'],
+      ['Alt + ↑  /  Backspace', 'Do nadradenej zložky'], ['G potom D / R / S / P / A / K', 'Môj disk / Nedávne / S hviezdičkou / Fotky / Aktivita / Kôš']]],
+    ['Výber a pohyb', [['↑ ↓ ← →', 'Pohyb medzi položkami'], ['Shift + šípky', 'Rozšíriť výber'], ['Medzerník', 'Označiť / odznačiť'], ['Ctrl + A', 'Vybrať všetko'], ['Esc', 'Zrušiť výber'],
+      ['Shift + klik', 'Vybrať rozsah'], ['Home / End', 'Prvá / posledná položka']]],
+    ['Položky', [['Enter', 'Otvoriť'], ['F2  /  N', 'Premenovať'], ['Delete', 'Do koša'], ['Shift + Delete', 'Natrvalo zmazať (v koši)'], ['S', 'Hviezdička'], ['I', 'Informácie'],
+      ['.', 'Zdieľať'], ['D', 'Stiahnuť'], ['Z', 'Presunúť do…'], ['H', 'História zmien'], ['Ctrl + C / X / V', 'Kopírovať / vystrihnúť / vložiť sem'], ['Shift + F10', 'Menu položky']]],
+    ['Náhľad', [['← →', 'Predchádzajúci / ďalší'], ['Medzerník', 'Prezentácia spustiť / zastaviť'], ['D', 'Stiahnuť'], ['Esc', 'Zavrieť']]],
+  ];
+  function showShortcuts() {
+    let m = $('#kbdModal');
+    if (!m) {
+      document.body.insertAdjacentHTML('beforeend', '<div class="modal fade" id="kbdModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">'
+        + '<div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-keyboard me-2"></i>Klávesové skratky</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+        + '<div class="modal-body pt-0"><div class="kbd-grid">' + SHORTCUTS.map(([g, list]) => '<div><div class="kbd-group">' + esc(g) + '</div>' + list.map(([k, t]) => '<div class="kbd-row"><span>' + esc(t) + '</span><span class="kbd-keys">'
+          + k.split(/\s+(\/|potom)\s+|\s*\+\s*/).filter(x => x && x.trim()).map(x => x === '/' || x === 'potom' ? '<span class="kbd-sep">' + (x === '/' ? 'alebo' : 'potom') + '</span>' : '<kbd>' + esc(x) + '</kbd>').join('') + '</span></div>').join('') + '</div>').join('') + '</div></div></div></div></div>');
+      m = $('#kbdModal');
+    }
+    bootstrap.Modal.getOrCreateInstance(m).show();
+  }
+  window.cloudShortcuts = showShortcuts;
+  // kurzor (zameraná položka) – pohyb šípkami
+  let cursor = null, anchor = null, gPending = 0, clip = null;
+  const itemEls = () => $$('#items .item[data-key]');
+  function setCursor(k, extend) {
+    if (!k) return;
+    const els = itemEls(), keys = els.map(el => el.dataset.key);
+    if (extend && anchor) {
+      const a = keys.indexOf(anchor), b = keys.indexOf(k);
+      state.sel = new Set(keys.slice(Math.min(a, b), Math.max(a, b) + 1));
+    } else if (extend !== null) { state.sel = new Set([k]); anchor = k; }
+    cursor = k;
+    updateSel();
+    els.forEach(el => el.classList.toggle('kb-cursor', el.dataset.key === k));
+    const el = els[keys.indexOf(k)];
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function moveCursor(dir, extend) {
+    const els = itemEls(); if (!els.length) return;
+    let i = els.findIndex(el => el.dataset.key === cursor);
+    if (i < 0) return setCursor(els[0].dataset.key, extend);
+    const r0 = els[i].getBoundingClientRect();
+    let j = i;
+    if (dir === 'left') j = Math.max(0, i - 1);
+    else if (dir === 'right') j = Math.min(els.length - 1, i + 1);
+    else if (dir === 'home') j = 0;
+    else if (dir === 'end') j = els.length - 1;
+    else { // hore / dole: najbližšia položka v susednom riadku
+      const step = dir === 'down' ? 1 : -1;
+      let best = -1, bestRow = null, bestDx = Infinity;
+      for (let k = i + step; k >= 0 && k < els.length; k += step) {
+        const r = els[k].getBoundingClientRect();
+        if (Math.abs(r.top - r0.top) < 4) continue;
+        if (bestRow === null) bestRow = r.top;
+        if (Math.abs(r.top - bestRow) > 4) break;
+        const dx = Math.abs(r.left - r0.left);
+        if (dx < bestDx) { bestDx = dx; best = k; }
+      }
+      if (best >= 0) j = best;
+    }
+    setCursor(els[j].dataset.key, extend);
+  }
+  // Shift + klik = rozsah
+  itemsBox.addEventListener('click', (e) => {
+    const el = e.target.closest('.item[data-key]'); if (!el) return;
+    if (e.shiftKey && anchor && anchor !== el.dataset.key) { e.stopImmediatePropagation(); setCursor(el.dataset.key, true); return; }
+    anchor = cursor = el.dataset.key;
+  }, true);
+  const parentHash = () => {
+    if (state.view !== 'folder' || !state.folder) return null;
+    const c = state.crumbs; const p = c.length > 1 ? c[c.length - 2] : null;
+    return p && p.id ? '#folder/' + p.id : (state.root === 'shared' ? '#shared' : '#');
+  };
+  async function paste() {
+    if (!clip || !clip.items.length) return;
+    if (!['folder'].includes(state.view)) return toast('Vložiť sa dá iba do zložky.', 'warning');
+    if (PERM[state.perm] < 2) return toast('Do tejto zložky nemôžeš vkladať.', 'warning');
+    const target = state.folder || 0;
+    let items = clip.items;
+    if (clip.mode === 'copy') { items = items.filter(i => i.type === 'f'); if (!items.length) return toast('Kopírovať sa dajú iba súbory.', 'warning'); }
+    const r = await api('api.php?action=' + clip.mode, { items: keysOf(items), target });
+    if (!r.ok) return toast(r.error, 'danger');
+    toast((clip.mode === 'copy' ? 'Skopírované: ' : 'Presunuté: ') + items.length, 'success');
+    if (clip.mode === 'move') clip = null;
+    load(true);
+  }
   document.addEventListener('keydown', (e) => {
-    if (e.target.matches('input, textarea, select') || document.querySelector('.modal.show')) return;
-    if (e.key === 'Delete' && state.sel.size) state.view === 'trash' ? purge(selItems()) : del(selItems().filter(i => PERM[i.perm] >= 2));
-    if (e.key === 'Escape') { state.sel.clear(); updateSel(); hideCtx(); }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); state.sel = new Set(state.items.map(key)); updateSel(); }
-    if (e.key === 'F2' && state.sel.size === 1) rename(selItems()[0]);
+    const t = e.target;
+    if (t.matches('input, textarea, select, [contenteditable]') || t.closest('.select2-container')) return;
+    // náhľad
+    if ($('#previewModal').classList.contains('show')) {
+      if (e.key === ' ') { e.preventDefault(); $('#previewPlay').click(); }
+      else if (e.key.toLowerCase() === 'd' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); $('#previewDownload').click(); }
+      return;
+    }
+    if (document.querySelector('.modal.show')) return;
+    const k = e.key, ctrl = e.ctrlKey || e.metaKey, low = k.length === 1 ? k.toLowerCase() : k;
+    const sel = selItems(), one = sel.length === 1 ? sel[0] : null;
+    if (k === '?' || (k === '/' && e.shiftKey)) { e.preventDefault(); return showShortcuts(); }
+    // G potom písmeno: prechod na zobrazenie
+    if (gPending && Date.now() - gPending < 1200 && !ctrl) {
+      gPending = 0;
+      const to = { d: '#', r: '#recent', s: '#starred', p: '#photos', a: '#activity', k: '#trash', z: '#shared', t: '#trash' }[low];
+      if (to) { e.preventDefault(); return go(to); }
+    }
+    if (low === 'g' && !ctrl && !e.shiftKey && !e.altKey) { gPending = Date.now(); return; }
+    if (ctrl && low === 'a') { e.preventDefault(); state.sel = new Set(state.items.map(key)); return updateSel(); }
+    if (ctrl && (low === 'c' || low === 'x')) {
+      if (!sel.length || window.getSelection().toString()) return;
+      e.preventDefault();
+      if (low === 'x' && sel.some(i => PERM[i.perm] < 2)) return toast('Niektoré položky nemôžeš presúvať.', 'warning');
+      clip = { mode: low === 'c' ? 'copy' : 'move', items: sel };
+      return toast((low === 'c' ? 'Skopírované do schránky: ' : 'Vystrihnuté: ') + sel.length + ' – vlož v cieľovej zložke Ctrl + V');
+    }
+    if (ctrl && low === 'v') { if (clip) { e.preventDefault(); paste(); } return; }
+    if (ctrl || e.altKey && k !== 'ArrowUp') return;
+    if (k === 'Escape') { state.sel.clear(); cursor = null; $$('.kb-cursor').forEach(x => x.classList.remove('kb-cursor')); updateSel(); hideCtx(); return; }
+    if (k === 'ArrowUp' && e.altKey || (k === 'Backspace' && !state.sel.size)) { const p = parentHash(); if (p) { e.preventDefault(); go(p); } return; }
+    const arrows = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Home: 'home', End: 'end' };
+    if (arrows[k]) { e.preventDefault(); return moveCursor(arrows[k], e.shiftKey); }
+    if (k === ' ') { if (!cursor) return; e.preventDefault(); toggleSel(cursor); return; }
+    if (k === 'Enter') { const it = byKey(cursor) || one; if (it) { e.preventDefault(); open(it); } return; }
+    if (k === 'F10' && e.shiftKey) { if (!sel.length) return; e.preventDefault(); const el = $('#items .item[data-key="' + cssEsc(key(sel[0])) + '"]'); const r = el ? el.getBoundingClientRect() : { left: 100, bottom: 100 }; return showCtx(sel, r.left + 40, r.bottom - 10); }
+    if (k === 'Delete' || (k === 'Backspace' && state.sel.size)) {
+      if (!sel.length) return; e.preventDefault();
+      if (state.view === 'trash' || (e.shiftKey && sel.every(i => i.deleted))) return purge(sel);
+      if (e.shiftKey && state.view !== 'trash') return toast('Natrvalo sa mazať dá iba v koši (Shift + Delete).', 'warning');
+      return del(sel.filter(i => PERM[i.perm] >= 2));
+    }
+    if (e.shiftKey && low === 'f') { e.preventDefault(); return newFolder(); }
+    if (e.shiftKey && low === 't') { e.preventDefault(); return newText(); }
+    if (e.shiftKey) return;
+    if (low === 'u') { e.preventDefault(); return $('#fileInput').click(); }
+    if (low === 'v') { e.preventDefault(); const L0 = isPhotoView() ? (state.photoLayout === 'photos' ? 'grid' : state.photoLayout === 'grid' ? 'list' : 'photos') : (state.layout === 'list' ? 'grid' : 'list'); return setLayout(L0); }
+    if (!sel.length) return;
+    const acts = {
+      f2: () => one && rename(one), n: () => one && rename(one), s: () => star(sel), i: () => one && info(one), '.': () => one && share(one),
+      d: () => download(sel), z: () => moveDialog(sel, 'move'), h: () => one && activityDialog(one),
+    };
+    const fn = acts[k === 'F2' ? 'f2' : low];
+    if (fn) { e.preventDefault(); fn(); }
   });
+  const cssEsc = (s0) => (window.CSS && CSS.escape) ? CSS.escape(s0) : s0.replace(/"/g, '\\"');
 
   // prepínače
-  $$('[data-view]').forEach(b => b.onclick = () => { state.layout = b.dataset.view; localStorage.setItem('cloud-layout', state.layout); if (state.view === 'photos') go('#'); else render(); });
-  $$('#sortMenu [data-sort]').forEach(a => a.onclick = (e) => { e.preventDefault(); state.sort = a.dataset.sort; localStorage.setItem('cloud-sort', state.sort); load(); });
-  $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); state.dir = a.dataset.dir; localStorage.setItem('cloud-dir', state.dir); load(); });
+  function setLayout(v) {
+    if (isPhotoView()) { state.photoLayout = v; try { localStorage.setItem('cloud-playout', v); } catch (e) {} render(); return; }
+    if (v === 'photos') return;
+    state.layout = v; localStorage.setItem('cloud-layout', state.layout); render();
+  }
+  $$('[data-view]').forEach(b => b.onclick = () => setLayout(b.dataset.view));
+  function setSort(k, dir) {
+    const cs = clientSortOf();
+    if (cs) { // Aktivita a Fotky sa zoraďujú v prehliadači
+      if (k) { cs.dir = dir || (cs.k === k ? (cs.dir === 'asc' ? 'desc' : 'asc') : (['when', 'taken', 'updated', 'created', 'size'].includes(k) ? 'desc' : 'asc')); cs.k = k; }
+      else if (dir) cs.dir = dir;
+      if (isPhotoView()) { try { localStorage.setItem('cloud-psort', cs.k); localStorage.setItem('cloud-pdir', cs.dir); } catch (e) {} }
+      clientSort(); render(); return;
+    }
+    if (k) { state.sort = k; } if (dir) state.dir = dir;
+    localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
+    load();
+  }
+  $$('#sortMenu [data-sort]').forEach(a => a.onclick = (e) => { e.preventDefault(); const cs = clientSortOf(); setSort(a.dataset.sort, cs ? cs.dir : null); });
+  $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); setSort(null, a.dataset.dir); });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
   $$('.side-nav [data-nav]').forEach(a => {
     const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', dupes: '#dupes', photos: '#photos', activity: '#activity' };
@@ -1575,47 +1755,67 @@
   ['#previewPrev', '#previewNext'].forEach(s => $(s).addEventListener('click', () => { if (slideOn) setTimeout(scheduleSlide, 50); }));
 
   /* ================= Aktivita ================= */
-  function actText(a) {
+  /** text jednej udalosti; withName = ukázať aj názov položky (v prehľade celej zložky / disku) */
+  function actHtml(a, withName) {
     const x = a.extra || {};
-    let t = '<b>' + esc(a.actor) + '</b> ' + esc(a.label) + ' ';
-    if (a.action === 'rewind') return t + '<b>' + esc(fmtFull(x.to || a.date)) + '</b> – zložka <a href="#folder/' + a.item + '">' + esc(a.name) + '</a>';
-    const ic = a.type === 'd' ? '<i class="bi bi-folder-fill ic-folder me-1"></i>' : '<i class="bi bi-file-earmark me-1 text-body-secondary"></i>';
-    t += a.type === 'd' && !['purge', 'trash'].includes(a.action) ? '<a href="#folder/' + a.item + '">' + ic + esc(a.name) + '</a>'
-      : a.action !== 'purge' ? '<a href="' + (a.folder ? '#folder/' + a.folder : '#') + '">' + ic + esc(a.name) + '</a>' : '<b>' + ic + esc(a.name) + '</b>';
-    if (a.action === 'rename' && x.from) t += ' <span class="text-body-secondary">(predtým „' + esc(x.from) + '“)</span>';
-    if ((a.action === 'share' || a.action === 'unshare') && x.to) t += ' <span class="text-body-secondary">' + (a.action === 'share' ? 's ' : '– ') + esc(x.to) + (x.perm === 'edit' ? ' (úpravy)' : '') + '</span>';
-    if ((a.action === 'upload' || a.action === 'update') && x.size) t += ' <span class="text-body-secondary">· ' + formatBytes(x.size) + '</span>';
-    return t;
+    const verb = esc(a.label.replace(/\(a\)/g, ''));
+    const ic = a.type === 'd' ? '<i class="bi bi-folder-fill ic-folder"></i>' : '<i class="bi bi-file-earmark text-body-secondary"></i>';
+    const href = a.type === 'd' && !['purge', 'trash'].includes(a.action) ? '#folder/' + a.item : a.action !== 'purge' ? (a.folder ? '#folder/' + a.folder : '#') : '';
+    const name = withName ? (href ? '<a class="act-item" href="' + href + '">' + ic + '<span>' + esc(a.name) + '</span></a>' : '<span class="act-item">' + ic + '<span>' + esc(a.name) + '</span></span>') : '';
+    const det = [];
+    if (a.action === 'rename' && x.from) det.push('<span class="act-old">' + esc(x.from) + '</span> <i class="bi bi-arrow-right"></i> ' + esc(a.name));
+    if (a.action === 'move') det.push('<i class="bi bi-folder2"></i> ' + esc(x.from_name || '') + ' <i class="bi bi-arrow-right"></i> <i class="bi bi-folder2-open"></i> ' + esc(x.to_name || ''));
+    if ((a.action === 'share' || a.action === 'unshare') && x.to) det.push('<i class="bi bi-person"></i> ' + esc(x.to) + (x.perm === 'edit' ? ' · môže upravovať' : x.perm ? ' · iba čítanie' : ''));
+    if (a.action === 'link' && x.mode) det.push({ view: 'na zobrazenie', upload: 'na nahrávanie', both: 'na zobrazenie aj nahrávanie' }[x.mode] || '');
+    if (['upload', 'update', 'copy', 'edit'].includes(a.action) && x.size) det.push(formatBytes(x.size));
+    if (a.action === 'rewind' && x.to) det.push('stav k ' + esc(fmtFull(x.to)));
+    if (withName && a.folder_name && !['move', 'rewind'].includes(a.action)) det.push('<i class="bi bi-folder2"></i> ' + esc(a.folder_name));
+    return '<div class="act-line"><b>' + esc(a.actor) + '</b> ' + verb + '</div>' + name + (det.length ? '<div class="act-det">' + det.filter(Boolean).join(' · ') + '</div>' : '');
   }
   async function loadActivity(box, scope, limit, compact, before) {
     const r = await api('api.php?action=activity', Object.assign({ before: before || 0 }, scope));
     if (!r.ok) { box.innerHTML = '<div class="small text-danger">' + esc(r.error) + '</div>'; return; }
     box.querySelector('.act-more')?.remove();
-    if (!before) { delete box.dataset.lastDay; box.innerHTML = ''; }
-    if (!before) box.innerHTML = compact ? '<div class="fw-semibold small mt-3 mb-2"><i class="bi bi-activity me-1"></i>Aktivita</div>' : '';
-    if (!r.items.length && !before) { box.insertAdjacentHTML('beforeend', '<div class="small text-body-secondary">' + (compact ? 'Zatiaľ žiadne zaznamenané zmeny.' : '<div class="text-center py-5"><i class="bi bi-activity display-4 d-block mb-3"></i>Zatiaľ žiadna aktivita. Tu uvidíš, kto čo nahral, zmenil, presunul alebo zdieľal.</div>') + '</div>'); return; }
+    const withName = !scope.type || scope.type === 'd';
+    if (!before) {
+      delete box.dataset.lastDay;
+      box.innerHTML = compact ? '<div class="act-title"><i class="bi bi-clock-history me-1"></i>História zmien</div>' : '';
+      box.classList.add('act-timeline');
+    }
+    if (!r.items.length && !before) { box.insertAdjacentHTML('beforeend', '<div class="act-empty"><i class="bi bi-clock-history"></i><div>Zatiaľ žiadne zaznamenané zmeny.</div></div>'); return; }
     let day = box.dataset.lastDay || '', h = '';
+    const today = new Date().toDateString(), yest = new Date(Date.now() - 86400000).toDateString();
     r.items.slice(0, compact ? limit : 999).forEach(a => {
       const d = new Date(a.date.replace(' ', 'T')), dk = d.toDateString();
-      if (!compact && dk !== day) { day = dk; h += '<div class="act-day">' + esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</div>'; }
-      h += '<div class="act-row"><span class="act-ic text-' + a.color + '"><i class="bi ' + a.icon + '"></i></span><div class="act-txt">' + actText(a)
-        + '<div class="small text-body-secondary">' + esc(compact ? fmtFull(a.date) : d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })) + '</div></div></div>';
+      if (dk !== day) {
+        day = dk;
+        h += '<div class="act-daypill">' + (dk === today ? 'Dnes' : dk === yest ? 'Včera' : esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }))) + '</div>';
+      }
+      h += '<div class="act-ev"><span class="act-dot bg-' + a.color + '-subtle text-' + a.color + '-emphasis"><i class="bi ' + a.icon + '"></i></span><div class="act-body">' + actHtml(a, withName)
+        + '</div><time class="act-time" title="' + esc(fmtFull(a.date)) + '">' + esc(d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })) + '</time></div>';
     });
     box.dataset.lastDay = day;
     box.insertAdjacentHTML('beforeend', h);
-    if (r.more && !compact) {
+    if (compact && r.items.length > limit) box.insertAdjacentHTML('beforeend', '<div class="act-more text-center mt-2"><button class="btn btn-sm btn-light rounded-pill" data-act-all>Celá história</button></div>');
+    else if (r.more && !compact) {
       box.insertAdjacentHTML('beforeend', '<div class="text-center my-3 act-more"><button class="btn btn-light rounded-pill">Načítať staršie</button></div>');
       box.querySelector('.act-more button').onclick = () => loadActivity(box, scope, limit, compact, r.more);
     }
+    const all = box.querySelector('[data-act-all]');
+    if (all) all.onclick = () => { bootstrap.Modal.getInstance(box.closest('.modal'))?.hide(); activityDialog(byKey(scope.type + ':' + scope.id) || { type: scope.type, id: scope.id, name: '' }); };
     $$('a[href^="#"]', box).forEach(a => a.addEventListener('click', () => { bootstrap.Modal.getInstance(a.closest('.modal'))?.hide(); }));
   }
   function activityDialog(it) {
     const id = 'ad' + Date.now();
-    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-      <div class="modal-header border-0"><h5 class="modal-title text-truncate"><i class="bi bi-activity me-2"></i>Aktivita</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body pt-0"><div class="small text-body-secondary mb-2 text-break" data-n></div><div data-box></div></div></div></div></div>`);
+    const icon = !it ? '<i class="bi bi-hdd-stack"></i>' : it.type === 'd' ? '<i class="bi bi-folder-fill ic-folder"></i>'
+      : it.thumb ? '<img src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="">' : '<i class="bi bi-file-earmark-text text-body-secondary"></i>';
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content act-modal">
+      <div class="modal-header border-0 pb-2"><div class="act-head"><span class="act-head-ic">${icon}</span><div class="min-w-0"><div class="act-head-title text-truncate" data-n></div><div class="small text-body-secondary" data-s></div></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body pt-0"><div data-box></div></div></div></div></div>`);
     const el = document.getElementById(id);
-    el.querySelector('[data-n]').textContent = it ? it.name + (it.type === 'd' ? ' – vrátane obsahu zložky' : '') : 'Celý disk – všetky zmeny';
+    el.querySelector('[data-n]').textContent = it ? it.name : 'Celý disk';
+    el.querySelector('[data-s]').textContent = !it ? 'Všetky zmeny – kto čo nahral, upravil, presunul, zmazal alebo zdieľal' : it.type === 'd' ? 'História zmien zložky a jej obsahu' : 'História zmien súboru';
     loadActivity(el.querySelector('[data-box]'), it ? { type: it.type, id: it.id } : {}, 60, false);
     el.addEventListener('hidden.bs.modal', () => el.remove());
     new bootstrap.Modal(el).show();

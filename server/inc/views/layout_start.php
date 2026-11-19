@@ -84,6 +84,7 @@ require __DIR__ . '/head.php';
       <?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="<?= e(url('profile.php')) ?>"><i class="bi bi-person-gear me-2"></i>Môj účet</a></li>
+      <?php if (!$inApp): ?><li class="d-none d-lg-block kbd-menu"><a class="dropdown-item" href="#" onclick="if (window.cloudShortcuts) cloudShortcuts(); return false;"><i class="bi bi-keyboard me-2"></i>Klávesové skratky <span class="kbd-hint">?</span></a></li><?php endif; ?>
       <?php if ($user['role'] === 'admin'): ?><li><a class="dropdown-item" href="<?= e(url('admin.php')) ?>"><i class="bi bi-shield-lock me-2"></i>Administrácia</a></li><?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <?php if ($inApp): ?>
