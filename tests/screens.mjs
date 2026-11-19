@@ -51,7 +51,7 @@ for (const [name, opts] of sizes) {
   await page.waitForTimeout(2500); await page.unroute('**/api.php?action=list*');
   // aktivita, albumy, mapa
   await page.evaluate(() => { location.hash = '#activity'; }); await page.waitForTimeout(1200);
-  const actRows = await page.locator('#items .act-row').count();
+  const actRows = await page.locator('#items .item').count();
   console.log(`[${name}] aktivita: ${actRows} záznamov`);
   await page.screenshot({ path: `screens/${name}-17-aktivita.png` });
   await page.evaluate(() => { location.hash = '#photos'; }); await page.waitForTimeout(1200);

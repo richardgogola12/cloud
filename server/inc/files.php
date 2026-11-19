@@ -207,15 +207,17 @@ function valid_color(?string $c): ?string { return $c !== null && preg_match('/^
 const LIST_COLUMNS = [
     'size' => 'Veľkosť', 'kind' => 'Druh', 'updated' => 'Zmenené', 'created' => 'Vytvorené', 'taken' => 'Dátum snímky',
     'location' => 'Umiestnenie', 'owner' => 'Vlastník', 'sharing' => 'Zdieľanie', 'versions' => 'Verzie', 'tags' => 'Štítky', 'deleted' => 'Zmazané',
+    'activity' => 'Posledná zmena', 'actor' => 'Kto', 'when' => 'Kedy',
 ];
 const LIST_VIEWS = [
     'folder' => 'Môj disk a zložky', 'recent' => 'Nedávne', 'starred' => 'S hviezdičkou', 'search' => 'Hľadanie', 'tag' => 'Štítky',
-    'shared' => 'Zdieľané so mnou', 'byme' => 'Zdieľané mnou', 'dupes' => 'Duplicitné súbory', 'trash' => 'Kôš',
+    'shared' => 'Zdieľané so mnou', 'byme' => 'Zdieľané mnou', 'dupes' => 'Duplicitné súbory', 'trash' => 'Kôš', 'activity' => 'Aktivita',
 ];
 const DEFAULT_COLUMNS = [
     'folder' => ['kind', 'updated', 'size'], 'recent' => ['location', 'updated', 'size'], 'starred' => ['location', 'updated', 'size'],
     'search' => ['location', 'updated', 'size'], 'tag' => ['location', 'updated', 'size'], 'shared' => ['owner', 'updated', 'size'],
     'byme' => ['sharing', 'updated', 'size'], 'dupes' => ['location', 'created', 'size'], 'trash' => ['location', 'deleted', 'size'],
+    'activity' => ['activity', 'actor', 'when', 'location'],
 ];
 function user_prefs(?array $u): array {
     $p = $u && !empty($u['prefs']) ? json_decode((string)$u['prefs'], true) : null;
@@ -247,6 +249,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
     foreach ($folders as $d) {
         $out[] = ['type' => 'd', 'id' => (int)$d['id'], 'name' => $d['name'], 'starred' => (bool)$d['starred'], 'updated' => $d['updated_at'],
                   'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
+                  'act' => $extra['act']['d'][(int)$d['id']] ?? null,
                   'locked' => folder_is_locked((int)$d['id']), 'unlocked' => folder_is_locked((int)$d['id']) && folder_unlocked((int)$d['id']),
                   'lock_mode' => folder_is_locked((int)$d['id']) ? folder_lock_mode((int)$d['id']) : null,
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
@@ -264,7 +267,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $f['deleted_at'] ?? null, 'color' => $f['color'] ?? null, 'tags' => $tags['f'][(int)$f['id']] ?? [],
-                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null,
+                  'share_info' => $extra['si']['f'][(int)$f['id']] ?? null, 'dup' => $extra['dup'][(int)$f['id']] ?? null, 'act' => $extra['act']['f'][(int)$f['id']] ?? null,
                   'created' => $f['created_at'] ?? null, 'snip' => $extra['snip'][(int)$f['id']] ?? null,
                   'path' => isset($extra['dup'][(int)$f['id']]) ? $extra['dup'][(int)$f['id']]['path']
                       : (isset($extra['paths']) && (int)$f['user_id'] === $uid ? ($extra['paths'][(int)($f['folder_id'] ?? 0)] ?? null) : null)];

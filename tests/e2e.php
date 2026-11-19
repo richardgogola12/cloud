@@ -858,6 +858,16 @@ ok(in_array('novy.txt', $names($web->api('list', ['view' => 'trash'])), true), '
 $j = $web->api('versions', ['id' => $fA]);
 ok(count($j['versions'] ?? []) >= 2, 'prepísaný obsah ostal ako staršia verzia');
 ok(($web->api('activity', ['type' => 'd', 'id' => $rw])['items'][0]['action'] ?? '') === 'rewind', 'vrátenie je v aktivite');
+$j = $web->api('list', ['view' => 'activity']);
+$first = $j['items'][0] ?? null;
+ok(!empty($j['ok']) && $first && !empty($first['act']['label']) && !empty($first['act']['date']), 'zobrazenie Aktivita ako zoznam položiek s poslednou zmenou', json_encode($first));
+$byName = array_column($j['items'] ?? [], null, 'name');
+ok(($byName['a.txt']['act']['action'] ?? '') === 'version' && ($byName['a.txt']['act']['actor'] ?? '') === 'Ty', 'pri položke je posledná zmena a kto ju urobil', json_encode($byName['a.txt'] ?? null));
+ok(!isset($byName['novy.txt']), 'položky v koši sa v Aktivite neukazujú');
+$dates = array_map(fn($i) => $i['act']['date'], array_values(array_filter($j['items'], fn($i) => $i['type'] === 'f')));
+$sorted = $dates; rsort($sorted);
+ok($dates === $sorted, 'zoradené od najnovšej zmeny');
+ok(isset($j['items'][0]['path']) || isset($j['items'][1]['path']), 'pri položkách je umiestnenie');
 $r = $web->get('index.php');
 ok(str_contains($r['body'], 'data-ctx="rewind"') && str_contains($r['body'], 'data-ctx="activity"') && str_contains($r['body'], 'index.php#activity'), 'v menu je Aktivita a Vrátiť do stavu');
 $web->api('delete', ['items' => ["d:$rw"]]);

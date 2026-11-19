@@ -20,7 +20,7 @@
   };
   const key = (it) => it.type + ':' + it.id;
   const isPhotoView = () => state.view === 'photos' || state.view === 'album';
-  const CUSTOM_VIEWS = ['albums', 'map', 'activity'];
+  const CUSTOM_VIEWS = ['albums', 'map'];
   const byKey = (k) => state.items.find(i => key(i) === k);
   const canEditHere = () => state.view !== 'folder' || PERM[state.perm] >= 2; // mimo zložky sa nahráva do Môj disk
 
@@ -281,7 +281,7 @@
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
     renderPhotoBar();
-    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view)));
+    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || (el.id === 'sortMenu' && state.view === 'activity')));
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
     $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
     $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
@@ -310,6 +310,7 @@
     const emptyTxt = { search: ['Nič sa nenašlo', 'Skús iný výraz.'], starred: ['Žiadne položky s hviezdičkou', 'Označ dôležité súbory hviezdičkou.'],
       trash: ['Kôš je prázdny', 'Zmazané položky sa sem presunú a dajú sa obnoviť.'], shared: ['Nikto s tebou zatiaľ nič nezdieľa', ''], byme: ['Zatiaľ nič nezdieľaš', 'Súbor alebo zložku zdieľaš cez ⋮ → Zdieľať.'],
       tag: ['S týmto štítkom zatiaľ nič nie je', 'Štítok pridáš cez ⋮ → Štítky a farba.'],
+      activity: ['Zatiaľ žiadna aktivita', 'Tu uvidíš súbory a zložky podľa poslednej zmeny – kto ich nahral, upravil, presunul alebo zdieľal.'],
       photos: ['Zatiaľ žiadne fotky', 'Nahraj obrázky – zoradia sa podľa dátumu.'], album: ['Album je prázdny', 'Fotky pridáš cez ⋮ → Pridať do albumu.'], dupes: ['Žiadne duplicity', 'Každý súbor máš iba raz. 👍'], recent: ['Žiadne nedávne súbory', ''] }[state.view] || ['Zatiaľ tu nič nie je', 'Pretiahni sem súbory alebo použi tlačidlo Nový.'];
     $('#empty h5').textContent = emptyTxt[0];
     $('#empty p').textContent = emptyTxt[1];
@@ -399,6 +400,7 @@
     if (state.view === 'trash') return 'zmazané ' + fmtDate(it.deleted);
     if (state.view === 'byme' && it.share_info) return shareSummary(it);
     if (state.view === 'dupes' && it.dup) return it.dup.path;
+    if (state.view === 'activity' && it.act) return it.act.actor + ' · ' + it.act.label.replace(/\(a\)$/, '') + ' · ' + fmtDate(it.act.date);
     if (it.owner) return it.owner;
     return fmtDate(it.updated);
   }
@@ -406,8 +408,9 @@
   const COLDEF = window.CLOUD_COLS || { labels: { updated: 'Zmenené', size: 'Veľkosť' }, views: {}, defaults: {}, mine: {} };
   if (Array.isArray(COLDEF.mine)) COLDEF.mine = {};
   const COLW = { size: '96px', kind: '150px', updated: '120px', created: '120px', taken: '120px', location: 'minmax(120px, .9fr)',
-    owner: '140px', sharing: 'minmax(120px, .8fr)', versions: '64px', tags: 'minmax(100px, .6fr)', deleted: '120px' };
-  const SORTCOL = { size: 'size', updated: 'updated', created: 'created', kind: 'kind' };
+    owner: '140px', sharing: 'minmax(120px, .8fr)', versions: '64px', tags: 'minmax(100px, .6fr)', deleted: '120px',
+    activity: 'minmax(150px, 1fr)', actor: '130px', when: '120px' };
+  const SORTCOL0 = { size: 'size', updated: 'updated', created: 'created', kind: 'kind' };
   const colView = () => state.view === 'folder' && state.root === 'shared' ? 'shared' : (COLDEF.views[state.view] ? state.view : 'folder');
   function colsNow() {
     const v = colView();
@@ -450,13 +453,16 @@
       case 'sharing': { const t = shareSummary(it) || (it.shared ? 'Zdieľané' : ''); return t ? '<span title="' + esc(t) + '">' + esc(t) + '</span>' : null; }
       case 'versions': return it.type === 'f' && it.versions ? String(it.versions + 1) : null;
       case 'tags': return (it.tags || []).length ? tagChips(it) : null;
+      case 'activity': return it.act ? '<span class="act-cell" title="' + esc(it.act.actor + ' ' + it.act.label + (it.act.count > 1 ? ' · ' + it.act.count + ' zmien' : '')) + '"><i class="bi ' + it.act.icon + ' text-' + it.act.color + ' me-1"></i>' + esc(it.act.label.replace(/\(a\)$/, '')) + '</span>' : null;
+      case 'actor': return it.act ? esc(it.act.actor) : null;
+      case 'when': return it.act ? '<span title="' + esc(fmtFull(it.act.date)) + '">' + esc(fmtDate(it.act.date)) + '</span>' : null;
     }
     return null;
   }
   const colText = (c, it) => { const v = colVal(c, it); return v == null ? null : v.replace(/<[^>]+>/g, ''); };
   // koľko stĺpcov sa zmestí vedľa názvu (na užšej obrazovke len prvé; v mobile sú pod názvom)
   // najmenšie šírky stĺpcov (px) – podľa nich sa určí, koľko stĺpcov sa zmestí vedľa názvu
-  const COLMIN = { size: 96, kind: 150, updated: 120, created: 120, taken: 120, location: 150, owner: 140, sharing: 150, versions: 64, tags: 110, deleted: 120 };
+  const COLMIN = { size: 96, kind: 150, updated: 120, created: 120, taken: 120, location: 150, owner: 140, sharing: 150, versions: 64, tags: 110, deleted: 120, activity: 170, actor: 120, when: 110 };
   const nameMin = () => colWidths.name || 240;
   /** stĺpce, ktoré sa zmestia (názov má prednosť) – ostatné sa ukážu na širšej obrazovke */
   function fitCols(cols) {
@@ -483,9 +489,11 @@
   function renderHeader(box) {
     const cols = state.colsShown || [];
     applyColWidths();
-    const arrow = (k) => state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
+    const noSort = state.view === 'activity'; // aktivita je vždy od najnovšej zmeny
+    const SORTCOL = noSort ? {} : SORTCOL0;
+    const arrow = (k) => !noSort && state.sort === k ? ' <i class="bi bi-arrow-' + (state.dir === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
     const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
-      + '<div class="c-name sortable" data-sort-col="name"><span class="col-label">Názov' + arrow('name') + '</span><span class="col-resize" data-resize="name" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>'
+      + '<div class="c-name' + (noSort ? '' : ' sortable') + '" data-sort-col="' + (noSort ? '' : 'name') + '"><span class="col-label">Názov' + arrow('name') + '</span><span class="col-resize" data-resize="name" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>'
       + cols.map(c => '<div class="c-col c-' + c + (SORTCOL[c] ? ' sortable' : '') + '" data-sort-col="' + (SORTCOL[c] || '') + '" data-col="' + c + '">'
           + '<span class="col-label">' + esc(COLDEF.labels[c]) + (SORTCOL[c] ? arrow(SORTCOL[c]) : '') + '</span>'
           + '<span class="col-resize" data-resize="' + c + '" title="Potiahni na zmenu šírky · dvojklik = pôvodná"></span></div>').join('')
@@ -1318,6 +1326,12 @@
   /* ================= Fotky: lišta, spomienky, albumy, mapa, prezentácia ================= */
   function renderPhotoBar() {
     const bar = $('#photoBar');
+    if (state.view === 'activity') {
+      bar.classList.remove('d-none');
+      bar.innerHTML = '<div class="small text-body-secondary">Súbory a zložky podľa poslednej zmeny. Celú históriu konkrétnej položky nájdeš cez ⋮ → Aktivita.</div>'
+        + '<div class="pb-right"><button class="btn btn-sm btn-light rounded-pill" data-pb="history"><i class="bi bi-clock-history me-1"></i>Celá história</button></div>';
+      return;
+    }
     const show = ['photos', 'album', 'albums', 'map'].includes(state.view);
     bar.classList.toggle('d-none', !show);
     if (!show) return;
@@ -1335,6 +1349,7 @@
     e.preventDefault();
     const act = b.dataset.pb;
     if (act === 'slideshow') return startSlideshow();
+    if (act === 'history') return activityDialog(null);
     if (act === 'newalbum') { const n = await Cloud.prompt('Nový album', '', 'Vytvoriť', 'Názov albumu'); if (!n) return; const r = await api('api.php?action=album_save', { name: n }); r.ok ? go('#album/' + r.id) : toast(r.error, 'danger'); return; }
     if (act === 'renamealbum') { const n = await Cloud.prompt('Premenovať album', (state.crumbs[0] || {}).name || '', 'Uložiť'); if (!n) return; const r = await api('api.php?action=album_save', { id: state.albumId, name: n }); r.ok ? load(true) : toast(r.error, 'danger'); return; }
     if (act === 'delalbum') { if (!await Cloud.confirm('Zmazať album?', 'Fotky ostanú na disku – zmaže sa iba album.', 'Zmazať')) return; const r = await api('api.php?action=album_delete', { id: state.albumId }); r.ok ? (toast('Album zmazaný', 'success'), go('#albums')) : toast(r.error, 'danger'); }
@@ -1520,8 +1535,8 @@
       <div class="modal-header border-0"><h5 class="modal-title text-truncate"><i class="bi bi-activity me-2"></i>Aktivita</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body pt-0"><div class="small text-body-secondary mb-2 text-break" data-n></div><div data-box></div></div></div></div></div>`);
     const el = document.getElementById(id);
-    el.querySelector('[data-n]').textContent = it.name + (it.type === 'd' ? ' – vrátane obsahu zložky' : '');
-    loadActivity(el.querySelector('[data-box]'), { type: it.type, id: it.id }, 60, false);
+    el.querySelector('[data-n]').textContent = it ? it.name + (it.type === 'd' ? ' – vrátane obsahu zložky' : '') : 'Celý disk – všetky zmeny';
+    loadActivity(el.querySelector('[data-box]'), it ? { type: it.type, id: it.id } : {}, 60, false);
     el.addEventListener('hidden.bs.modal', () => el.remove());
     new bootstrap.Modal(el).show();
   }

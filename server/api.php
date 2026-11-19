@@ -152,6 +152,35 @@ try {
                         ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 3000", [$uid])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
+        } elseif ($view === 'activity') { // položky podľa poslednej zmeny (kto, čo, kedy)
+            $ev = q('SELECT a.*, u.name actor_name FROM ' . P . 'activity a LEFT JOIN ' . P . "users u ON u.id = a.actor_id
+                     WHERE (a.owner_id = ? OR a.actor_id = ?) AND a.action NOT IN ('purge') ORDER BY a.id DESC LIMIT 1500", [$uid, $uid])->fetchAll();
+            $order = []; $cnt = [];
+            foreach ($ev as $e) {
+                $k = $e['item_type'] . (int)$e['item_id'];
+                $cnt[$k] = ($cnt[$k] ?? 0) + 1;
+                if (isset($order[$k])) continue;
+                $lbl = ACTIVITY_LABELS[$e['action']] ?? [$e['action'], 'bi-dot', 'secondary'];
+                $order[$k] = ['t' => $e['item_type'], 'id' => (int)$e['item_id'], 'action' => $e['action'], 'label' => $lbl[0], 'icon' => $lbl[1], 'color' => $lbl[2], 'date' => $e['created_at'],
+                    'actor' => $e['actor_id'] === null ? 'Systém' : ((int)$e['actor_id'] === 0 ? 'Verejný odkaz' : ((int)$e['actor_id'] === $uid ? 'Ty' : ($e['actor_name'] ?? '?')))];
+                if (count($order) >= 300) break;
+            }
+            $dIds = []; $fIds = [];
+            foreach ($order as $k => $o) { $o['count'] = $cnt[$k]; $extra['act'][$o['t']][$o['id']] = $o; $o['t'] === 'd' ? $dIds[] = $o['id'] : $fIds[] = $o['id']; }
+            $rowsD = $dIds ? q("SELECT * FROM $D WHERE id IN (" . implode(',', $dIds) . ') AND deleted_at IS NULL')->fetchAll() : [];
+            $rowsF = $fIds ? q("SELECT f.*, $vcnt FROM $F f WHERE id IN (" . implode(',', $fIds) . ') AND deleted_at IS NULL')->fetchAll() : [];
+            // iba položky, ku ktorým mám stále prístup
+            $acc = function ($t, $r) use ($uid, &$extra) {
+                if ((int)$r['user_id'] === $uid) return true;
+                try { $a = $t === 'd' ? folder_access($uid, (int)$r['id']) : file_access($uid, (int)$r['id']); $extra[$t === 'd' ? 'perm' : 'fperm'][$r['id']] = $a['perm']; return true; } catch (Throwable $e) { return false; }
+            };
+            $rowsD = array_filter($rowsD, fn($r) => $acc('d', $r));
+            $rowsF = array_filter($rowsF, fn($r) => $acc('f', $r));
+            // zoradené od najnovšej zmeny
+            $pos = array_flip(array_keys($order));
+            usort($rowsD, fn($a, $b) => $pos['d' . $a['id']] <=> $pos['d' . $b['id']]);
+            usort($rowsF, fn($a, $b) => $pos['f' . $a['id']] <=> $pos['f' . $b['id']]);
+            $folders = array_values($rowsD); $files = array_values($rowsF);
         } elseif ($view === 'album') {
             $al = album_get($uid, (int)($_POST['album'] ?? 0));
             $files = q("SELECT f.*, 0 vcnt FROM $F f JOIN " . P . "album_items ai ON ai.file_id = f.id WHERE ai.album_id = ? AND f.deleted_at IS NULL
