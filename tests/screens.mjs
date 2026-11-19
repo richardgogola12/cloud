@@ -74,7 +74,23 @@ for (const [name, opts] of sizes) {
     console.log(`[${name}] zoradenie v mriežke (Nedávne podľa názvu): ${sortedOk ? 'OK' : 'NIE'} (${after.length} súborov)`);
     if (after.length > 1 && !sortedOk) { console.log('CHYBA: zoradenie v mriežke nefunguje', JSON.stringify(after)); process.exitCode = 1; }
     await page.click('[data-view="list"]');
-    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(800);
+    // fotky: prepnutie na mriežku a zoznam
+    await page.evaluate(() => { location.hash = '#photos'; }); await page.waitForTimeout(1200);
+    await page.click('[data-view="grid"]'); await page.waitForTimeout(300);
+    const pg = await page.$eval('#items', el => el.className);
+    await page.click('[data-view="list"]'); await page.waitForTimeout(300);
+    const pl = await page.$eval('#items', el => el.className);
+    await page.click('[data-view="photos"]'); await page.waitForTimeout(300);
+    console.log(`[${name}] fotky: mriežka=${pg}, zoznam=${pl}`);
+    if (!pg.includes('items-grid') || !pl.includes('items-list')) { console.log('CHYBA: fotky sa neprepínajú'); process.exitCode = 1; }
+    // každý viditeľný stĺpec sa dá zoradiť (aj tie, ktoré server nezoraďuje)
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(1200);
+    const hdr = await page.$$eval('#listHeader .c-col', els => els.map(e => [e.dataset.col, e.classList.contains('sortable')]));
+    console.log(`[${name}] stĺpce a zoradenie: ${JSON.stringify(hdr)}`);
+    if (!hdr.length || hdr.some(h => !h[1])) { console.log('CHYBA: niektorý stĺpec sa nedá zoradiť'); process.exitCode = 1; }
+    const menuKeys = await page.$$eval('#sortMenu [data-sort]', els => els.map(e => e.dataset.sort));
+    console.log(`[${name}] menu zoradenia: ${menuKeys.join(', ')}`);
+    if (menuKeys.length < 6) { console.log('CHYBA: menu zoradenia nemá všetky stĺpce'); process.exitCode = 1; }
   }
   // aktivita, albumy, mapa
   await page.evaluate(() => { location.hash = '#activity'; }); await page.waitForTimeout(1200);

@@ -29,10 +29,28 @@
   // zobrazenia mimo zložky (Nedávne, Kôš, Zdieľané, Hľadanie…) sa zoraďujú v prehliadači, každé si pamätá svoje
   state.vsort = {};
   const VSORT_DEF = { recent: ['updated', 'desc'], trash: ['deleted', 'desc'], search: ['rel', 'asc'], shared: ['updated', 'desc'], byme: ['updated', 'desc'] };
+  const curLayout = () => isPhotoView() ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
+  /** stĺpce, podľa ktorých sa dá v tomto zobrazení zoradiť (aj v mriežke) */
+  function sortKeys() {
+    const v = state.view, L = COLDEF.labels || {};
+    const keys = v === 'search' ? ['rel', 'name'] : ['name'];
+    if (v === 'activity') return keys.concat(['when', 'activity', 'actor', 'location']);
+    if (isPhotoView()) keys.push('taken');
+    Object.keys(L).forEach(c => {
+      if (['activity', 'actor', 'when'].includes(c)) return;
+      if (c === 'deleted' && v !== 'trash') return;
+      if (c === 'location' && v === 'folder') return;
+      if (!keys.includes(c)) keys.push(c);
+    });
+    return keys;
+  }
+  const SORT_LABEL = { name: 'Názov', rel: 'Najlepšia zhoda', taken: 'Dátum fotenia', when: 'Čas zmeny' };
+  const sortLabel = (k) => SORT_LABEL[k] || (COLDEF.labels || {})[k] || k;
   const clientSortOf = () => {
     if (state.view === 'activity') return state.actSort;
     if (isPhotoView()) return state.photoSort;
-    if (state.view === 'folder' || state.view === 'dupes' || CUSTOM_VIEWS.includes(state.view)) return null;
+    if (state.view === 'dupes' || CUSTOM_VIEWS.includes(state.view)) return null;
+    if (state.view === 'folder') { state.fsort = state.fsort || { k: state.sort, dir: state.dir }; return state.fsort; }
     if (!state.vsort[state.view]) { const d = VSORT_DEF[state.view] || [state.sort, state.dir]; state.vsort[state.view] = { k: d[0], dir: d[1] }; }
     return state.vsort[state.view];
   };
@@ -40,8 +58,10 @@
   function clientSort() {
     const s0 = clientSortOf(); if (!s0) return;
     const get = { name: i => (i.name || '').toLowerCase(), when: i => (i.act || {}).date || '', actor: i => ((i.act || {}).actor || '').toLowerCase(),
-      activity: i => (i.act || {}).label || '', location: i => (i.path || '').toLowerCase(), taken: i => i.taken || i.created || i.updated || '',
-      updated: i => i.updated || '', created: i => i.created || '', size: i => i.type === 'd' ? -1 : (+i.size || 0), kind: i => i.type === 'd' ? '' : (i.mime || ''),
+      activity: i => (i.act || {}).label || '', location: i => (i.path || (state.view === 'folder' ? '' : (i.owner ? 'zdieľané so mnou' : ''))).toLowerCase(), taken: i => i.taken || i.created || i.updated || '',
+      updated: i => i.updated || '', created: i => i.created || '', size: i => i.type === 'd' ? (i.count != null ? -1e15 + i.count : -1e15) : (+i.size || 0),
+      kind: i => i.type === 'd' ? '' : kindOf(i).toLowerCase(), owner: i => (i.owner || '').toLowerCase(), versions: i => +i.versions || 0,
+      sharing: i => (shareSummary(i) || (i.shared ? 'Zdieľané' : '')).toLowerCase(), tags: i => (i.tags || []).map(t => t.name).join(', ').toLowerCase(),
       deleted: i => i.deleted || '', rel: i => i._ord || 0 }[s0.k] || (() => '');
     const d = s0.dir === 'asc' ? 1 : -1, tie = (a, b) => s0.k === 'rel' ? 0 : ((b.act || {}).ev || b.id) - ((a.act || {}).ev || a.id);
     const foldersFirst = state.view !== 'activity';
@@ -90,7 +110,7 @@
   // kostra zoznamu, kým sa načítava (blikajúce plochy namiesto prázdnej stránky)
   function skeleton() {
     const box = $('#items');
-    const layout = isPhotoView() ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
+    const layout = curLayout();
     box.className = 'items items-' + layout;
     $('#empty').classList.add('d-none');
     const n = (k) => Array.from({ length: k });
@@ -320,14 +340,13 @@
     const ph = isPhotoView();
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === (ph ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : state.layout)));
     $$('[data-view="photos"]').forEach(b => b.classList.toggle('d-none', !ph));
-    $$('#sortMenu .sort-photo').forEach(a => a.closest('li').classList.toggle('d-none', !ph));
-    $$('#sortMenu .sort-act').forEach(a => a.closest('li').classList.toggle('d-none', state.view !== 'activity'));
-    $$('#sortMenu .sort-std').forEach(a => a.closest('li').classList.toggle('d-none', state.view === 'activity'));
-    $$('#sortMenu .sort-trash').forEach(a => a.closest('li').classList.toggle('d-none', state.view !== 'trash'));
-    $$('#sortMenu .sort-search').forEach(a => a.closest('li').classList.toggle('d-none', state.view !== 'search'));
     const csr = clientSortOf();
-    $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === (csr ? csr.k : state.sort)));
-    $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === (csr ? csr.dir : state.dir)));
+    if (csr) {
+      const mh = '<li><h6 class="dropdown-header">Zoradiť podľa</h6></li>' + sortKeys().map(k => '<li><a class="dropdown-item' + (csr.k === k ? ' active' : '') + '" href="#" data-sort="' + k + '">' + esc(sortLabel(k)) + '</a></li>').join('')
+        + '<li><hr class="dropdown-divider"></li><li><a class="dropdown-item' + (csr.dir === 'asc' ? ' active' : '') + '" href="#" data-dir="asc"><i class="bi bi-sort-up me-2"></i>Vzostupne</a></li>'
+        + '<li><a class="dropdown-item' + (csr.dir === 'desc' ? ' active' : '') + '" href="#" data-dir="desc"><i class="bi bi-sort-down me-2"></i>Zostupne</a></li>';
+      const sm = $('#sortMenu'); if (sm.dataset.html !== mh) { sm.innerHTML = mh; sm.dataset.html = mh; }
+    }
     $$('.side-nav [data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
     $$('#sideTags [data-tag]').forEach(a => a.classList.toggle('active', state.view === 'tag' && +a.dataset.tag === state.tagId));
     document.body.classList.toggle('readonly', !canEditHere());
@@ -342,7 +361,7 @@
     else sb.classList.add('d-none');
 
     const box = $('#items');
-    const layout = isPhotoView() ? 'photos' : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
+    const layout = curLayout();
     box.className = 'items items-' + layout;
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
     $('#colsDrop').classList.toggle('d-none', layout !== 'list');
@@ -551,8 +570,8 @@
     applyColWidths();
     const noSort = false;
     const cs = clientSortOf();
-    const SORTCOL = state.view === 'activity' ? { activity: 'activity', actor: 'actor', when: 'when', location: 'location' }
-      : cs ? Object.assign({ taken: 'taken', deleted: 'deleted', location: 'location' }, SORTCOL0) : SORTCOL0;
+    const SORTCOL = {};
+    if (cs) cols.forEach(c => { SORTCOL[c] = c; }); else Object.assign(SORTCOL, SORTCOL0);
     const curK = cs ? cs.k : state.sort, curD = cs ? cs.dir : state.dir;
     const arrow = (k) => curK === k ? ' <i class="bi bi-arrow-' + (curD === 'asc' ? 'up' : 'down') + ' small"></i>' : '';
     const html = '<div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll" aria-label="Vybrať všetko"></div>'
@@ -1537,14 +1556,20 @@
       if (k) { cs.dir = dir || (cs.k === k ? (cs.dir === 'asc' ? 'desc' : 'asc') : (['when', 'taken', 'updated', 'created', 'size', 'deleted'].includes(k) ? 'desc' : 'asc')); cs.k = k; }
       else if (dir) cs.dir = dir;
       if (isPhotoView()) { try { localStorage.setItem('cloud-psort', cs.k); localStorage.setItem('cloud-pdir', cs.dir); } catch (e) {} }
+      if (state.view === 'folder') { state.sort = cs.k; state.dir = cs.dir; try { localStorage.setItem('cloud-sort', cs.k); localStorage.setItem('cloud-dir', cs.dir); } catch (e) {} }
       clientSort(); render(); return;
     }
     if (k) { state.sort = k; } if (dir) state.dir = dir;
     localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
     load();
   }
-  $$('#sortMenu [data-sort]').forEach(a => a.onclick = (e) => { e.preventDefault(); const cs = clientSortOf(); if (cs && cs.k === a.dataset.sort) return; setSort(a.dataset.sort); });
-  $$('#sortMenu [data-dir]').forEach(a => a.onclick = (e) => { e.preventDefault(); setSort(null, a.dataset.dir); });
+  $('#sortMenu').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-sort],[data-dir]'); if (!a) return;
+    e.preventDefault();
+    if (a.dataset.dir) return setSort(null, a.dataset.dir);
+    const cs = clientSortOf(); if (cs && cs.k === a.dataset.sort) return;
+    setSort(a.dataset.sort);
+  });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
   $$('.side-nav [data-nav]').forEach(a => {
     const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', dupes: '#dupes', photos: '#photos', activity: '#activity' };
