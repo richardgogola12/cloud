@@ -78,7 +78,7 @@ require __DIR__ . '/head.php';
       <?php endforeach; ?>
       <li><form method="post" action="<?= e(url('switch.php')) ?>"><?= csrf_field() ?><input type="hidden" name="do" value="add"><button class="dropdown-item"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</button></form></li>
       <?php else: /* v aplikácii rovnaké menu – účty drží aplikácia a doplní ich sem */ ?>
-      <li id="appAccounts"><hr class="dropdown-divider"></li>
+      <li id="appAccHr"><hr class="dropdown-divider"></li>
       <li id="appAccountsSlot" class="d-none"><h6 class="dropdown-header">Prepnúť účet</h6></li>
       <li><a class="dropdown-item" href="cloudapp://account-add"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</a></li>
       <?php endif; ?>

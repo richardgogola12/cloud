@@ -470,3 +470,5 @@ a.share-row:hover { background: var(--c-hover); }
 /* v aplikácii sú jej nastavenia v bočnom menu – menu účtu je rovnaké ako na webe */
 #accountMenu a[data-nav^="app-"] { display: none !important; }
 #accountMenu li:empty { display: none; }
+/* staršia aplikácia (do 1.0.24) vkladá vlastný blok účtov – serverové položky vtedy skryť, nech nie sú dvakrát */
+#appAccounts ~ #appAccHr, #appAccounts ~ #appAccountsSlot, #appAccounts ~ #appAccountsSlot + li { display: none !important; }
