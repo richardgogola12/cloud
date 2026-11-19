@@ -576,7 +576,7 @@ class MainActivity : AppCompatActivity() {
             l.innerHTML = '<a class="dropdown-item d-flex align-items-center gap-2"><span class="avatar avatar-sm"></span><span class="min-w-0"><span class="d-block text-truncate"></span><span class="d-block small text-body-secondary text-truncate"></span></span></a>';
             l.firstChild.href = 'cloudapp://account?k=' + encodeURIComponent(a.k);
             l.querySelector('.avatar').textContent = (a.n || a.e).charAt(0).toUpperCase();
-            var t = l.querySelectorAll('.text-truncate'); t[1].textContent = a.n || a.e; t[2].textContent = a.e + (ms && a.s ? ' · ' + a.s : '');
+            var t = l.querySelectorAll('.text-truncate'); t[0].textContent = a.n || a.e; t[1].textContent = a.e + (ms && a.s ? ' · ' + a.s : '');
             return l;
           }
           var slot = document.getElementById('appAccountsSlot');
@@ -585,7 +585,7 @@ class MainActivity : AppCompatActivity() {
             if (!acc.length) return;
             slot.classList.remove('d-none');
             var ref = slot.nextSibling;
-            acc.forEach(function(a){ slot.parentNode.insertBefore(row(a), ref); });
+            acc.forEach(function(a){ try { slot.parentNode.insertBefore(row(a), ref); } catch (e) {} });
             var all = document.getElementById('appLogoutAll'); if (all) all.classList.remove('d-none');
             return;
           }
