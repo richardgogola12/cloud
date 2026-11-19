@@ -79,6 +79,21 @@ function start_session(): void {
         session_regenerate_id(true);
         $_SESSION['_app'] = $appId;
     }
+    browser_win();
+}
+/** Identifikátor otvoreného prehliadača / aplikácie: cookie bez dátumu platnosti zmizne po ich zatvorení
+ *  (session cookie pri „Zapamätať si ma“ zostáva, preto samostatne). */
+function browser_win(): string {
+    static $w = null;
+    if ($w !== null) return $w;
+    $n = cfg('session_name', 'CLOUD_SID') . '_win';
+    $w = (string)($_COOKIE[$n] ?? '');
+    if (!preg_match('/^[a-f0-9]{24}$/', $w)) {
+        $w = bin2hex(random_bytes(12));
+        $_COOKIE[$n] = $w;
+        if (!headers_sent()) setcookie($n, $w, ['expires' => 0, 'path' => app_base_path(), 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
+    }
+    return $w;
 }
 function set_remember_cookie(bool $remember): void {
     // predĺži platnosť session cookie pri "Zapamätať si ma"

@@ -31,7 +31,10 @@ function folder_locks(bool $refresh = false): array {
 function folder_is_locked(int $id): bool { return isset(folder_locks()[$id]); }
 function folder_lock_mode(int $id): string { return folder_locks()[$id]['lock_mode'] ?? 'close'; }
 function folder_unlocked(int $id): bool {
-    if ((int)($_SESSION['folder_unlock'][$id] ?? 0) > time()) return true;
+    if ((int)($_SESSION['folder_unlock'][$id] ?? 0) > time()) {
+        // „po zatvorení“ a „vždy“: platí iba v tom istom otvorenom prehliadači / aplikácii
+        if (folder_lock_mode($id) === 'logout' || ($_SESSION['folder_unlock_win'][$id] ?? '') === browser_win()) return true;
+    }
     return folder_lock_mode($id) === 'logout' && in_array($id, lock_cookie_ids(), true);
 }
 
@@ -69,10 +72,11 @@ function lock_cookie_clear(): void {
 function folder_unlock_store(int $id): void {
     $mode = folder_lock_mode($id);
     $_SESSION['folder_unlock'][$id] = $mode === 'always' ? time() + LOCK_ALWAYS_TTL : time() + 10 * 365 * 86400;
+    $_SESSION['folder_unlock_win'][$id] = browser_win();
     if ($mode === 'logout') { $e = lock_cookie_entries(); $e[$id] = time() + 90 * 86400; lock_cookie_save($e); }
 }
 function folder_unlock_forget(int $id): void {
-    unset($_SESSION['folder_unlock'][$id]);
+    unset($_SESSION['folder_unlock'][$id], $_SESSION['folder_unlock_win'][$id]);
     $e = lock_cookie_entries();
     if (isset($e[$id])) { unset($e[$id]); lock_cookie_save($e); }
 }
@@ -83,9 +87,10 @@ function relock_left_always(array $chain): void {
     foreach ($un as $id => $t) if (folder_lock_mode((int)$id) === 'always' && !in_array((int)$id, $chain, true)) $drop[] = (int)$id;
     if (!$drop) return;
     $closed = session_status() !== PHP_SESSION_ACTIVE;
-    if ($closed) @session_start();
-    foreach ($drop as $id) unset($_SESSION['folder_unlock'][$id]);
-    if ($closed) session_write_close();
+    // znovuotvorenie session bez novej Set-Cookie (inak by sa z trvalej cookie „Zapamätať si ma“ stala dočasná)
+    if ($closed) { ini_set('session.use_cookies', '0'); @session_start(); }
+    foreach ($drop as $id) unset($_SESSION['folder_unlock'][$id], $_SESSION['folder_unlock_win'][$id]);
+    if ($closed) { session_write_close(); ini_set('session.use_cookies', '1'); }
 }
 function folder_chain(?int $id): array {
     $out = []; $guard = 0;
