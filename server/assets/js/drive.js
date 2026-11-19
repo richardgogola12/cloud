@@ -281,6 +281,7 @@
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
     renderPhotoBar();
+    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view)));
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
     $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
     $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
@@ -1365,6 +1366,7 @@
     const box = $('#items');
     $('#empty').classList.add('d-none');
     $('#listHeader').classList.add('d-none');
+    $('#colsDrop').classList.add('d-none');
     box.className = 'items items-custom';
     box.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
     if (state.view === 'albums') {
@@ -1482,8 +1484,9 @@
     const x = a.extra || {};
     let t = '<b>' + esc(a.actor) + '</b> ' + esc(a.label) + ' ';
     if (a.action === 'rewind') return t + '<b>' + esc(fmtFull(x.to || a.date)) + '</b> – zložka <a href="#folder/' + a.item + '">' + esc(a.name) + '</a>';
-    t += a.type === 'd' && !['purge', 'trash'].includes(a.action) ? '<a href="#folder/' + a.item + '"><i class="bi bi-folder-fill ic-folder me-1"></i>' + esc(a.name) + '</a>'
-      : a.folder !== undefined && !['purge'].includes(a.action) ? '<a href="' + (a.folder ? '#folder/' + a.folder : '#') + '"><i class="bi bi-file-earmark me-1 text-body-secondary"></i>' + esc(a.name) + '</a>' : '<b>' + esc(a.name) + '</b>';
+    const ic = a.type === 'd' ? '<i class="bi bi-folder-fill ic-folder me-1"></i>' : '<i class="bi bi-file-earmark me-1 text-body-secondary"></i>';
+    t += a.type === 'd' && !['purge', 'trash'].includes(a.action) ? '<a href="#folder/' + a.item + '">' + ic + esc(a.name) + '</a>'
+      : a.action !== 'purge' ? '<a href="' + (a.folder ? '#folder/' + a.folder : '#') + '">' + ic + esc(a.name) + '</a>' : '<b>' + ic + esc(a.name) + '</b>';
     if (a.action === 'rename' && x.from) t += ' <span class="text-body-secondary">(predtým „' + esc(x.from) + '“)</span>';
     if ((a.action === 'share' || a.action === 'unshare') && x.to) t += ' <span class="text-body-secondary">' + (a.action === 'share' ? 's ' : '– ') + esc(x.to) + (x.perm === 'edit' ? ' (úpravy)' : '') + '</span>';
     if ((a.action === 'upload' || a.action === 'update') && x.size) t += ' <span class="text-body-secondary">· ' + formatBytes(x.size) + '</span>';
