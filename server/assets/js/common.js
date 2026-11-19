@@ -223,6 +223,26 @@ window.Cloud = (function () {
     document.querySelectorAll('[data-install]').forEach(b => { b.classList.remove('d-none'); b.onclick = async () => { deferred.prompt(); await deferred.userChoice; deferred = null; b.classList.add('d-none'); }; });
   });
 
+  /* ---------- aplikácia: fotky pri účtoch na prepnutie (aplikácia pozná iba meno a e-mail) ---------- */
+  const avCache = {};
+  async function appAccountAvatars() {
+    const rows = document.querySelectorAll('#accountMenu a[href^="cloudapp://account?"]');
+    for (const a of rows) {
+      const av = a.querySelector('.avatar'); if (!av || av.classList.contains('has-img')) continue;
+      const lines = a.querySelectorAll('.text-truncate');
+      const email = ((lines[lines.length - 1] || {}).textContent || '').split(' · ')[0].trim().toLowerCase();
+      if (!email.includes('@')) continue;
+      if (!(email in avCache)) {
+        avCache[email] = null;
+        const r = await api('api.php?action=user_search', { q: email });
+        const hit = (r.results || []).find(x => (x.email || '').toLowerCase().startsWith(email));
+        avCache[email] = hit && hit.avatar ? hit.avatar : null;
+      }
+      if (avCache[email]) { av.textContent = ''; av.classList.add('has-img'); const im = document.createElement('img'); im.src = avCache[email]; im.alt = ''; av.appendChild(im); }
+    }
+  }
+  document.addEventListener('show.bs.dropdown', (e) => { if (e.target.closest && e.target.closest('.avatar-btn')) appAccountAvatars(); });
+
   /* ---------- odomknutie zložky zamknutej heslom ---------- */
   let unlockOpen = null;
   function unlockFolder(lk) {
