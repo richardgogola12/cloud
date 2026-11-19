@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
               if (nav && !document.querySelector('.side-nav [href^="cloudapp:"]')) {
                 items.forEach(function(i){ nav.appendChild(link(i[0], i[1], i[2], 'nav-link')); });
               }
-              var dd = document.getElementById('accountMenu') || ((document.querySelector('.avatar-btn') || {}).nextElementSibling);
+              var dd = null; // nastavenia aplikácie sú v bočnom menu, menu účtu ostáva rovnaké ako na webe
               if (dd && !dd.querySelector('[href^="cloudapp://sync"]')) {
                 var hr = dd.querySelector('hr');
                 items.forEach(function(i){
@@ -471,6 +471,7 @@ class MainActivity : AppCompatActivity() {
                     "sync" -> startActivity(Intent(this, SyncActivity::class.java))
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
+                    "logout-all" -> confirmLogoutAll()
                     "account" -> { val k = uri.getQueryParameter("k"); b.web.post { prefs.otherAccounts().firstOrNull { it.key == k }?.let { switchAccount(it) } } }
                     "account-add" -> b.web.post { addAccount() }
                     "open", "send", "pdf" -> opener.handle(uri)
@@ -514,6 +515,24 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun confirmLogoutAll() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Odhlásiť všetky účty?")
+            .setMessage("Z aplikácie sa odhlásia všetky účty (${prefs.accounts().size}). Na ďalšie prihlásenie budeš potrebovať e-mail a heslo.")
+            .setPositiveButton("Odhlásiť všetky") { _, _ ->
+                val p = prefs
+                lifecycleScope.launch {
+                    stopAccountWork()
+                    val all = p.accounts()
+                    withContext(Dispatchers.IO) { all.forEach { a -> runCatching { p.activate(a); Api(p).logout() } } }
+                    p.clearAccounts()
+                    goLogin(null, keepToken = false)
+                }
+            }
+            .setNegativeButton("Zrušiť", null)
+            .show()
+    }
+
     private fun logout() {
         val p = prefs
         lifecycleScope.launch {
@@ -552,22 +571,34 @@ class MainActivity : AppCompatActivity() {
         prefs.otherAccounts().forEach { arr.put(org.json.JSONObject().put("k", it.key).put("n", it.name).put("e", it.email).put("s", Uri.parse(it.server).host ?: "")) }
         val ms = prefs.accounts().map { it.server.lowercase() }.distinct().size > 1
         return """(function(acc, ms){
+          function row(a){
+            var l = document.createElement('li');
+            l.innerHTML = '<a class="dropdown-item d-flex align-items-center gap-2"><span class="avatar avatar-sm"></span><span class="min-w-0"><span class="d-block text-truncate"></span><span class="d-block small text-body-secondary text-truncate"></span></span></a>';
+            l.firstChild.href = 'cloudapp://account?k=' + encodeURIComponent(a.k);
+            l.querySelector('.avatar').textContent = (a.n || a.e).charAt(0).toUpperCase();
+            var t = l.querySelectorAll('.text-truncate'); t[1].textContent = a.n || a.e; t[2].textContent = a.e + (ms && a.s ? ' · ' + a.s : '');
+            return l;
+          }
+          var slot = document.getElementById('appAccountsSlot');
+          if (slot) { // server pripravil miesto v menu (rovnaké ako na webe)
+            if (slot.dataset.filled) return; slot.dataset.filled = 1;
+            if (!acc.length) return;
+            slot.classList.remove('d-none');
+            var ref = slot.nextSibling;
+            acc.forEach(function(a){ slot.parentNode.insertBefore(row(a), ref); });
+            var all = document.getElementById('appLogoutAll'); if (all) all.classList.remove('d-none');
+            return;
+          }
           var dd = document.getElementById('accountMenu') || ((document.querySelector('.avatar-btn') || {}).nextElementSibling);
           if (!dd || dd.querySelector('#appAccounts')) return;
           var first = dd.querySelector('li'); if (!first) return;
           function li(h){ var l = document.createElement('li'); l.innerHTML = h; return l; }
           var out = [li('<hr class="dropdown-divider">')]; out[0].id = 'appAccounts';
           if (acc.length) out.push(li('<h6 class="dropdown-header">Prepnúť účet</h6>'));
-          acc.forEach(function(a){
-            var l = li('<a class="dropdown-item d-flex align-items-center gap-2"><span class="avatar avatar-sm"></span><span class="min-w-0"><span class="d-block text-truncate"></span><span class="d-block small text-body-secondary text-truncate"></span></span></a>');
-            l.firstChild.href = 'cloudapp://account?k=' + encodeURIComponent(a.k);
-            l.querySelector('.avatar').textContent = (a.n || a.e).charAt(0).toUpperCase();
-            var t = l.querySelectorAll('.text-truncate'); t[1].textContent = a.n || a.e; t[2].textContent = a.e + (ms && a.s ? ' · ' + a.s : '');
-            out.push(l);
-          });
+          acc.forEach(function(a){ out.push(row(a)); });
           out.push(li('<a class="dropdown-item" href="cloudapp://account-add"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</a>'));
-          var ref = first.nextSibling;
-          out.forEach(function(x){ dd.insertBefore(x, ref); });
+          var r2 = first.nextSibling;
+          out.forEach(function(x){ dd.insertBefore(x, r2); });
         })($arr, $ms);"""
     }
 

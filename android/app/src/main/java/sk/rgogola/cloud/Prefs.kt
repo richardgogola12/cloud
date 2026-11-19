@@ -166,6 +166,7 @@ class Prefs(ctx: Context) {
         p.edit().remove("last_notif_id").remove("share_folder").apply()
     }
 
+    fun clearAccounts() { secure.edit().remove("accounts").apply() }
     fun forgetCurrentAccount() { saveAccounts(accounts().filter { it.key != currentKey }) }
 
     /** heslá zamknutých zložiek pre odomykanie odtlačkom (šifrované, pre každý účet zvlášť) */

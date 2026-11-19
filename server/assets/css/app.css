@@ -467,3 +467,6 @@ a.share-row:hover { background: var(--c-hover); }
 .act-day-row { padding: 14px 8px 4px; border-bottom: 1px solid var(--c-border); margin: 0; }
 .items-list .act-day-row:first-child { padding-top: 4px; }
 .act-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
+/* v aplikácii sú jej nastavenia v bočnom menu – menu účtu je rovnaké ako na webe */
+#accountMenu a[data-nav^="app-"] { display: none !important; }
+#accountMenu li:empty { display: none; }

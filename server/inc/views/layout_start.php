@@ -77,13 +77,18 @@ require __DIR__ . '/head.php';
         <button class="dropdown-item d-flex align-items-center gap-2" title="Prepnúť na <?= e($acc['email']) ?>"><?= avatar_html($acc, 'avatar-sm') ?><span class="min-w-0"><span class="d-block text-truncate"><?= e($acc['name']) ?></span><span class="d-block small text-body-secondary text-truncate"><?= e($acc['email']) ?></span></span></button></form></li>
       <?php endforeach; ?>
       <li><form method="post" action="<?= e(url('switch.php')) ?>"><?= csrf_field() ?><input type="hidden" name="do" value="add"><button class="dropdown-item"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</button></form></li>
+      <?php else: /* v aplikácii rovnaké menu – účty drží aplikácia a doplní ich sem */ ?>
+      <li id="appAccounts"><hr class="dropdown-divider"></li>
+      <li id="appAccountsSlot" class="d-none"><h6 class="dropdown-header">Prepnúť účet</h6></li>
+      <li><a class="dropdown-item" href="cloudapp://account-add"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</a></li>
       <?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="<?= e(url('profile.php')) ?>"><i class="bi bi-person-gear me-2"></i>Môj účet</a></li>
       <?php if ($user['role'] === 'admin'): ?><li><a class="dropdown-item" href="<?= e(url('admin.php')) ?>"><i class="bi bi-shield-lock me-2"></i>Administrácia</a></li><?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <?php if ($inApp): ?>
-      <li><a class="dropdown-item text-danger" href="cloudapp://logout"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť sa z aplikácie</a></li>
+      <li><a class="dropdown-item text-danger" href="cloudapp://logout"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť sa</a></li>
+      <li class="d-none" id="appLogoutAll"><a class="dropdown-item text-danger" href="cloudapp://logout-all"><i class="bi bi-door-open me-2"></i>Odhlásiť všetky účty</a></li>
       <?php else: ?>
       <li><form method="post" action="<?= e(url('logout.php')) ?>"><?= csrf_field() ?><button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť sa</button></form></li>
       <?php if (!empty($others)): ?><li><form method="post" action="<?= e(url('switch.php')) ?>"><?= csrf_field() ?><input type="hidden" name="do" value="logout_all"><button class="dropdown-item text-danger"><i class="bi bi-door-open me-2"></i>Odhlásiť všetky účty</button></form></li><?php endif; ?>

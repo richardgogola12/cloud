@@ -261,9 +261,9 @@ $wv->token = null;
 $r = $wv->get('index.php', ['app' => true]);
 ok($r['code'] === 200 && str_contains($r['body'], 'cloudapp://sync'), 'app: WebView má session a menu aplikácie');
 no_php_errors($r['body'], 'index.php v aplikácii');
-ok(!str_contains($r['body'], 'Pridať ďalší účet') && !str_contains($r['headers'], 'CLOUD_TEST_acc='), 'v Android aplikácii sa prepínanie účtov neponúka');
+ok(!str_contains($r['body'], 'switch.php') && str_contains($r['body'], 'cloudapp://account-add') && str_contains($r['body'], 'id="appAccountsSlot"') && !str_contains($r['headers'], 'CLOUD_TEST_acc='), 'v aplikácii je menu účtu rovnaké ako na webe, účty spravuje aplikácia');
 $r = $wv->get('index.php'); // požiadavka cez service worker nemá v WebView vlastný User-Agent
-ok(!str_contains($r['body'], 'Pridať ďalší účet') && str_contains($r['body'], 'cloudapp://logout') && str_contains($r['body'], 'id="accountMenu"'), 'aplikácia sa rozpozná aj bez User-Agent (cookie)');
+ok(!str_contains($r['body'], 'switch.php') && str_contains($r['body'], 'cloudapp://account-add') && str_contains($r['body'], 'cloudapp://logout') && str_contains($r['body'], 'id="accountMenu"'), 'aplikácia sa rozpozná aj bez User-Agent (cookie)');
 $r = $app->get('app.php?action=notifications&after=0', ['ajax' => true]);
 ok(!empty($r['json']['ok']) && isset($r['json']['last']), 'app: upozornenia', $r['body']);
 $bad = new Client(); $bad->token = str_repeat('a', 64);
