@@ -149,7 +149,7 @@ try {
             $files   = q("SELECT f.*, 0 vcnt FROM $F f WHERE user_id = ? AND trash_root = 1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC", [$uid])->fetchAll();
         } elseif ($view === 'photos') {
             $files = q("SELECT f.*, 0 vcnt FROM $F f WHERE user_id = ? AND deleted_at IS NULL AND (mime LIKE 'image/%' OR mime LIKE 'video/%')
-                        ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 3000", [$uid])->fetchAll();
+                        ORDER BY COALESCE(taken_at, created_at) DESC LIMIT 100000", [$uid])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
         } elseif ($view === 'activity') { // jednotlivé zmeny (kto, čo, kedy) ako riadky zoznamu
@@ -196,7 +196,8 @@ try {
                         ORDER BY COALESCE(f.taken_at, f.created_at) DESC", [$al['id']])->fetchAll();
             foreach ($files as &$f) $f['taken_at'] = $f['taken_at'] ?: $f['created_at'];
             unset($f);
-            $files = array_values(array_filter($files, function ($f) use ($uid) { try { file_access($uid, (int)$f['id']); return true; } catch (Throwable $e) { return false; } }));
+            $files = array_values(array_filter($files, function ($f) use ($uid) { if ((int)$f['user_id'] === $uid) return true; try { file_access($uid, (int)$f['id']); return true; } catch (Throwable $e) { return false; } }));
+            $none = []; filter_locked($none, $files);
             $crumbs = [['id' => (int)$al['id'], 'name' => $al['name']]];
             $root = 'album';
         } elseif ($view === 'tag') {
@@ -418,7 +419,7 @@ try {
         $pending = photo_meta_pending($uid);
         if ($pending) defer_task(fn() => backfill_photo_meta($uid, 60)); // staršie fotky sa doplnia na pozadí
         $rows = q("SELECT f.id, f.name, f.folder_id, f.user_id, f.lat, f.lng, f.updated_at, f.taken_at, f.created_at, f.mime FROM $F f
-                   WHERE f.user_id = ? AND f.deleted_at IS NULL AND f.lat IS NOT NULL ORDER BY COALESCE(f.taken_at, f.created_at) DESC LIMIT 5000", [$uid])->fetchAll();
+                   WHERE f.user_id = ? AND f.deleted_at IS NULL AND f.lat IS NOT NULL ORDER BY COALESCE(f.taken_at, f.created_at) DESC LIMIT 50000", [$uid])->fetchAll();
         $none = [];
         filter_locked($none, $rows);
         json_out(['ok' => true, 'pending' => $pending, 'points' => array_map(fn($r) => [(int)$r['id'], (float)$r['lat'], (float)$r['lng'], $r['name'], $r['taken_at'] ?: $r['created_at'], $r['updated_at']], $rows)]);

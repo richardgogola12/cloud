@@ -1366,6 +1366,7 @@
     let right = '';
     if (isPhotoView() && state.items.some(i => i.type === 'f')) right += '<button class="btn btn-sm btn-light rounded-pill" data-pb="slideshow"><i class="bi bi-play-fill me-1"></i>Prezentácia</button>';
     if (state.view === 'albums') right += '<button class="btn btn-sm btn-primary rounded-pill" data-pb="newalbum"><i class="bi bi-plus-lg me-1"></i>Nový album</button>';
+    if (state.view === 'album') right += '<button class="btn btn-sm btn-primary rounded-pill" data-pb="pick"><i class="bi bi-plus-lg me-1"></i>Pridať fotky</button>';
     if (state.view === 'album') right += '<div class="dropdown d-inline-block"><button class="btn btn-sm btn-light rounded-pill" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end shadow">'
       + '<li><a class="dropdown-item" href="#" data-pb="renamealbum"><i class="bi bi-input-cursor-text me-2"></i>Premenovať album</a></li>'
       + '<li><a class="dropdown-item text-danger" href="#" data-pb="delalbum"><i class="bi bi-trash3 me-2"></i>Zmazať album</a></li></ul></div>';
@@ -1377,7 +1378,8 @@
     const act = b.dataset.pb;
     if (act === 'slideshow') return startSlideshow();
     if (act === 'history') return activityDialog(null);
-    if (act === 'newalbum') { const n = await Cloud.prompt('Nový album', '', 'Vytvoriť', 'Názov albumu'); if (!n) return; const r = await api('api.php?action=album_save', { name: n }); r.ok ? go('#album/' + r.id) : toast(r.error, 'danger'); return; }
+    if (act === 'pick') return pickPhotos(state.albumId);
+    if (act === 'newalbum') { const n = await Cloud.prompt('Nový album', '', 'Vytvoriť', 'Názov albumu'); if (!n) return; const r = await api('api.php?action=album_save', { name: n }); if (!r.ok) return toast(r.error, 'danger'); go('#album/' + r.id); setTimeout(() => pickPhotos(r.id), 400); return; }
     if (act === 'renamealbum') { const n = await Cloud.prompt('Premenovať album', (state.crumbs[0] || {}).name || '', 'Uložiť'); if (!n) return; const r = await api('api.php?action=album_save', { id: state.albumId, name: n }); r.ok ? load(true) : toast(r.error, 'danger'); return; }
     if (act === 'delalbum') { if (!await Cloud.confirm('Zmazať album?', 'Fotky ostanú na disku – zmaže sa iba album.', 'Zmazať')) return; const r = await api('api.php?action=album_delete', { id: state.albumId }); r.ok ? (toast('Album zmazaný', 'success'), go('#albums')) : toast(r.error, 'danger'); }
   });
@@ -1443,7 +1445,14 @@
     const items = r.points.map(p => ({ type: 'f', id: p[0], name: p[3], taken: p[4], updated: p[5], mime: 'image/jpeg', thumb: true, size: 0, lat: p[1], lng: p[2] }));
     state.items = items;
     const map = L.map('photoMap', { worldCopyJump: true }).setView([48.7, 19.5], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+    // OpenStreetMap vyžaduje adresu stránky (Referer) – stránka ju inak neposiela; pri odmietnutí sa prepne na CARTO
+    let tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '&copy; OpenStreetMap' }).addTo(map);
+    let tileErr = 0;
+    tiles.on('tileerror', () => {
+      if (++tileErr !== 3) return;
+      map.removeLayer(tiles);
+      tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+    });
     const thumb = (it) => base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '');
     const cl = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50,
       iconCreateFunction: (c) => { const first = c.getAllChildMarkers()[0].options.item; return L.divIcon({ className: 'map-pin', html: '<img src="' + thumb(first) + '" alt=""><b>' + c.getChildCount() + '</b>', iconSize: [52, 52] }); } });
@@ -1483,6 +1492,50 @@
       m.hide(); state.sel.clear(); render();
       toast('Pridané do albumu „' + x.name + '“', 'success');
     });
+    el.addEventListener('hidden.bs.modal', () => el.remove());
+    m.show();
+  }
+  /** výber fotiek do albumu (ako v Google Fotkách) */
+  async function pickPhotos(albumId) {
+    const id = 'pp' + Date.now();
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down"><div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title me-auto"><i class="bi bi-images me-2"></i>Pridať fotky do albumu</h5><span class="small text-body-secondary me-3" data-cnt>Nič nevybraté</span>
+        <button class="btn btn-primary rounded-pill px-4 me-2" data-add disabled>Pridať</button><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="pick-grid" data-grid><div class="text-center py-5 w-100"><div class="spinner-border text-primary"></div></div></div></div></div></div></div>`);
+    const el = document.getElementById(id), grid = el.querySelector('[data-grid]'), cnt = el.querySelector('[data-cnt]'), add = el.querySelector('[data-add]');
+    const m = new bootstrap.Modal(el), sel = new Set();
+    const r = await api('api.php?action=list', { view: 'photos', limit: 100000 });
+    const inAlbum = new Set(state.view === 'album' && state.albumId === albumId ? state.items.map(i => i.id) : []);
+    const photos = (r.items || []).filter(i => i.type === 'f' && !inAlbum.has(i.id));
+    if (!photos.length) grid.innerHTML = '<div class="text-center text-body-secondary py-5 w-100">Žiadne ďalšie fotky na pridanie.</div>';
+    else {
+      let shown = 0;
+      const more = () => {
+        const chunk = photos.slice(shown, shown + 300); shown += chunk.length;
+        grid.querySelector('.pick-more')?.remove();
+        grid.insertAdjacentHTML('beforeend', chunk.map(p => '<button type="button" class="pick-item" data-id="' + p.id + '" title="' + esc(p.name) + '"><img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + p.id + '&v=' + encodeURIComponent(p.updated || '') + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+          + (/^video\//.test(p.mime || '') ? '<i class="bi bi-play-circle-fill pick-video"></i>' : '') + '<i class="bi bi-check-circle-fill pick-check"></i></button>').join(''));
+        if (shown < photos.length) grid.insertAdjacentHTML('beforeend', '<div class="pick-more w-100 text-center py-3"><button type="button" class="btn btn-light rounded-pill">Načítať ďalšie</button></div>');
+      };
+      grid.innerHTML = ''; more();
+      grid.addEventListener('click', (e) => {
+        if (e.target.closest('.pick-more')) return more();
+        const b = e.target.closest('.pick-item'); if (!b) return;
+        const pid = +b.dataset.id;
+        sel.has(pid) ? sel.delete(pid) : sel.add(pid);
+        b.classList.toggle('on', sel.has(pid));
+        cnt.textContent = sel.size ? 'Vybraté: ' + sel.size : 'Nič nevybraté';
+        add.disabled = !sel.size;
+      });
+    }
+    add.onclick = async () => {
+      add.disabled = true;
+      const x = await api('api.php?action=album_add', { album: albumId, items: [...sel].map(i => 'f:' + i) });
+      if (!x.ok) { add.disabled = false; return toast(x.error, 'danger'); }
+      m.hide();
+      toast('Pridané do albumu „' + x.name + '“: ' + x.added, 'success');
+      if (state.view === 'album') load(true);
+    };
     el.addEventListener('hidden.bs.modal', () => el.remove());
     m.show();
   }

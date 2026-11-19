@@ -472,3 +472,11 @@ a.share-row:hover { background: var(--c-hover); }
 #accountMenu li:empty { display: none; }
 /* staršia aplikácia (do 1.0.24) vkladá vlastný blok účtov – serverové položky vtedy skryť, nech nie sú dvakrát */
 #appAccounts ~ #appAccHr, #appAccounts ~ #appAccountsSlot, #appAccounts ~ #appAccountsSlot + li { display: none !important; }
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px; }
+.pick-item { position: relative; aspect-ratio: 1; border: 0; padding: 0; background: var(--c-hover); border-radius: 6px; overflow: hidden; transition: transform .12s; }
+.pick-item img { width: 100%; height: 100%; object-fit: cover; }
+.pick-item .pick-check { position: absolute; top: 6px; left: 6px; font-size: 1.3rem; color: #fff; opacity: 0; text-shadow: 0 0 3px rgba(0,0,0,.5); }
+.pick-item .pick-video { position: absolute; right: 6px; bottom: 4px; color: #fff; text-shadow: 0 0 3px rgba(0,0,0,.6); }
+.pick-item.on { transform: scale(.88); border-radius: 10px; }
+.pick-item.on .pick-check { opacity: 1; color: var(--bs-primary); background: #fff; border-radius: 50%; line-height: 1; }
+.pick-more { grid-column: 1 / -1; }
