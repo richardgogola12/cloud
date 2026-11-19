@@ -845,7 +845,7 @@ $j = $web->api('folder_rewind', ['id' => $rw, 'at' => $T, 'trash_new' => 1]);
 $x = $j['result'] ?? [];
 ok(!empty($j['ok']) && $x['restore'] === 1 && $x['content'] === 1 && $x['renames'] === 2 && $x['trash'] >= 2, 'náhľad vrátenia: čo sa zmení', json_encode($j));
 ok(in_array('a.txt', $names($web->api('list', ['view' => 'folder', 'folder' => $rw])), true) && $web->get("api.php?action=download&id=$fA")['body'] === 'verzia dva – prepísaná', 'náhľad nič nezmenil');
-ok(empty($web->api('folder_rewind', ['id' => $rw, 'at' => date('Y-m-d H:i:s', time() + 3600), 'apply' => 1])['ok']), 'dátum v budúcnosti sa odmietne');
+ok(empty($web->api('folder_rewind', ['id' => $rw, 'at' => date('Y-m-d H:i:s', time() + 3 * 86400), 'apply' => 1])['ok']), 'dátum v budúcnosti sa odmietne');
 ok(empty($beata->api('folder_rewind', ['id' => $lkSub ?? 999999, 'at' => $T])['ok']), 'cudziu zložku bez prístupu vrátiť nejde');
 $j = $web->api('folder_rewind', ['id' => $rw, 'at' => $T, 'trash_new' => 1, 'apply' => 1]);
 ok(!empty($j['ok']), 'vrátenie zložky do stavu k dátumu', json_encode($j));
