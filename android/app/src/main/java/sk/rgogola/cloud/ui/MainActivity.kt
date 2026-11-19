@@ -165,6 +165,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!prefs.loggedIn) { goLogin(null); return }
+        prefs.rememberCurrent()
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
         applySystemInsets(b.root)
@@ -311,6 +312,7 @@ class MainActivity : AppCompatActivity() {
                 if (Uri.parse(url).host == Uri.parse(prefs.server).host) {
                     view.evaluateJavascript("window.__cloudBgUpload = ${prefs.bgUpload};", null)
                     view.evaluateJavascript(INJECT_JS, null)
+                    view.evaluateJavascript(accountsJs(), null)
                     view.evaluateJavascript(WATCH_JS, null)
                 }
                 if (Uri.parse(url).path?.endsWith("/login.php") == true) relogin()
@@ -428,6 +430,8 @@ class MainActivity : AppCompatActivity() {
                     "sync" -> startActivity(Intent(this, SyncActivity::class.java))
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
+                    "account" -> prefs.otherAccounts().firstOrNull { it.key == uri.getQueryParameter("k") }?.let { switchAccount(it) }
+                    "account-add" -> addAccount()
                     "open", "send", "pdf" -> opener.handle(uri)
                     "background" -> startActivity(Intent(this, BackgroundActivity::class.java))
                     "server" -> serverLauncher.launch(Intent(this, ServerActivity::class.java))
@@ -473,8 +477,91 @@ class MainActivity : AppCompatActivity() {
         val p = prefs
         lifecycleScope.launch {
             withContext(Dispatchers.IO) { Api(p).logout() }
-            goLogin(null, keepToken = false)
+            val next = p.otherAccounts().firstOrNull()
+            if (next == null) { goLogin(null, keepToken = false); return@launch }
+            // v aplikácii ostal ďalší účet → prepni naň namiesto prihlasovacej obrazovky
+            stopAccountWork()
+            p.logout()
+            p.activate(next)
+            afterAccountChange("Prihlásený ako ${next.email}")
         }
+    }
+
+    /* ---------- viac účtov ---------- */
+    private fun accountsJs(): String {
+        val arr = org.json.JSONArray()
+        prefs.otherAccounts().forEach { arr.put(org.json.JSONObject().put("k", it.key).put("n", it.name).put("e", it.email).put("s", Uri.parse(it.server).host ?: "")) }
+        val ms = prefs.accounts().map { it.server.lowercase() }.distinct().size > 1
+        return """(function(acc, ms){
+          var dd = document.querySelector('.app-topbar .dropdown-menu');
+          if (!dd || dd.querySelector('#appAccounts')) return;
+          var first = dd.querySelector('li'); if (!first) return;
+          function li(h){ var l = document.createElement('li'); l.innerHTML = h; return l; }
+          var out = [li('<hr class="dropdown-divider">')]; out[0].id = 'appAccounts';
+          if (acc.length) out.push(li('<h6 class="dropdown-header">Prepnúť účet</h6>'));
+          acc.forEach(function(a){
+            var l = li('<a class="dropdown-item d-flex align-items-center gap-2"><span class="avatar avatar-sm"></span><span class="min-w-0"><span class="d-block text-truncate"></span><span class="d-block small text-body-secondary text-truncate"></span></span></a>');
+            l.firstChild.href = 'cloudapp://account?k=' + encodeURIComponent(a.k);
+            l.querySelector('.avatar').textContent = (a.n || a.e).charAt(0).toUpperCase();
+            var t = l.querySelectorAll('.text-truncate'); t[1].textContent = a.n || a.e; t[2].textContent = a.e + (ms && a.s ? ' · ' + a.s : '');
+            out.push(l);
+          });
+          out.push(li('<a class="dropdown-item" href="cloudapp://account-add"><i class="bi bi-person-plus me-2"></i>Pridať ďalší účet</a>'));
+          var ref = first.nextSibling;
+          out.forEach(function(x){ dd.insertBefore(x, ref); });
+        })($arr, $ms);"""
+    }
+
+    /** Zastaví synchronizáciu a nahrávanie aktuálneho účtu (pred prepnutím). */
+    private fun stopAccountWork() {
+        SyncService.stop(this)
+        if (sk.rgogola.cloud.sync.UploadQueue.size(this) > 0 || UploadService.running) {
+            sk.rgogola.cloud.sync.UploadQueue.clear(this)
+            try { startService(Intent(this, UploadService::class.java).setAction(UploadService.ACTION_CANCEL)) } catch (_: Exception) {}
+        }
+    }
+
+    private fun afterAccountChange(msg: String) {
+        b.lockName.text = prefs.userName.ifBlank { "Cloud" }
+        CookieManager.getInstance().removeAllCookies {
+            runOnUiThread { b.web.clearHistory(); loadWeb() ; b.web.postDelayed({ b.web.clearHistory() }, 1500) }
+        }
+        CloudApp.kick(applicationContext)
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Ak beží nahrávanie, opýta sa pred prepnutím účtu. */
+    private fun confirmStopUploads(action: () -> Unit) {
+        val n = sk.rgogola.cloud.sync.UploadQueue.size(this)
+        if (n == 0 && !UploadService.running) { action(); return }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Prebieha nahrávanie")
+            .setMessage("Do účtu ${prefs.userEmail} sa ešte nahráva" + (if (n > 0) " ($n v poradí)" else "") + ". Prepnutím účtu sa nahrávanie zruší.")
+            .setPositiveButton("Prepnúť a zrušiť") { _, _ -> action() }
+            .setNegativeButton("Počkať", null)
+            .show()
+    }
+
+    private fun switchAccount(a: sk.rgogola.cloud.Prefs.Account) = confirmStopUploads {
+        lifecycleScope.launch {
+            val old = prefs.accounts().firstOrNull { it.key == prefs.currentKey }
+            stopAccountWork()
+            prefs.activate(a)
+            // overí, či uložené prihlásenie ešte platí
+            val ok = withContext(Dispatchers.IO) { runCatching { Api(prefs).me(); true }.getOrElse { e -> !(e is sk.rgogola.cloud.net.ApiException && e.code == 401) } }
+            if (!ok) {
+                prefs.forgetCurrentAccount()
+                old?.let { prefs.activate(it) }
+                afterAccountChange("Prihlásenie do ${a.email} vypršalo – pridaj účet znova.")
+                return@launch
+            }
+            afterAccountChange("Prepnuté na ${a.email}")
+        }
+    }
+
+    private fun addAccount() = confirmStopUploads {
+        prefs.rememberCurrent()
+        startActivity(Intent(this, LoginActivity::class.java).putExtra(LoginActivity.EXTRA_ADD, true))
     }
 
     private fun goLogin(message: String?, keepToken: Boolean = true) {

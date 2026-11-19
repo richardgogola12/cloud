@@ -18,8 +18,12 @@ import sk.rgogola.cloud.net.Api
 
 /** Prihlásenie e-mailom a heslom (rovnaké ako na webe); potom voliteľne odtlačok prsta. */
 class LoginActivity : AppCompatActivity() {
+    companion object { const val EXTRA_ADD = "add_account" }
     private lateinit var b: ActivityLoginBinding
     private val prefs by lazy { Prefs(this) }
+    private val addMode by lazy { intent.getBooleanExtra(EXTRA_ADD, false) && prefs.loggedIn }
+    private var origServer = ""
+    private var done = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,9 +31,17 @@ class LoginActivity : AppCompatActivity() {
         setContentView(b.root)
         applySystemInsets(b.root)
 
+        origServer = prefs.server
         b.server.setText(prefs.server)
-        b.email.setText(prefs.userEmail.ifBlank { intent.getStringExtra("email") ?: "" })
+        b.email.setText(if (addMode) "" else prefs.userEmail.ifBlank { intent.getStringExtra("email") ?: "" })
         intent.getStringExtra("message")?.let { showError(it) }
+        if (addMode) {
+            b.addInfo.visibility = View.VISIBLE
+            b.addInfo.text = "Pridanie ďalšieho účtu. Účet ${prefs.userEmail} ostane uložený – prepneš sa naň v menu pod avatarom."
+            b.addCancel.visibility = View.VISIBLE
+            b.addCancel.setOnClickListener { finish() }
+            b.email.requestFocus()
+        }
 
         b.serverBtn.setOnClickListener {
             prefs.server = serverUrl().ifBlank { prefs.server }
@@ -80,13 +92,22 @@ class LoginActivity : AppCompatActivity() {
                 })
             }
             res.onSuccess { j ->
-                if (prefs.server != server) prefs.serverHistory = listOf(server, prefs.server) + prefs.serverHistory
-                prefs.server = server
-                prefs.token = j.getString("token")
                 val u = j.getJSONObject("user")
-                prefs.userName = u.optString("name")
-                prefs.userEmail = u.optString("email")
-                prefs.authError = false
+                // predchádzajúci účet ostane v zozname, jeho synchronizácia a nahrávanie sa zastavia
+                if (addMode) prefs.server = origServer
+                prefs.rememberCurrent()
+                if (prefs.loggedIn) {
+                    sk.rgogola.cloud.sync.SyncService.stop(this@LoginActivity)
+                    if (sk.rgogola.cloud.sync.UploadQueue.size(this@LoginActivity) > 0) {
+                        sk.rgogola.cloud.sync.UploadQueue.clear(this@LoginActivity)
+                        try { startService(Intent(this@LoginActivity, sk.rgogola.cloud.sync.UploadService::class.java).setAction(sk.rgogola.cloud.sync.UploadService.ACTION_CANCEL)) } catch (_: Exception) {}
+                    }
+                }
+                if (prefs.server != server) prefs.serverHistory = listOf(server, prefs.server) + prefs.serverHistory
+                prefs.activate(Prefs.Account(server, j.getString("token"), u.optString("name"), u.optString("email")))
+                prefs.rememberCurrent()
+                done = true
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
                 CloudApp.kick(applicationContext)
                 offerBiometric()
             }
@@ -104,6 +125,12 @@ class LoginActivity : AppCompatActivity() {
             .setNegativeButton("Teraz nie") { _, _ -> goMain() }
             .setCancelable(false)
             .show()
+    }
+
+    override fun onDestroy() {
+        // zrušené pridávanie účtu: aktuálny účet ostáva na pôvodnom serveri
+        if (addMode && !done && isFinishing) prefs.server = origServer
+        super.onDestroy()
     }
 
     private fun goMain() {

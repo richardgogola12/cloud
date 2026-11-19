@@ -116,7 +116,67 @@ class Prefs(ctx: Context) {
     val loggedIn get() = !token.isNullOrBlank()
 
     fun logout() {
+        forgetCurrentAccount()
         secure.edit().remove("token").apply()
-        p.edit().remove("user_name").remove("user_email").remove("last_notif_id").putBoolean("biometric", false).apply()
+        p.edit().remove("user_name").remove("user_email").remove("last_notif_id").apply()
+        if (accounts().isEmpty()) biometric = false
+    }
+
+    /* ---------- viac účtov v aplikácii ---------- */
+    data class Account(val server: String, val token: String, val name: String, val email: String) {
+        val key: String get() = keyOf(server, email)
+    }
+
+    /** Všetky účty prihlásené v aplikácii (vrátane aktuálneho). Tokeny sú v šifrovanom úložisku. */
+    fun accounts(): List<Account> = try {
+        val a = org.json.JSONArray(secure.getString("accounts", "[]"))
+        (0 until a.length()).map { i -> a.getJSONObject(i).let { Account(it.getString("server"), it.getString("token"), it.optString("name"), it.optString("email")) } }
+    } catch (e: Exception) { emptyList() }
+
+    private fun saveAccounts(l: List<Account>) {
+        val a = org.json.JSONArray()
+        l.distinctBy { it.key }.take(8).forEach { a.put(org.json.JSONObject().put("server", it.server).put("token", it.token).put("name", it.name).put("email", it.email)) }
+        secure.edit().putString("accounts", a.toString()).apply()
+    }
+
+    val currentKey: String get() = keyOf(server, userEmail)
+
+    /** Uloží aktuálny účet do zoznamu (alebo obnoví jeho údaje). */
+    fun rememberCurrent() {
+        val t = token ?: return
+        if (userEmail.isBlank()) return
+        if (syncOwner.isBlank()) syncOwner = currentKey
+        val cur = Account(server, t, userName, userEmail)
+        val l = accounts().toMutableList()
+        val i = l.indexOfFirst { it.key == cur.key }
+        if (i >= 0) l[i] = cur else l.add(cur)
+        saveAccounts(l)
+    }
+
+    fun otherAccounts(): List<Account> = accounts().filter { it.key != currentKey }
+
+    /** Prepne aplikáciu na iný uložený účet. */
+    fun activate(a: Account) {
+        rememberCurrent()
+        server = a.server
+        token = a.token
+        userName = a.name
+        userEmail = a.email
+        authError = false
+        p.edit().remove("last_notif_id").remove("share_folder").apply()
+    }
+
+    fun forgetCurrentAccount() { saveAccounts(accounts().filter { it.key != currentKey }) }
+
+    /** Účet, ktorému patrí pôvodná databáza synchronizácie (sync.db) – ostatné účty majú vlastnú. */
+    var syncOwner: String
+        get() = p.getString("sync_owner", "") ?: ""
+        set(v) = p.edit().putString("sync_owner", v).apply()
+
+    companion object {
+        fun keyOf(server: String, email: String): String {
+            val md = java.security.MessageDigest.getInstance("SHA-256").digest((server.trim().trimEnd('/').lowercase() + "|" + email.trim().lowercase()).toByteArray())
+            return md.take(6).joinToString("") { "%02x".format(it) }
+        }
     }
 }

@@ -22,11 +22,25 @@ data class PairStats(val done: Int, val pending: Int, val errors: Int, val skipp
 data class LogEntry(val ts: Long, val msg: String, val ok: Boolean)
 
 /** Lokálna databáza: páry zložiek (telefón → cloud) a stav nahratých súborov. */
-class SyncDb private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "sync.db", null, 1) {
+class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(ctx.applicationContext, name, null, 1) {
 
     companion object {
         @Volatile private var inst: SyncDb? = null
-        fun get(ctx: Context): SyncDb = inst ?: synchronized(this) { inst ?: SyncDb(ctx).also { inst = it } }
+        @Volatile private var instName: String? = null
+        /** každý účet v aplikácii má vlastné páry zložiek a stav synchronizácie */
+        private fun nameFor(ctx: Context): String {
+            val p = sk.rgogola.cloud.Prefs(ctx)
+            val key = p.currentKey
+            if (p.syncOwner.isBlank() && p.userEmail.isNotBlank()) p.syncOwner = key
+            return if (p.syncOwner.isBlank() || key == p.syncOwner) "sync.db" else "sync_$key.db"
+        }
+        fun get(ctx: Context): SyncDb {
+            val n = nameFor(ctx)
+            inst?.let { if (instName == n) return it }
+            return synchronized(this) {
+                inst?.takeIf { instName == n } ?: SyncDb(ctx, n).also { inst = it; instName = n }
+            }
+        }
         const val ST_PENDING = 0
         const val ST_DONE = 1
         const val ST_ERROR = 2
