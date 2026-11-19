@@ -65,11 +65,11 @@ require __DIR__ . '/inc/views/layout_start.php';
   <button class="btn btn-icon text-danger" data-sel="delete" data-not="trash" data-perm="edit" title="Do koša"><i class="bi bi-trash3"></i></button>
 </div>
 
+<div class="photo-bar d-none" id="photoBar"></div>
 <div id="listHeader" class="list-header d-none">
   <div class="c-check"><input type="checkbox" class="form-check-input" id="checkAll"></div>
   <div class="c-name sortable" data-sort-col="name">Názov</div><div class="c-cols" id="headCols"></div><div class="c-act"></div>
 </div>
-<div class="photo-bar d-none" id="photoBar"></div>
 <div id="items" class="items"></div>
 <div id="empty" class="empty-state d-none">
   <div class="empty-icon"><i class="bi bi-cloud-arrow-up"></i></div>
