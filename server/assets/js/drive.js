@@ -66,22 +66,65 @@
       + n(8).map(() => '<div class="file-card sk-card"><div class="d-flex align-items-center gap-2 p-2"><span class="sk-icon thumb-loading"></span><span class="sk-line thumb-loading flex-grow-1"></span></div><div class="file-thumb thumb-loading"></div></div>').join('') + '</div>';
     else box.innerHTML = n(10).map(() => '<div class="sk-row"><span class="sk-icon thumb-loading"></span><span class="sk-line thumb-loading" style="width:' + (35 + Math.round(Math.random() * 35)) + '%"></span></div>').join('');
   }
-  async function load(keepSel) {
-    const skT = keepSel ? null : setTimeout(() => { $('#loading').classList.add('d-none'); skeleton(); }, 120);
-    if (keepSel) $('#loading').classList.remove('d-none');
+  /* ---------------- cache zoznamov: zložka sa ukáže hneď z pamäte a potichu sa overí na serveri ---------------- */
+  const LC_KEY = 'cloud-lc-' + (window.CLOUD_UID || 0), LC_PERSIST = ['folder', 'recent', 'starred', 'photos', 'shared', 'byme', 'tag'];
+  const lcMem = new Map();
+  try { Object.entries(JSON.parse(localStorage.getItem(LC_KEY) || '{}')).forEach(([k, v]) => lcMem.set(k, v)); } catch (e) {}
+  const lcKey = (p) => p.view === 'search' || p.view === 'dupes' ? null : [p.view, p.folder || 0, p.view === 'tag' ? p.tag : 0, p.sort, p.dir].join('|');
+  let lcT;
+  function lcPut(k, r) {
+    if (!k) return;
+    lcMem.delete(k);
+    lcMem.set(k, { t: Date.now(), r: { items: r.items, crumbs: r.crumbs, perm: r.perm, root: r.root, trash_days: r.trash_days, nohash: r.nohash, total: r.total, quota: r.quota } });
+    while (lcMem.size > 60) lcMem.delete(lcMem.keys().next().value);
+    clearTimeout(lcT);
+    lcT = setTimeout(() => { // do prehliadača sa uloží iba posledných 25 zoznamov (bez názvov sa nič neukáže, kým sa neoverí)
+      const o = {};
+      [...lcMem.entries()].filter(([k]) => LC_PERSIST.includes(k.split('|')[0])).slice(-25).forEach(([k, v]) => { o[k] = { t: v.t, r: Object.assign({}, v.r, { items: v.r.items.slice(0, 150), total: Math.max(v.r.total || 0, v.r.items.length) }) }; });
+      try { localStorage.setItem(LC_KEY, JSON.stringify(o)); } catch (e) { try { localStorage.removeItem(LC_KEY); } catch (e2) {} }
+    }, 800);
+  }
+  const lcSame = (a, b) => a.items.length === b.items.length && (a.total || 0) === (b.total || 0) && JSON.stringify([a.items, a.crumbs, a.perm]) === JSON.stringify([b.items, b.crumbs, b.perm]);
+  function listParams() {
     const params = { view: state.view, folder: state.folder || 0, q: state.q, tag: state.tagId || 0, sort: state.sort, dir: state.dir };
     if (state.view === 'search') { Object.assign(params, searchParams(state.sf || {})); params.folder = 0; }
+    return params;
+  }
+  function applyList(r, keepSel) {
+    Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
+    if (!keepSel) state.limit = 300;
+    if (!keepSel) state.sel.clear(); else if (!state.partial) state.sel = new Set([...state.sel].filter(byKey));
+    render(); if (r.quota) updateQuota(r.quota);
+  }
+  // prednačítanie zložky, keď na ňu ukážeš myšou / položíš prst
+  const pfBusy = new Set();
+  async function prefetchFolder(id) {
+    const p = { view: 'folder', folder: id, q: '', tag: 0, sort: state.sort, dir: state.dir };
+    const k = lcKey(p), c = lcMem.get(k);
+    if (pfBusy.has(k) || (c && Date.now() - c.t < 30000) || pfBusy.size > 1) return;
+    pfBusy.add(k);
+    try { const r = await api('api.php?action=list', Object.assign({ limit: 250 }, p)); if (r.ok) lcPut(k, r); } finally { pfBusy.delete(k); }
+  }
+
+  async function load(keepSel) {
+    const params = listParams(), ck = lcKey(params);
+    const cached = !keepSel && ck ? lcMem.get(ck) : null;
     const ticket = state.loadTicket = (state.loadTicket || 0) + 1;
+    let skT = null;
+    if (cached) applyList(cached.r, false); // okamžite z pamäte
+    else {
+      skT = keepSel ? null : setTimeout(() => { $('#loading').classList.add('d-none'); skeleton(); }, 120);
+      if (keepSel) $('#loading').classList.remove('d-none');
+    }
     // najprv prvých 250 položiek → zoznam je hneď na obrazovke, zvyšok sa dotiahne na pozadí
     const r = await api('api.php?action=list', Object.assign({ limit: 250 }, params));
     if (ticket !== state.loadTicket) return; // medzitým sa otvorila iná zložka
     clearTimeout(skT);
     $('#loading').classList.add('d-none');
-    if (!r.ok) { toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
-    Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
-    if (!keepSel) state.limit = 300;
-    if (!keepSel) state.sel.clear(); else if (!state.partial) state.sel = new Set([...state.sel].filter(byKey));
-    render(); updateQuota(r.quota);
+    if (!r.ok) { lcMem.delete(ck); toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
+    lcPut(ck, r);
+    if (cached && lcSame(cached.r, r)) { if (r.quota) updateQuota(r.quota); }
+    else applyList(r, keepSel || !!cached);
     // duplicity: kým server dopočítava kontrolné súčty, obnoviť o chvíľu
     clearTimeout(state.dupT);
     if (state.view === 'dupes' && r.nohash) state.dupT = setTimeout(() => { if (state.view === 'dupes') load(true); }, 15000);
@@ -90,7 +133,7 @@
       if (ticket !== state.loadTicket || !rest.ok) return;
       state.items = state.items.concat(rest.items);
       state.partial = false;
-      if (keepSel) state.sel = new Set([...state.sel].filter(byKey));
+      if (keepSel || cached) state.sel = new Set([...state.sel].filter(byKey));
       render();
     }
   }
@@ -1094,6 +1137,16 @@
   /* ---------------- udalosti v zozname ---------------- */
   const itemsBox = $('#items');
   let lpTimer = null, lpFired = false;
+  let pfT;
+  const pfStart = (e) => {
+    const el = e.target.closest('.item[data-key^="d:"]');
+    if (!el || state.view === 'trash') return;
+    clearTimeout(pfT);
+    pfT = setTimeout(() => prefetchFolder(+el.dataset.key.slice(2)), e.type === 'touchstart' ? 0 : 120);
+  };
+  itemsBox.addEventListener('pointerover', pfStart);
+  itemsBox.addEventListener('touchstart', pfStart, { passive: true });
+  itemsBox.addEventListener('pointerout', () => clearTimeout(pfT));
   itemsBox.addEventListener('click', (e) => {
     const el = e.target.closest('.item'); if (!el) return;
     const k = el.dataset.key, it = byKey(k);

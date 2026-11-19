@@ -40,6 +40,15 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-2b-cesta-3-urovne.png` });
   await page.goto(base + 'index.php#'); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-3-moj-disk.png` });
+  // cache zoznamov: po obnovení stránky sa zložka ukáže skôr, než odpovie server
+  await page.waitForTimeout(1000);
+  const nItems = await page.locator('#items .item').count();
+  await page.route('**/api.php?action=list*', async (route) => { await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
+  await page.reload(); await page.waitForTimeout(900);
+  const early = await page.locator('#items .item').count();
+  console.log(`[${name}] cache zoznamu: ${early}/${nItems} položiek pred odpoveďou servera`);
+  if (nItems > 0 && early < 1) { console.log('CHYBA: zoznam sa neukázal z cache'); process.exitCode = 1; }
+  await page.unroute('**/api.php?action=list*'); await page.waitForTimeout(2500);
   // vyhľadávanie: návrhy, výsledky s čipmi filtrov, rozšírené vyhľadávanie
   await page.click('#searchInput'); await page.waitForTimeout(500);
   await page.screenshot({ path: `screens/${name}-12-hladanie-prazdne.png` });

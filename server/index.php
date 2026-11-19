@@ -303,6 +303,7 @@ require __DIR__ . '/inc/views/layout_start.php';
 </div>
 <script>
   // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
+  window.CLOUD_UID = <?= (int)$user['id'] ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <?php require __DIR__ . '/inc/views/layout_end.php'; ?>
