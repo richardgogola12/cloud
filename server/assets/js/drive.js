@@ -409,7 +409,7 @@
     if (state.view === 'trash') return 'zmazané ' + fmtDate(it.deleted);
     if (state.view === 'byme' && it.share_info) return shareSummary(it);
     if (state.view === 'dupes' && it.dup) return it.dup.path;
-    if (state.view === 'activity' && it.act) return it.act.actor + ' · ' + it.act.label.replace(/\(a\)$/, '') + ' · ' + fmtDate(it.act.date);
+    if (state.view === 'activity' && it.act) return it.act.actor + ' · ' + it.act.label.replace(/\(a\)/g, '') + ' · ' + fmtDate(it.act.date);
     if (it.owner) return it.owner;
     return fmtDate(it.updated);
   }
@@ -465,7 +465,7 @@
       case 'activity': {
         if (!it.act) return null;
         const x = it.act.extra || {};
-        let t = it.act.label.replace(/\(a\)$/, '');
+        let t = it.act.label.replace(/\(a\)/g, '');
         if (it.act.action === 'rename' && x.from) t += ' (z „' + x.from + '“)';
         if ((it.act.action === 'share' || it.act.action === 'unshare') && x.to) t += ' – ' + x.to + (x.perm === 'edit' ? ' (úpravy)' : '');
         if (it.act.action === 'rewind' && x.to) t += ' ' + fmtFull(x.to);
