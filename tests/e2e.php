@@ -860,14 +860,18 @@ ok(count($j['versions'] ?? []) >= 2, 'prepísaný obsah ostal ako staršia verzi
 ok(($web->api('activity', ['type' => 'd', 'id' => $rw])['items'][0]['action'] ?? '') === 'rewind', 'vrátenie je v aktivite');
 $j = $web->api('list', ['view' => 'activity']);
 $first = $j['items'][0] ?? null;
-ok(!empty($j['ok']) && $first && !empty($first['act']['label']) && !empty($first['act']['date']), 'zobrazenie Aktivita ako zoznam položiek s poslednou zmenou', json_encode($first));
-$byName = array_column($j['items'] ?? [], null, 'name');
-ok(($byName['a.txt']['act']['action'] ?? '') === 'version' && ($byName['a.txt']['act']['actor'] ?? '') === 'Ty', 'pri položke je posledná zmena a kto ju urobil', json_encode($byName['a.txt'] ?? null));
-ok(!isset($byName['novy.txt']), 'položky v koši sa v Aktivite neukazujú');
-$dates = array_map(fn($i) => $i['act']['date'], array_values(array_filter($j['items'], fn($i) => $i['type'] === 'f')));
+ok(!empty($j['ok']) && $first && !empty($first['act']['label']) && !empty($first['act']['date']), 'Aktivita ako zoznam zmien (riadok = jedna zmena)', json_encode($first));
+$firstOf = function (string $name) use ($j) { foreach ($j['items'] ?? [] as $i) if ($i['name'] === $name) return $i; return null; };
+$aRow = $firstOf('a.txt');
+ok(($aRow['act']['action'] ?? '') === 'version' && ($aRow['act']['actor'] ?? '') === 'Ty' && ($aRow['type'] ?? '') === 'f' && !empty($aRow['id']), 'riadok zmeny je zároveň súbor (dá sa otvoriť, ⋮ menu)', json_encode($aRow));
+ok(count(array_filter($j['items'] ?? [], fn($i) => $i['name'] === 'a.txt')) >= 3, 'jeden súbor môže mať viac riadkov (každá zmena zvlášť)');
+$nRow = $firstOf('novy.txt');
+ok($nRow && !empty($nRow['deleted']), 'zmeny položiek v koši sú označené ako zmazané', json_encode($nRow));
+$dates = array_map(fn($i) => $i['act']['date'], $j['items'] ?? []);
 $sorted = $dates; rsort($sorted);
 ok($dates === $sorted, 'zoradené od najnovšej zmeny');
-ok(isset($j['items'][0]['path']) || isset($j['items'][1]['path']), 'pri položkách je umiestnenie');
+$ren = null; foreach ($j['items'] ?? [] as $i) if (($i['act']['action'] ?? '') === 'rename') { $ren = $i; break; }
+ok(($ren['act']['extra']['from'] ?? '') === 'b.txt', 'pri premenovaní je pôvodný názov', json_encode($ren));
 $r = $web->get('index.php');
 ok(str_contains($r['body'], 'data-ctx="rewind"') && str_contains($r['body'], 'data-ctx="activity"') && str_contains($r['body'], 'index.php#activity'), 'v menu je Aktivita a Vrátiť do stavu');
 $web->api('delete', ['items' => ["d:$rw"]]);

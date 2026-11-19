@@ -207,7 +207,7 @@ function valid_color(?string $c): ?string { return $c !== null && preg_match('/^
 const LIST_COLUMNS = [
     'size' => 'Veľkosť', 'kind' => 'Druh', 'updated' => 'Zmenené', 'created' => 'Vytvorené', 'taken' => 'Dátum snímky',
     'location' => 'Umiestnenie', 'owner' => 'Vlastník', 'sharing' => 'Zdieľanie', 'versions' => 'Verzie', 'tags' => 'Štítky', 'deleted' => 'Zmazané',
-    'activity' => 'Posledná zmena', 'actor' => 'Kto', 'when' => 'Kedy',
+    'activity' => 'Zmena', 'actor' => 'Kto', 'when' => 'Čas',
 ];
 const LIST_VIEWS = [
     'folder' => 'Môj disk a zložky', 'recent' => 'Nedávne', 'starred' => 'S hviezdičkou', 'search' => 'Hľadanie', 'tag' => 'Štítky',

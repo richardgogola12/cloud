@@ -464,3 +464,6 @@ a.share-row:hover { background: var(--c-hover); }
 .act-txt a { text-decoration: none; }
 .info-act .act-row { padding: 6px 0; }
 .rw-list { max-height: 160px; overflow: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 6px 8px; }
+.act-day-row { padding: 14px 8px 4px; border-bottom: 1px solid var(--c-border); margin: 0; }
+.items-list .act-day-row:first-child { padding-top: 4px; }
+.act-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }

@@ -59,7 +59,7 @@
   // kostra zoznamu, kým sa načítava (blikajúce plochy namiesto prázdnej stránky)
   function skeleton() {
     const box = $('#items');
-    const layout = isPhotoView() ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
+    const layout = isPhotoView() ? 'photos' : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#empty').classList.add('d-none');
     const n = (k) => Array.from({ length: k });
@@ -198,6 +198,7 @@
     if (!r.ok && r.locked) { lcMem.delete(ck); lockedScreen(r.locked); return; }
     if (!r.ok) { lcMem.delete(ck); toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
     state.lockHere = r.lock_here || null;
+    state.actMore = r.more || 0;
     lcPut(ck, r);
     if (cached && lcSame(cached.r, r)) { if (r.quota) updateQuota(r.quota); }
     else applyList(r, keepSel || !!cached);
@@ -281,7 +282,7 @@
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
     renderPhotoBar();
-    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || (el.id === 'sortMenu' && state.view === 'activity')));
+    $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || state.view === 'activity'));
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
     $$('#sortMenu [data-sort]').forEach(a => a.classList.toggle('active', a.dataset.sort === state.sort));
     $$('#sortMenu [data-dir]').forEach(a => a.classList.toggle('active', a.dataset.dir === state.dir));
@@ -299,7 +300,7 @@
     else sb.classList.add('d-none');
 
     const box = $('#items');
-    const layout = isPhotoView() ? 'photos' : state.view === 'dupes' ? 'list' : state.layout;
+    const layout = isPhotoView() ? 'photos' : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
     box.className = 'items items-' + layout;
     $('#listHeader').classList.toggle('d-none', layout !== 'list' || !state.items.length);
     $('#colsDrop').classList.toggle('d-none', layout !== 'list');
@@ -350,7 +351,15 @@
       if (folders.length) h += '<div class="section-title">Zložky</div><div class="grid grid-folders">' + folders.map(gridItem).join('') + '</div>';
       if (files.length) h += '<div class="section-title">Súbory</div><div class="grid grid-files">' + files.map(gridItem).join('') + '</div>';
     } else {
-      h = visible.map(listItem).join('');
+      if (state.view === 'activity') {
+        let day = '';
+        visible.forEach(it => {
+          const d = new Date(it.act.date.replace(' ', 'T')), dk = d.toDateString();
+          if (dk !== day) { day = dk; h += '<div class="act-day act-day-row">' + esc(d.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + '</div>'; }
+          h += listItem(it);
+        });
+        if (state.actMore && visible.length >= state.items.length) h += '<div class="text-center my-3"><button class="btn btn-light rounded-pill" data-act-more>Načítať staršie</button></div>';
+      } else h = visible.map(listItem).join('');
     }
     if (state.items.length > visible.length) {
       h += '<div id="moreItems" class="text-center text-body-secondary small py-4"><div class="spinner-border spinner-border-sm me-2"></div>Zobrazených ' + visible.length + ' z ' + state.items.length + '</div>';
@@ -453,9 +462,17 @@
       case 'sharing': { const t = shareSummary(it) || (it.shared ? 'Zdieľané' : ''); return t ? '<span title="' + esc(t) + '">' + esc(t) + '</span>' : null; }
       case 'versions': return it.type === 'f' && it.versions ? String(it.versions + 1) : null;
       case 'tags': return (it.tags || []).length ? tagChips(it) : null;
-      case 'activity': return it.act ? '<span class="act-cell" title="' + esc(it.act.actor + ' ' + it.act.label + (it.act.count > 1 ? ' · ' + it.act.count + ' zmien' : '')) + '"><i class="bi ' + it.act.icon + ' text-' + it.act.color + ' me-1"></i>' + esc(it.act.label.replace(/\(a\)$/, '')) + '</span>' : null;
+      case 'activity': {
+        if (!it.act) return null;
+        const x = it.act.extra || {};
+        let t = it.act.label.replace(/\(a\)$/, '');
+        if (it.act.action === 'rename' && x.from) t += ' (z „' + x.from + '“)';
+        if ((it.act.action === 'share' || it.act.action === 'unshare') && x.to) t += ' – ' + x.to + (x.perm === 'edit' ? ' (úpravy)' : '');
+        if (it.act.action === 'rewind' && x.to) t += ' ' + fmtFull(x.to);
+        return '<span class="act-cell" title="' + esc(it.act.actor + ' ' + t) + '"><i class="bi ' + it.act.icon + ' text-' + it.act.color + ' me-1"></i>' + esc(t) + '</span>';
+      }
       case 'actor': return it.act ? esc(it.act.actor) : null;
-      case 'when': return it.act ? '<span title="' + esc(fmtFull(it.act.date)) + '">' + esc(fmtDate(it.act.date)) + '</span>' : null;
+      case 'when': return it.act ? '<span title="' + esc(fmtFull(it.act.date)) + '">' + esc(new Date(it.act.date.replace(' ', 'T')).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })) + '</span>' : null;
     }
     return null;
   }
@@ -693,7 +710,8 @@
   });
 
   function open(it) {
-    if (state.view === 'trash' || it.deleted) { toast('Položku v koši najprv obnov.'); return; }
+    if (it.gone) { toast('Táto položka už bola natrvalo zmazaná.'); return; }
+    if (state.view === 'trash' || it.deleted) { toast(state.view === 'activity' ? 'Položka je v koši – obnovíš ju v Koši alebo cez ⋮ → Obnoviť.' : 'Položku v koši najprv obnov.'); return; }
     if (it.type === 'd') go('#folder/' + it.id);
     else preview(it);
   }
@@ -1194,7 +1212,16 @@
   /* ---------------- kontextové menu ---------------- */
   const ctx = $('#ctxMenu');
   let ctxItems = [];
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act-more]'); if (!b) return;
+    b.disabled = true;
+    const r = await api('api.php?action=list', { view: 'activity', before: state.actMore });
+    if (!r.ok) { b.disabled = false; return toast(r.error, 'danger'); }
+    state.items = state.items.concat(r.items); state.actMore = r.more || 0; state.limit = state.items.length;
+    render();
+  });
   function showCtx(items, x, y) {
+    if (items.some(i => i.gone)) { toast('Táto položka už bola natrvalo zmazaná.'); return; }
     ctxItems = items;
     const single = items.length === 1 ? items[0] : null;
     const trash = state.view === 'trash';
@@ -1326,7 +1353,7 @@
   /* ================= Fotky: lišta, spomienky, albumy, mapa, prezentácia ================= */
   function renderPhotoBar() {
     const bar = $('#photoBar');
-    if (state.view === 'activity') {
+    if (state.view === 'activity' && false) {
       bar.classList.remove('d-none');
       bar.innerHTML = '<div class="small text-body-secondary">Súbory a zložky podľa poslednej zmeny. Celú históriu konkrétnej položky nájdeš cez ⋮ → Aktivita.</div>'
         + '<div class="pb-right"><button class="btn btn-sm btn-light rounded-pill" data-pb="history"><i class="bi bi-clock-history me-1"></i>Celá história</button></div>';
