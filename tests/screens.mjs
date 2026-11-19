@@ -63,6 +63,18 @@ for (const [name, opts] of sizes) {
     console.log(`[${name}] šípky: kurzor ${cur}, vybraté ${sel}`);
     if (cur !== 1) { console.log('CHYBA: šípky nepresúvajú výber'); process.exitCode = 1; }
     await page.keyboard.press('Escape');
+    // zoradenie v mriežke aj mimo zložky (Nedávne)
+    await page.evaluate(() => { location.hash = '#recent'; }); await page.waitForTimeout(1200);
+    await page.click('[data-view="grid"]'); await page.waitForTimeout(300);
+    const before = await page.$$eval('#items .item[data-key^="f:"] .item-name, #items .item[data-key^="f:"] .file-name', els => els.map(e => e.textContent.trim()));
+    await page.locator('.drive-head [title="Zoradiť"]').click(); await page.locator('#sortMenu [data-sort="name"]').click(); await page.waitForTimeout(300);
+    const after = await page.$$eval('#items .item[data-key^="f:"] .item-name, #items .item[data-key^="f:"] .file-name', els => els.map(e => e.textContent.trim()));
+    const coll = new Intl.Collator('sk', { numeric: true, sensitivity: 'base' });
+    const sortedOk = after.length > 1 && after.every((v, i) => !i || coll.compare(after[i - 1], v) <= 0);
+    console.log(`[${name}] zoradenie v mriežke (Nedávne podľa názvu): ${sortedOk ? 'OK' : 'NIE'} (${after.length} súborov)`);
+    if (after.length > 1 && !sortedOk) { console.log('CHYBA: zoradenie v mriežke nefunguje', JSON.stringify(after)); process.exitCode = 1; }
+    await page.click('[data-view="list"]');
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(800);
   }
   // aktivita, albumy, mapa
   await page.evaluate(() => { location.hash = '#activity'; }); await page.waitForTimeout(1200);

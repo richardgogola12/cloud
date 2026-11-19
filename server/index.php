@@ -40,6 +40,8 @@ require __DIR__ . '/inc/views/layout_start.php';
       <li><a class="dropdown-item sort-std" href="#" data-sort="size">Veľkosť</a></li>
       <li><a class="dropdown-item sort-std" href="#" data-sort="created">Dátum vytvorenia</a></li>
       <li><a class="dropdown-item sort-std" href="#" data-sort="kind">Druh</a></li>
+      <li><a class="dropdown-item sort-trash" href="#" data-sort="deleted">Dátum zmazania</a></li>
+      <li><a class="dropdown-item sort-search" href="#" data-sort="rel">Najlepšia zhoda</a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="#" data-dir="asc">Vzostupne</a></li>
       <li><a class="dropdown-item" href="#" data-dir="desc">Zostupne</a></li>
