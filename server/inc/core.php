@@ -478,6 +478,7 @@ require_once __DIR__ . '/crypto.php';
 require_once __DIR__ . '/notify.php';
 require_once __DIR__ . '/avatar.php';
 require_once __DIR__ . '/search.php';
+require_once __DIR__ . '/lock.php';
 
 setting('schema_version');
 if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SCHEMA_VERSION) {

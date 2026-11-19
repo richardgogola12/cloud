@@ -17,6 +17,7 @@ require __DIR__ . '/inc/views/layout_start.php';
 
 <div class="drive-head">
   <nav aria-label="breadcrumb" class="flex-grow-1 min-w-0"><ol class="breadcrumb drive-crumbs mb-0" id="crumbs"></ol></nav>
+  <button class="btn btn-sm btn-outline-secondary rounded-pill d-none relock-btn" id="relockBtn" title="Zamknúť zložku – obsah sa skryje, kým znova nezadáš heslo"><i class="bi bi-lock"></i><span class="d-none d-sm-inline ms-1">Zamknúť</span></button>
   <div class="btn-group view-switch" role="group">
     <button class="btn btn-icon" data-view="list" title="Zoznam"><i class="bi bi-list-ul"></i></button>
     <button class="btn btn-icon" data-view="grid" title="Mriežka"><i class="bi bi-grid-3x3-gap"></i></button>
@@ -121,6 +122,9 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="star"><i class="bi bi-star me-2"></i><span>Pridať hviezdičku</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="versions"><i class="bi bi-clock-history me-2"></i>Verzie</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="info"><i class="bi bi-info-circle me-2"></i>Informácie</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="lock"><i class="bi bi-lock me-2"></i>Zamknúť heslom…</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="lockedit"><i class="bi bi-key me-2"></i>Heslo zložky…</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="relock"><i class="bi bi-lock-fill me-2"></i>Zamknúť teraz</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="restore"><i class="bi bi-arrow-counterclockwise me-2"></i>Obnoviť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="leave"><i class="bi bi-person-dash me-2"></i>Odstrániť zo zdieľaných</a></li>
   <li data-sep2><hr class="dropdown-divider"></li>

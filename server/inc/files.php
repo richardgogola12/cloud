@@ -87,13 +87,13 @@ function folder_access(int $uid, ?int $id, bool $withDeleted = false): array {
     if (!$id) return ['row' => null, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
     $f = q('SELECT * FROM ' . P . 'folders WHERE id = ?', [$id])->fetch();
     if (!$f || (!$withDeleted && $f['deleted_at'])) throw new RuntimeException('Zložka neexistuje.');
-    if ((int)$f['user_id'] === $uid) return ['row' => $f, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
+    if ((int)$f['user_id'] === $uid) { lock_guard((int)$f['id']); return ['row' => $f, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null]; }
     if ($f['deleted_at']) throw new RuntimeException('Zložka neexistuje.');
     // hľadaj zdieľanie na tejto zložke alebo jej predkovi
     $cur = $f; $guard = 0;
     while ($cur && $guard++ < 100) {
         $perm = q('SELECT permission FROM ' . P . "user_shares WHERE item_type = 'd' AND item_id = ? AND target_id = ?", [$cur['id'], $uid])->fetchColumn();
-        if ($perm) return ['row' => $f, 'owner' => (int)$f['user_id'], 'perm' => $perm, 'share_root' => (int)$cur['id']];
+        if ($perm) { lock_guard((int)$f['id']); return ['row' => $f, 'owner' => (int)$f['user_id'], 'perm' => $perm, 'share_root' => (int)$cur['id']]; }
         $cur = $cur['parent_id'] ? q('SELECT id, parent_id FROM ' . P . 'folders WHERE id = ?', [$cur['parent_id']])->fetch() : null;
     }
     throw new RuntimeException('Zložka neexistuje alebo k nej nemáš prístup.');
@@ -101,6 +101,7 @@ function folder_access(int $uid, ?int $id, bool $withDeleted = false): array {
 function file_access(int $uid, int $id, bool $withDeleted = false): array {
     $f = q('SELECT * FROM ' . P . 'files WHERE id = ?', [$id])->fetch();
     if (!$f || (!$withDeleted && $f['deleted_at'])) throw new RuntimeException('Súbor neexistuje.');
+    if ($f['folder_id']) lock_guard((int)$f['folder_id']);
     if ((int)$f['user_id'] === $uid) return ['row' => $f, 'owner' => $uid, 'perm' => 'owner', 'share_root' => null];
     if ($f['deleted_at']) throw new RuntimeException('Súbor neexistuje.');
     $perm = q('SELECT permission FROM ' . P . "user_shares WHERE item_type = 'f' AND item_id = ? AND target_id = ?", [$id, $uid])->fetchColumn();
@@ -246,6 +247,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
     foreach ($folders as $d) {
         $out[] = ['type' => 'd', 'id' => (int)$d['id'], 'name' => $d['name'], 'starred' => (bool)$d['starred'], 'updated' => $d['updated_at'],
                   'count' => isset($d['cnt']) ? (int)$d['cnt'] : null, 'shared' => isset($sh['d'][(int)$d['id']]),
+                  'locked' => folder_is_locked((int)$d['id']), 'unlocked' => folder_is_locked((int)$d['id']) && folder_unlocked((int)$d['id']),
                   'owner' => (int)$d['user_id'] === $uid ? null : ($owners[(int)$d['user_id']] ?? '?'),
                   'perm' => $extra['perm'][$d['id']] ?? ((int)$d['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
                   'deleted' => $d['deleted_at'] ?? null, 'color' => $d['color'] ?? null, 'tags' => $tags['d'][(int)$d['id']] ?? [],

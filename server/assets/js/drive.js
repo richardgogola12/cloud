@@ -74,6 +74,7 @@
   let lcT;
   function lcPut(k, r) {
     if (!k) return;
+    if (r.no_cache) { lcMem.delete(k); return; } // obsah zamknutých zložiek sa nikam neukladá
     lcMem.delete(k);
     lcMem.set(k, { t: Date.now(), r: { items: r.items, crumbs: r.crumbs, perm: r.perm, root: r.root, trash_days: r.trash_days, nohash: r.nohash, total: r.total, quota: r.quota } });
     while (lcMem.size > 60) lcMem.delete(lcMem.keys().next().value);
@@ -90,6 +91,69 @@
     if (state.view === 'search') { Object.assign(params, searchParams(state.sf || {})); params.folder = 0; }
     return params;
   }
+  /* ---------------- zložky zamknuté heslom ---------------- */
+  async function relock(id) {
+    const r = await api('api.php?action=folder_relock', { id });
+    if (!r.ok) return toast(r.error, 'danger');
+    for (const k of [...lcMem.keys()]) lcMem.delete(k);
+    toast('Zložka je zamknutá', 'success');
+    load();
+  }
+  $('#relockBtn').addEventListener('click', () => state.lockHere && relock(state.lockHere.id));
+  function lockDialog(it, mode) {
+    const set = mode === 'set', A = window.CloudAndroid;
+    const id = 'lk' + Date.now();
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form class="modal-content">
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="bi bi-${set ? 'lock' : 'key'} me-2"></i>${set ? 'Zamknúť zložku heslom' : 'Heslo zložky'}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="fw-semibold text-break mb-2" data-name></div>
+        ${set ? '<p class="small text-body-secondary">Obsah zložky (aj podzložiek) uvidí iba ten, kto zadá heslo – aj ľudia, s ktorými ju zdieľaš. Po odomknutí ostane otvorená 2 hodiny alebo kým ju nezamkneš. Verejné odkazy a sieťový disk (WebDAV) k nej prístup nemajú.</p>'
+              : '<label class="form-label small mb-1">Súčasné heslo zložky <span class="text-body-secondary">(alebo heslo k účtu, ak si ho zabudol)</span></label><input type="password" class="form-control mb-3" name="cur" autocomplete="current-password" required>'}
+        <label class="form-label small mb-1">${set ? 'Heslo zložky' : 'Nové heslo'} <span class="text-body-secondary">(aspoň 4 znaky)</span></label>
+        <input type="password" class="form-control mb-2" name="new" autocomplete="new-password" minlength="4" ${set ? 'required' : ''}>
+        <input type="password" class="form-control" name="new2" autocomplete="new-password" placeholder="Zopakuj heslo" ${set ? 'required' : ''}>
+        <div class="small text-danger mt-2 d-none" data-err></div>
+      </div>
+      <div class="modal-footer border-0">${set ? '' : '<button type="button" class="btn btn-outline-danger rounded-pill me-auto" data-remove><i class="bi bi-unlock me-1"></i>Zrušiť heslo</button>'}
+        <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zavrieť</button><button class="btn btn-primary rounded-pill px-4">${set ? 'Zamknúť' : 'Zmeniť heslo'}</button></div></form></div></div>`);
+    const el = document.getElementById(id), form = el.querySelector('form'), err = el.querySelector('[data-err]');
+    el.querySelector('[data-name]').textContent = it.name;
+    const v = (n) => (form.querySelector('[name="' + n + '"]') || {}).value || '';
+    const fail = (m) => { err.textContent = m; err.classList.remove('d-none'); };
+    const m = new bootstrap.Modal(el);
+    const send = async (op) => {
+      if (op !== 'remove') {
+        if (v('new').length < 4) return fail('Heslo musí mať aspoň 4 znaky.');
+        if (v('new') !== v('new2')) return fail('Heslá sa nezhodujú.');
+      } else if (!v('cur')) return fail('Zadaj súčasné heslo zložky alebo heslo k účtu.');
+      const r = await api('api.php?action=folder_lock', { id: it.id, op, password: v('cur'), new: v('new') });
+      if (!r.ok) return fail(r.error);
+      if (A && A.forgetFolderKey) { try { A.forgetFolderKey(String(it.id)); } catch (e) {} }
+      if (op !== 'remove' && A && A.offerFolderKey) { try { A.offerFolderKey(String(it.id), it.name, v('new')); } catch (e) {} }
+      m.hide();
+      toast(op === 'remove' ? 'Heslo zložky je zrušené' : op === 'set' ? 'Zložka je zamknutá heslom' + (r.links ? ' – verejný odkaz na ňu už nefunguje' : '') : 'Heslo zložky je zmenené', 'success');
+      for (const k of [...lcMem.keys()]) lcMem.delete(k);
+      try { localStorage.removeItem(LC_KEY); } catch (e) {}
+      load(true);
+    };
+    form.addEventListener('submit', (e) => { e.preventDefault(); send(set ? 'set' : 'change'); });
+    el.querySelector('[data-remove]')?.addEventListener('click', () => send('remove'));
+    el.addEventListener('shown.bs.modal', () => form.querySelector('input').focus());
+    el.addEventListener('hidden.bs.modal', () => el.remove());
+    m.show();
+  }
+
+  /** obrazovka zamknutej zložky (keď sa okno s heslom zavrie bez odomknutia) */
+  function lockedScreen(lk) {
+    Object.assign(state, { items: [], crumbs: [{ id: lk.id, name: lk.name }], partial: false, lockHere: null });
+    state.sel.clear();
+    render();
+    $('#empty')?.classList.add('d-none');
+    $('#items').innerHTML = '<div class="locked-screen text-center py-5"><div class="lock-ic lock-ic-lg mb-3"><i class="bi bi-lock-fill"></i></div>'
+      + '<h5 class="mb-1">Zložka je zamknutá</h5><div class="text-body-secondary mb-4 text-break">' + esc(lk.name) + '</div>'
+      + '<button class="btn btn-primary rounded-pill px-4" data-unlock-now><i class="bi bi-unlock me-2"></i>Odomknúť</button></div>';
+    $('#items [data-unlock-now]').onclick = async () => { if (await Cloud.unlockFolder(lk)) load(); };
+  }
   function applyList(r, keepSel) {
     Object.assign(state, { items: r.items, crumbs: r.crumbs || [], perm: r.perm || 'owner', root: r.root || 'drive', trashDays: r.trash_days, nohash: r.nohash || 0, partial: r.total > r.items.length });
     if (!keepSel) state.limit = 300;
@@ -103,7 +167,7 @@
     const k = lcKey(p), c = lcMem.get(k);
     if (pfBusy.has(k) || (c && Date.now() - c.t < 30000) || pfBusy.size > 1) return;
     pfBusy.add(k);
-    try { const r = await api('api.php?action=list', Object.assign({ limit: 250 }, p)); if (r.ok) lcPut(k, r); } finally { pfBusy.delete(k); }
+    try { const r = await api('api.php?action=list', Object.assign({ limit: 250, __nolock: 1 }, p)); if (r.ok) lcPut(k, r); } finally { pfBusy.delete(k); }
   }
 
   async function load(keepSel) {
@@ -121,7 +185,9 @@
     if (ticket !== state.loadTicket) return; // medzitým sa otvorila iná zložka
     clearTimeout(skT);
     $('#loading').classList.add('d-none');
+    if (!r.ok && r.locked) { lcMem.delete(ck); lockedScreen(r.locked); return; }
     if (!r.ok) { lcMem.delete(ck); toast(r.error, 'danger'); if (state.view === 'folder' && state.folder) go('#'); return; }
+    state.lockHere = r.lock_here || null;
     lcPut(ck, r);
     if (cached && lcSame(cached.r, r)) { if (r.quota) updateQuota(r.quota); }
     else applyList(r, keepSel || !!cached);
@@ -201,6 +267,7 @@
   function render() {
     renderCrumbs();
     renderSearchChips();
+    $('#relockBtn').classList.toggle('d-none', !(state.view === 'folder' && state.lockHere));
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
     const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : state.view;
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.layout));
@@ -285,7 +352,8 @@
     updateSel();
   }
 
-  const badges = (it) => (it.starred ? '<i class="bi bi-star-fill text-warning small ms-1" title="S hviezdičkou"></i>' : '')
+  const badges = (it) => (it.locked ? '<i class="bi ' + (it.unlocked ? 'bi-unlock text-success' : 'bi-lock-fill text-body-secondary') + ' small ms-1" title="' + (it.unlocked ? 'Zamknutá heslom – teraz odomknutá' : 'Zamknutá heslom') + '"></i>' : '')
+    + (it.starred ? '<i class="bi bi-star-fill text-warning small ms-1" title="S hviezdičkou"></i>' : '')
     + (it.share_info ? ((it.share_info.users || []).length ? '<span class="share-badge ms-1" title="' + esc(shareSummary(it)) + '"><i class="bi bi-people-fill"></i>' + it.share_info.users.length + '</span>' : '')
         + (it.share_info.link ? '<i class="bi bi-link-45deg small ms-1 ' + (it.share_info.link === 'expired' ? 'text-danger' : 'text-primary') + '" title="' + (it.share_info.link === 'expired' ? 'Verejný odkaz vypršal' : 'Verejný odkaz') + '"></i>' : '')
       : (it.shared ? '<i class="bi bi-people-fill text-body-secondary small ms-1" title="Zdieľané"></i>' : ''))
@@ -1112,6 +1180,9 @@
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
       info: single && !trash, tags: !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
+      lock: single && !trash && single.type === 'd' && single.perm === 'owner' && !single.locked,
+      lockedit: single && !trash && single.type === 'd' && single.perm === 'owner' && !!single.locked,
+      relock: single && !trash && single.type === 'd' && !!single.unlocked,
     };
     Object.entries(vis).forEach(([k, v]) => $('[data-ctx="' + k + '"]', ctx).parentElement.classList.toggle('d-none', !v));
     $('[data-sep]', ctx).classList.toggle('d-none', trash);
@@ -1131,7 +1202,8 @@
     const it = ctxItems[0], items = ctxItems;
     ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
-       info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items) })[a.dataset.ctx]();
+       info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items),
+       lock: () => lockDialog(it, 'set'), lockedit: () => lockDialog(it, 'edit'), relock: () => relock(it.id) })[a.dataset.ctx]();
   });
 
   /* ---------------- udalosti v zozname ---------------- */
@@ -1141,6 +1213,8 @@
   const pfStart = (e) => {
     const el = e.target.closest('.item[data-key^="d:"]');
     if (!el || state.view === 'trash') return;
+    const fit = byKey(el.dataset.key);
+    if (fit && fit.locked && !fit.unlocked) return;
     clearTimeout(pfT);
     pfT = setTimeout(() => prefetchFolder(+el.dataset.key.slice(2)), e.type === 'touchstart' ? 0 : 120);
   };

@@ -168,6 +168,11 @@ class Prefs(ctx: Context) {
 
     fun forgetCurrentAccount() { saveAccounts(accounts().filter { it.key != currentKey }) }
 
+    /** heslá zamknutých zložiek pre odomykanie odtlačkom (šifrované, pre každý účet zvlášť) */
+    fun folderKey(id: String): String? = secure.getString("fk_${currentKey}_$id", null)
+    fun setFolderKey(id: String, pw: String) = secure.edit().putString("fk_${currentKey}_$id", pw).apply()
+    fun removeFolderKey(id: String) = secure.edit().remove("fk_${currentKey}_$id").apply()
+
     /** Účet, ktorému patrí pôvodná databáza synchronizácie (sync.db) – ostatné účty majú vlastnú. */
     var syncOwner: String
         get() = p.getString("sync_owner", "") ?: ""

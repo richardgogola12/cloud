@@ -120,6 +120,37 @@ class MainActivity : AppCompatActivity() {
     inner class JsBridge {
         @JavascriptInterface
         fun setRefreshBlocked(blocked: Boolean) { refreshBlocked = blocked }
+
+        /* zamknuté zložky: heslo uložené v aplikácii sa vydá iba po overení odtlačkom */
+        @JavascriptInterface
+        fun hasFolderKey(id: String): Boolean = Biometric.available(this@MainActivity) && prefs.folderKey(id) != null
+
+        @JavascriptInterface
+        fun unlockFolder(id: String, name: String) = runOnUiThread {
+            val pw = prefs.folderKey(id) ?: return@runOnUiThread
+            Biometric.prompt(this@MainActivity, "Odomknúť zložku", name, onOk = {
+                b.web.evaluateJavascript("window.cloudFolderKey && window.cloudFolderKey(" + org.json.JSONObject.quote(id) + ", " + org.json.JSONObject.quote(pw) + ");", null)
+            }, onError = { })
+        }
+
+        @JavascriptInterface
+        fun offerFolderKey(id: String, name: String, pw: String) = runOnUiThread {
+            if (!Biometric.available(this@MainActivity) || prefs.folderKey(id) != null) return@runOnUiThread
+            MaterialAlertDialogBuilder(this@MainActivity)
+                .setTitle("Odomykať odtlačkom prsta?")
+                .setMessage("Zložku „$name“ potom v tejto aplikácii odomkneš odtlačkom – heslo už nebudeš musieť zadávať.")
+                .setPositiveButton("Zapnúť") { _, _ ->
+                    Biometric.prompt(this@MainActivity, "Odomykanie odtlačkom", name, onOk = {
+                        prefs.setFolderKey(id, pw)
+                        Toast.makeText(this@MainActivity, "Zložku odomkneš odtlačkom prsta", Toast.LENGTH_SHORT).show()
+                    }, onError = { })
+                }
+                .setNegativeButton("Teraz nie", null)
+                .show()
+        }
+
+        @JavascriptInterface
+        fun forgetFolderKey(id: String) { prefs.removeFolderKey(id) }
     }
 
     private val fileChooser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
@@ -166,6 +197,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         if (!prefs.loggedIn) { goLogin(null); return }
         prefs.rememberCurrent()
+        showLastCrash()
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
         applySystemInsets(b.root)
@@ -430,8 +462,8 @@ class MainActivity : AppCompatActivity() {
                     "sync" -> startActivity(Intent(this, SyncActivity::class.java))
                     "update" -> updater.check(manual = true)
                     "logout" -> confirmLogout()
-                    "account" -> prefs.otherAccounts().firstOrNull { it.key == uri.getQueryParameter("k") }?.let { switchAccount(it) }
-                    "account-add" -> addAccount()
+                    "account" -> { val k = uri.getQueryParameter("k"); b.web.post { prefs.otherAccounts().firstOrNull { it.key == k }?.let { switchAccount(it) } } }
+                    "account-add" -> b.web.post { addAccount() }
                     "open", "send", "pdf" -> opener.handle(uri)
                     "background" -> startActivity(Intent(this, BackgroundActivity::class.java))
                     "server" -> serverLauncher.launch(Intent(this, ServerActivity::class.java))
@@ -485,6 +517,24 @@ class MainActivity : AppCompatActivity() {
             p.activate(next)
             afterAccountChange("Prihlásený ako ${next.email}")
         }
+    }
+
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, "last_crash.txt")
+        if (!f.exists()) return
+        val txt = try { f.readText() } catch (_: Exception) { "" }
+        f.delete()
+        if (txt.isBlank()) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Aplikácia sa minule zavrela s chybou")
+            .setMessage("Ak sa to opakuje, skopíruj tento popis a pošli ho:\n\n" + txt.take(1500))
+            .setPositiveButton("Kopírovať") { _, _ ->
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Cloud chyba", txt))
+                Toast.makeText(this, "Skopírované", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Zavrieť", null)
+            .show()
     }
 
     /* ---------- viac účtov ---------- */

@@ -83,6 +83,7 @@ function dav_resolve(int $uid, array $segs): ?array {
     foreach ($segs as $i => $name) {
         $last = $i === count($segs) - 1;
         $d = q('SELECT * FROM ' . P . 'folders WHERE user_id = ? AND parent_id <=> ? AND name = ? AND deleted_at IS NULL ORDER BY id LIMIT 1', [$uid, $parent, $name])->fetch();
+        if ($d && folder_is_locked((int)$d['id'])) return null; // zamknuté zložky cez sieťový disk nie sú dostupné
         if ($d) { if ($last) return ['type' => 'd', 'row' => $d, 'folder' => $parent]; $parent = (int)$d['id']; continue; }
         if (!$last) return null;
         $f = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$uid, $parent, $name])->fetch();
@@ -141,6 +142,7 @@ case 'PROPFIND': {
     if ($node['type'] !== 'f' && $depth !== '0') {
         $fid = $node['type'] === 'root' ? null : (int)$node['row']['id'];
         foreach (q('SELECT * FROM ' . P . 'folders WHERE user_id = ? AND parent_id <=> ? AND deleted_at IS NULL ORDER BY name', [$uid, $fid]) as $d)
+            if (!folder_is_locked((int)$d['id']))
             $out .= dav_prop_xml(array_merge($segs, [$d['name']]), $d, 'd', null);
         foreach (q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND deleted_at IS NULL ORDER BY name', [$uid, $fid]) as $f)
             $out .= dav_prop_xml(array_merge($segs, [$f['name']]), $f, 'f', null);

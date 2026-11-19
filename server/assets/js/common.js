@@ -4,6 +4,16 @@ window.Cloud = (function () {
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
   async function api(path, data = {}, asJson = false) {
+    let noLock = false;
+    if (data && !(data instanceof FormData) && data.__nolock) { noLock = true; data = Object.assign({}, data); delete data.__nolock; }
+    const j = await apiRaw(path, data, asJson);
+    // zamknutá zložka: opýtaj sa na heslo (v aplikácii aj odtlačok) a akciu zopakuj
+    if (j && j.locked && !noLock && !/action=folder_(unlock|lock)/.test(path)) {
+      if (await unlockFolder(j.locked)) return apiRaw(path, data, asJson);
+    }
+    return j;
+  }
+  async function apiRaw(path, data = {}, asJson = false) {
     const opts = { method: 'POST', headers: { 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, credentials: 'same-origin' };
     if (asJson) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(data); }
     else { const fd = data instanceof FormData ? data : new FormData(); if (!(data instanceof FormData)) Object.entries(data).forEach(([k, v]) => Array.isArray(v) ? v.forEach(x => fd.append(k + '[]', x)) : fd.append(k, v ?? '')); opts.body = fd; }
@@ -213,5 +223,43 @@ window.Cloud = (function () {
     document.querySelectorAll('[data-install]').forEach(b => { b.classList.remove('d-none'); b.onclick = async () => { deferred.prompt(); await deferred.userChoice; deferred = null; b.classList.add('d-none'); }; });
   });
 
-  return { api, toast, confirm: confirmBox, prompt: promptBox, formatBytes, esc, base, csrf };
+  /* ---------- odomknutie zložky zamknutej heslom ---------- */
+  let unlockOpen = null;
+  function unlockFolder(lk) {
+    if (unlockOpen) return unlockOpen;
+    const A = window.CloudAndroid;
+    const bio = !!(A && A.hasFolderKey && A.hasFolderKey(String(lk.id)));
+    unlockOpen = new Promise((resolve) => {
+      const id = 'ul' + Date.now();
+      document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><form class="modal-content">
+        <div class="modal-body text-center pt-4"><div class="lock-ic mb-2"><i class="bi bi-lock-fill"></i></div><h5 class="mb-1">Zamknutá zložka</h5><div class="small text-body-secondary mb-3 text-break" data-name></div>
+        <input type="password" class="form-control form-control-lg text-center" placeholder="Heslo zložky" autocomplete="off" required>
+        <div class="small text-danger mt-2 d-none" data-err></div>
+        ${bio ? '<button type="button" class="btn btn-outline-primary rounded-pill w-100 mt-3" data-bio><i class="bi bi-fingerprint me-1"></i>Odomknúť odtlačkom</button>' : ''}</div>
+        <div class="modal-footer border-0 pt-0"><button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button><button class="btn btn-primary rounded-pill px-4">Odomknúť</button></div></form></div></div>`);
+      const el = document.getElementById(id), form = el.querySelector('form'), inp = el.querySelector('input'), err = el.querySelector('[data-err]');
+      el.querySelector('[data-name]').textContent = lk.name || '';
+      const m = new bootstrap.Modal(el); let ok = false;
+      const tryPw = async (pw, fromBio) => {
+        const r = await apiRaw('api.php?action=folder_unlock', { id: lk.id, password: pw });
+        if (r.ok) {
+          ok = true; m.hide();
+          if (!fromBio && A && A.offerFolderKey && !bio) { try { A.offerFolderKey(String(lk.id), lk.name || '', pw); } catch (e) {} }
+          return;
+        }
+        if (fromBio && A && A.forgetFolderKey) A.forgetFolderKey(String(lk.id)); // heslo sa medzitým zmenilo
+        err.textContent = r.error || 'Nesprávne heslo.'; err.classList.remove('d-none'); inp.select();
+      };
+      form.addEventListener('submit', (e) => { e.preventDefault(); tryPw(inp.value, false); });
+      window.cloudFolderKey = (fid, pw) => { if (String(fid) === String(lk.id) && pw) tryPw(pw, true); };
+      const askBio = () => { try { A.unlockFolder(String(lk.id), lk.name || ''); } catch (e) {} };
+      el.querySelector('[data-bio]')?.addEventListener('click', askBio);
+      el.addEventListener('shown.bs.modal', () => { if (bio) askBio(); else inp.focus(); });
+      el.addEventListener('hidden.bs.modal', () => { el.remove(); unlockOpen = null; window.cloudFolderKey = null; resolve(ok); });
+      m.show();
+    });
+    return unlockOpen;
+  }
+
+  return { api, toast, confirm: confirmBox, prompt: promptBox, formatBytes, esc, base, csrf, unlockFolder };
 })();

@@ -92,6 +92,35 @@ if (in_array($action, ['download', 'thumb', 'zip'], true)) {
  * ================================================================== */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'error' => 'Metóda nie je povolená'], 405);
 csrf_check();
+
+/* odomknutie / zamknutie zložky v tejto relácii (potrebuje zapisovať do session) */
+if (in_array($action, ['folder_unlock', 'folder_relock'], true)) {
+    try {
+        $id = (int)($_POST['id'] ?? 0);
+        $f = q('SELECT id, name, user_id, lock_hash FROM ' . P . 'folders WHERE id = ?', [$id])->fetch();
+        if (!$f || !$f['lock_hash']) throw new RuntimeException('Zložka nie je zamknutá.');
+        if ($action === 'folder_relock') {
+            unset($_SESSION['folder_unlock'][$id]);
+            session_write_close();
+            json_out(['ok' => true]);
+        }
+        // prístup k zložke (bez ohľadu na zámok) – vlastník alebo zdieľanie
+        $GLOBALS['CLOUD_LOCK_BYPASS'] = true;
+        folder_access($uid, $id);
+        $GLOBALS['CLOUD_LOCK_BYPASS'] = false;
+        if (!folder_lock_verify($id, (string)($_POST['password'] ?? ''))) {
+            session_write_close();
+            log_action($uid, 'folder_unlock_fail', $f['name']);
+            json_out(['ok' => false, 'error' => 'Nesprávne heslo zložky.'], 400);
+        }
+        $_SESSION['folder_unlock'][$id] = time() + LOCK_TTL;
+        session_write_close();
+        json_out(['ok' => true, 'ttl' => LOCK_TTL]);
+    } catch (Throwable $ex) {
+        session_write_close();
+        json_out(['ok' => false, 'error' => $ex->getMessage()], 400);
+    }
+}
 session_write_close();
 
 try {
@@ -204,6 +233,8 @@ try {
             $files   = q("SELECT f.*, $vcnt FROM $F f WHERE f.user_id = ? AND f.folder_id <=> ? AND f.deleted_at IS NULL ORDER BY $orderF", [$owner, $folderId])->fetchAll();
             $crumbs  = breadcrumbs($uid, $folderId);
         }
+        // obsah zamknutých zložiek sa mimo nich (hľadanie, nedávne, fotky…) neukazuje
+        if ($view !== 'folder') filter_locked($folders, $files);
         // umiestnenie (cesta) vlastných položiek mimo zobrazenia zložky – stĺpec „Umiestnenie“
         if ($view !== 'folder' && $view !== 'photos' && empty($extra['dup'])) {
             $need = [];
@@ -221,9 +252,44 @@ try {
             $folders = array_slice($folders, min($offset, $nd), max(0, min($end, $nd) - min($offset, $nd)));
             $files = array_slice($files, max(0, $offset - $nd), max(0, $end - max($offset, $nd)));
         }
+        // obsah zo zamknutých zložiek sa v prehliadači neukladá do cache; lock_here = zložka, ktorú možno hneď znova zamknúť
+        $lockHere = $view === 'folder' ? locked_ancestor($folderId, true) : null;
+        $noCache = (bool)$lockHere;
+        if (!$noCache && folder_locks()) {
+            foreach ($files as $x) if (locked_ancestor($x['folder_id'] ? (int)$x['folder_id'] : null, true)) { $noCache = true; break; }
+            if (!$noCache) foreach ($folders as $x) if (locked_ancestor($x['parent_id'] ? (int)$x['parent_id'] : null, true)) { $noCache = true; break; }
+        }
         json_out(['ok' => true, 'folder' => $folderId, 'crumbs' => $crumbs, 'perm' => $perm, 'root' => $root,
                   'items' => rows_out($uid, $folders, $files, $extra), 'total' => $total, 'offset' => $offset, 'quota' => quota_info($user),
-                  'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0]);
+                  'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0, 'no_cache' => $noCache, 'lock_here' => $lockHere]);
+    }
+
+    case 'folder_lock': { // nastavenie / zmena / zrušenie hesla zložky (iba vlastník)
+        $id = (int)($_POST['id'] ?? 0);
+        $op = (string)($_POST['op'] ?? 'set');
+        $f = q('SELECT id, name, user_id, lock_hash FROM ' . P . 'folders WHERE id = ? AND deleted_at IS NULL', [$id])->fetch();
+        if (!$f || (int)$f['user_id'] !== $uid) throw new RuntimeException('Heslo môže nastaviť iba vlastník zložky.');
+        $new = (string)($_POST['new'] ?? '');
+        if ($op === 'set') {
+            if ($f['lock_hash']) throw new RuntimeException('Zložka už je zamknutá.');
+        } else {
+            if (!$f['lock_hash']) throw new RuntimeException('Zložka nie je zamknutá.');
+            // aktuálne heslo zložky, alebo (keď ho vlastník zabudol) heslo k účtu
+            $cur = (string)($_POST['password'] ?? '');
+            $okAcc = $cur !== '' && password_verify($cur, (string)q('SELECT password FROM ' . P . 'users WHERE id = ?', [$uid])->fetchColumn());
+            if (!$okAcc && !folder_lock_verify($id, $cur)) throw new RuntimeException('Nesprávne heslo zložky (alebo k účtu).');
+        }
+        if ($op === 'remove') {
+            q('UPDATE ' . P . 'folders SET lock_hash = NULL WHERE id = ?', [$id]);
+            log_action($uid, 'folder_lock_remove', $f['name']);
+            json_out(['ok' => true]);
+        }
+        if (mb_strlen($new) < 4) throw new RuntimeException('Heslo zložky musí mať aspoň 4 znaky.');
+        q('UPDATE ' . P . 'folders SET lock_hash = ? WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $id]);
+        // verejné odkazy na zamknutú zložku prestanú fungovať
+        $links = (int)q('SELECT COUNT(*) FROM ' . P . "shares WHERE item_type = 'd' AND item_id = ?", [$id])->fetchColumn();
+        log_action($uid, $op === 'set' ? 'folder_lock' : 'folder_lock_change', $f['name']);
+        json_out(['ok' => true, 'links' => $links]);
     }
 
     case 'suggest': { // rýchle návrhy pri písaní do vyhľadávania
@@ -778,6 +844,9 @@ try {
     }
     }
     json_out(['ok' => false, 'error' => 'Neznáma akcia'], 400);
+} catch (FolderLocked $ex) {
+    if (db()->inTransaction()) db()->rollBack();
+    json_out(['ok' => false, 'error' => $ex->getMessage(), 'locked' => ['id' => $ex->folderId, 'name' => $ex->folderName]], 400);
 } catch (Throwable $ex) {
     if (db()->inTransaction()) db()->rollBack();
     $msg = $ex instanceof PDOException ? 'Chyba databázy.' : $ex->getMessage();

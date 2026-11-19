@@ -425,3 +425,9 @@ a.share-row:hover { background: var(--c-hover); }
 .col-resizing, .col-resizing * { cursor: col-resize !important; user-select: none !important; }
 @media (pointer: coarse) { .col-resize { display: none; } }
 
+
+/* zamknuté zložky */
+.lock-ic { width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); font-size: 1.5rem; }
+.lock-ic-lg { width: 84px; height: 84px; font-size: 2.2rem; }
+.locked-screen { grid-column: 1 / -1; }
+.relock-btn { white-space: nowrap; }

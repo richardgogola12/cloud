@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -33,6 +33,7 @@ function migrate(): void {
         if ($v < 11) migrate_v11();
         if ($v < 12) migrate_v12();
         if ($v < 13) migrate_v13();
+        if ($v < 14) migrate_v14();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -344,4 +345,11 @@ function migrate_v13(): void {
     };
     if (is_dir(data_path('term'))) { foreach (glob(data_path('term') . '/*/') ?: [] as $d) @touch($d . 'close'); $rm(data_path('term')); }
     try { q('DELETE FROM ' . P . "settings WHERE k IN ('term_last')"); } catch (Throwable $e) {}
+}
+
+/* v14: zložky zamknuté heslom */
+function migrate_v14(): void {
+    $p = P;
+    $has = db()->query("SHOW COLUMNS FROM {$p}folders LIKE 'lock_hash'")->fetch();
+    if (!$has) db()->exec("ALTER TABLE {$p}folders ADD lock_hash VARCHAR(255) NULL DEFAULT NULL");
 }

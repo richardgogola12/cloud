@@ -42,8 +42,12 @@ if ($share['password'] && empty($_SESSION['share_ok'][$token])) {
     exit;
 }
 
+/* ----- zložky zamknuté heslom sa cez verejný odkaz nedajú otvoriť ----- */
+if (locked_ancestor($share['item_type'] === 'd' ? (int)$root['id'] : ($root['folder_id'] ? (int)$root['folder_id'] : null), true)) share_fail('Vlastník túto zložku zamkol heslom – cez odkaz nie je dostupná.');
+
 /* ----- kontrola, či súbor/zložka patrí do zdieľaného stromu ----- */
 $tree = $share['item_type'] === 'd' ? descendants($owner, (int)$root['id']) : [];
+if ($tree && ($lk = locked_subtrees($owner, $tree))) $tree = array_values(array_diff($tree, $lk));
 function shared_file(int $id): array {
     global $share, $root, $tree, $owner;
     if ($share['item_type'] === 'f') { if ($id !== (int)$root['id']) share_fail('Súbor nie je súčasťou odkazu.'); return $root; }
@@ -154,6 +158,7 @@ if ($share['item_type'] === 'd') {
         $id = (int)$r['parent_id'];
     }
     $folders = q('SELECT * FROM ' . P . 'folders WHERE user_id = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY name', [$owner, $curId])->fetchAll();
+    $folders = array_values(array_filter($folders, fn($d) => in_array((int)$d['id'], $tree, true)));
     $files = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id = ? AND deleted_at IS NULL ORDER BY name', [$owner, $curId])->fetchAll();
 }
 function ficon(string $mime, string $name): string {

@@ -7,6 +7,14 @@ import sk.rgogola.cloud.sync.WatchdogWorker
 class CloudApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // pád aplikácie sa zapíše a pri ďalšom otvorení sa ukáže (pomáha nájsť chybu)
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                java.io.File(filesDir, "last_crash.txt").writeText("Cloud ${BuildConfig.VERSION_NAME} · Android ${android.os.Build.VERSION.RELEASE} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n\n" + android.util.Log.getStackTraceString(e).take(6000))
+            } catch (_: Exception) {}
+            prev?.uncaughtException(t, e)
+        }
         sk.rgogola.cloud.net.Trust.init(this)
         Notif.createChannels(this)
         if (Prefs(this).loggedIn) {
