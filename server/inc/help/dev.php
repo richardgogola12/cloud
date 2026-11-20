@@ -200,7 +200,7 @@ Podporuje PROPFIND, PROPPATCH, HEAD, GET (Range), PUT, MKCOL, MOVE, COPY, DELETE
 <?= h2('testy', 'bi-check2-circle', 'Testy a vydania') ?>
 <ul>
   <li><b>tests.yml</b> – pri každom pushi: end-to-end testy na PHP 8.3 + MySQL 8.4, na PHP 8.2 + MariaDB 10.11 (ako Raspberry Pi), na <b>Windows</b> (PHP 8.3 + MySQL 8.4), snímky obrazovky v Playwright (mobil, veľký mobil, počítač) a Android lint. Snímky sa ukladajú do vetvy <code>screens</code>.</li>
-  <li><b>Snímky príručky</b> – <code>help-demo.php</code> pripraví ukážkovú používateľku a <code>help-shots.mjs</code> nafotí obrazovky do <code>screens/help/</code>; tie sa (zmenšené do JPEG) kopírujú do <code>server/assets/help/</code>.</li>
+  <li><b>Snímky príručky</b> – <code>help-demo.php</code> pripraví ukážkovú používateľku a <code>help-shots.mjs</code> nafotí obrazovky do <code>screens/help/</code>; tie sa (zmenšené do JPEG) kopírujú do <code>server/assets/help/</code>. Výrezy pre rýchly sprievodcu (<code>tour-0…10.jpg</code>) vytvorí <code>python3 tools/tour-images.py &lt;priečinok so snímkami&gt;</code>.</li>
   <li><b>server.yml</b> – keď sa zmení <code>server/VERSION</code>, vytvorí vydanie <code>server-vX.Y.Z</code> s balíkom ZIP.</li>
   <li><b>android.yml</b> – zostaví podpísané APK a vydanie <code>android-vX.Y.Z</code>.</li>
 </ul>

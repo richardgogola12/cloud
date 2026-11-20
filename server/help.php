@@ -27,8 +27,8 @@ require __DIR__ . '/inc/views/layout_start.php';
     <h1 class="h4 fw-bold mb-1"><i class="bi <?= $doc === 'dev' ? 'bi-code-slash' : 'bi-book' ?> me-2"></i><?= e($title) ?></h1>
     <div class="small text-body-secondary"><?= $doc === 'dev' ? 'Ako je ' . $app . ' postavený, ako ho nainštalovať, spravovať a rozvíjať. Viditeľné iba pre administrátorov.' : 'Všetko, čo ' . $app . ' vie, krok za krokom – na webe aj v aplikácii pre Android.' ?> · verzia <?= e(APP_VERSION) ?></div>
   </div>
-  <form class="help-search" onsubmit="return false"><div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-search"></i></span>
-    <input type="search" class="form-control" id="helpSearch" placeholder="Hľadať v príručke…"></div></form>
+  <form class="search-box help-search" role="search" onsubmit="return false"><i class="bi bi-search search-ic"></i>
+    <input type="search" class="form-control" id="helpSearch" placeholder="Hľadať v príručke…" autocomplete="off" aria-label="Hľadať v príručke"></form>
   <?php if ($doc === 'user'): ?><button class="btn btn-primary btn-sm rounded-pill px-3" data-action="tour"><i class="bi bi-signpost-split me-1"></i>Rýchly sprievodca</button><?php endif; ?>
   <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="print()"><i class="bi bi-printer me-1"></i>Tlačiť / PDF</button>
 </div>
@@ -36,6 +36,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <aside class="help-toc" id="helpToc"><button class="btn btn-outline-secondary btn-sm w-100 d-lg-none mb-2" onclick="this.parentNode.classList.toggle('open')"><i class="bi bi-list-ul me-1"></i>Obsah</button><nav></nav></aside>
   <article class="help-doc" id="helpDoc">
     <?php require __DIR__ . '/inc/help/' . $doc . '.php'; ?>
+    <div class="text-center text-body-secondary py-5 d-none" id="helpNone"><i class="bi bi-search fs-1 d-block mb-2"></i>V príručke sa nič nenašlo. Skús iné slovo.</div>
   </article>
 </div>
 <div class="modal fade" id="helpZoom" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content bg-transparent border-0">
@@ -54,7 +55,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   doc.addEventListener('click', (e) => { const im = e.target.closest('figure img'); if (!im) return; const z = document.getElementById('helpZoom'); z.querySelector('img').src = im.src; bootstrap.Modal.getOrCreateInstance(z).show(); });
   // hľadanie: skryje kapitoly bez zhody a zvýrazní slová
   const sections = []; let cur = null;
-  [...doc.children].forEach(el => { if (el.tagName === 'H2') { cur = { h: el, els: [] }; sections.push(cur); } else if (cur) cur.els.push(el); });
+  [...doc.children].forEach(el => { if (el.id === 'helpNone') return; if (el.tagName === 'H2') { cur = { h: el, els: [] }; sections.push(cur); } else if (cur) cur.els.push(el); });
   const q = document.getElementById('helpSearch');
   q.addEventListener('input', () => {
     const t = q.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -65,6 +66,7 @@ require __DIR__ . '/inc/views/layout_start.php';
       const show = !t || txt.includes(t);
       [s.h, ...s.els].forEach(e => e.classList.toggle('d-none', !show));
     });
+    document.getElementById('helpNone').classList.toggle('d-none', sections.some(s => !s.h.classList.contains('d-none')));
     if (t.length < 2) return;
     const walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT);
     const hits = [];

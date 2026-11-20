@@ -3,27 +3,27 @@
 (function () {
   const img = (n) => (window.CLOUD_HELP_IMG || 'assets/help/') + n + '.jpg?v=' + (window.CLOUD_VER || '');
   const STEPS = [
-    { icon: 'bi-cloud-fill', title: 'Vitaj v Cloude', img: 'u-disk',
+    { icon: 'bi-cloud-fill', title: 'Vitaj v Cloude', img: 'tour-0',
       text: 'Cloud je tvoj súkromný disk ako Google Disk – súbory, fotky a dokumenty máš na jednom mieste, dostupné z počítača aj z mobilu. Tento krátky sprievodca ti za minútu ukáže to najdôležitejšie.' },
-    { icon: 'bi-cloud-arrow-up', title: '1. Nahrávanie súborov', img: 'u-novy',
+    { icon: 'bi-cloud-arrow-up', title: '1. Nahrávanie súborov', img: 'tour-1',
       text: 'Klikni na <b>+ Nový</b> → <b>Nahrať súbory</b> alebo <b>Nahrať zložku</b>. Ešte rýchlejšie: súbory jednoducho <b>potiahni myšou</b> do okna. Veľké súbory sa nahrávajú po častiach a pri výpadku siete pokračujú tam, kde skončili.' },
-    { icon: 'bi-folder-plus', title: '2. Zložky a poriadok', img: 'u-disk-zoznam',
+    { icon: 'bi-folder-plus', title: '2. Zložky a poriadok', img: 'tour-2',
       text: 'Vytvor si zložky (<b>+ Nový → Nová zložka</b>) a súbory do nich presúvaj potiahnutím. Zložkám môžeš dať <b>farbu</b> a <b>štítky</b>. Vpravo hore prepínaš <b>zoznam</b> a <b>mriežku</b> – každé miesto si pamätá svoje.' },
-    { icon: 'bi-three-dots-vertical', title: '3. Ponuka akcií', img: 'u-kontext',
+    { icon: 'bi-three-dots-vertical', title: '3. Ponuka akcií', img: 'tour-3',
       text: 'Pravým klikom na súbor (v mobile cez <b>⋮</b>) otvoríš všetky akcie: stiahnuť, zdieľať, štítky a farba, premenovať, presunúť, kópia, hviezdička, verzie, informácie, aktivita (história zmien) a presun do koša.' },
-    { icon: 'bi-share', title: '4. Zdieľanie', img: 'u-zdielanie',
+    { icon: 'bi-share', title: '4. Zdieľanie', img: 'tour-4',
       text: 'Cez <b>Zdieľať</b> pridáš ľudí z Cloudu (iba čítanie alebo aj úpravy), alebo vytvoríš <b>verejný odkaz</b> – s heslom, dátumom platnosti a pri zložke aj s možnosťou, aby ti iní nahrali súbory.' },
-    { icon: 'bi-search', title: '5. Vyhľadávanie', img: 'u-hladanie-vysledky',
+    { icon: 'bi-search', title: '5. Vyhľadávanie', img: 'tour-5',
       text: 'Do poľa <b>Hľadať v disku</b> napíš časť názvu. Výsledky spresníš filtrami (typ, vlastník, dátum, veľkosť, štítok) alebo skratkami ako <code>type:pdf</code>, <code>po:1.1.2026</code>, <code>size&gt;10mb</code>.' },
-    { icon: 'bi-images', title: '6. Fotky a albumy', img: 'u-fotky',
+    { icon: 'bi-images', title: '6. Fotky a albumy', img: 'tour-6',
       text: 'V sekcii <b>Fotky</b> sú všetky obrázky a videá zoradené podľa dátumu. Môžeš si robiť <b>albumy</b>, spustiť <b>prezentáciu</b> a pozrieť si fotky <b>„V tento deň“</b> z minulých rokov.' },
-    { icon: 'bi-clock-history', title: '7. Verzie a kôš – nič sa nestratí', img: 'u-verzie',
+    { icon: 'bi-clock-history', title: '7. Verzie a kôš – nič sa nestratí', img: 'tour-7',
       text: 'Pri nahratí súboru s rovnakým názvom sa starý uloží ako <b>verzia</b> – kedykoľvek ho obnovíš. Zmazané položky sú v <b>Koši</b>. Celú zložku vieš dokonca <b>vrátiť do stavu z ľubovoľného dňa</b>.' },
-    { icon: 'bi-lock-fill', title: '8. Zamknuté zložky', img: 'u-zamknuta',
+    { icon: 'bi-lock-fill', title: '8. Zamknuté zložky', img: 'tour-8',
       text: 'Citlivé veci (doklady, heslá) daj do zložky zamknutej <b>heslom</b> – v aplikácii ju otvoríš aj <b>odtlačkom prsta</b>. Sám si zvolíš, kedy sa má zložka znova zamknúť.' },
-    { icon: 'bi-phone', title: '9. Aplikácia v mobile', img: 'm-disk', phone: true,
+    { icon: 'bi-phone', title: '9. Aplikácia v mobile', img: 'tour-9',
       text: 'V <b>Môj účet</b> si stiahneš aplikáciu pre Android: automaticky zálohuje fotky z mobilu, synchronizuje zvolené zložky a súbory doň pošleš cez <b>Zdieľať → Cloud</b>. Menu otvoríš potiahnutím prsta doprava.' },
-    { icon: 'bi-person-gear', title: '10. Tvoj účet a pomoc', img: 'u-profil',
+    { icon: 'bi-person-gear', title: '10. Tvoj účet a pomoc', img: 'tour-10',
       text: 'V <b>Môj účet</b> zmeníš heslo, nastavíš <b>prihlásenie odtlačkom prsta</b>, e-mailový súhrn (kedy a ako často chodí), stĺpce v zozname a sieťový disk. Kompletný návod nájdeš v menu <b>Pomoc → Príručka</b>. Na počítači stlač <kbd>?</kbd> pre klávesové skratky.' },
   ];
   let i = 0, modal = null, finished = false;
@@ -56,7 +56,7 @@
   }
   function render() {
     const s = STEPS[i], m = document.getElementById('tourModal');
-    m.querySelector('.tour-pic').innerHTML = '<div class="tour-ic"><i class="bi ' + s.icon + '"></i></div>' + (s.img ? '<img class="' + (s.phone ? 'phone' : '') + '" src="' + img(s.img) + '" alt="" onerror="this.remove()">' : '');
+    m.querySelector('.tour-pic').innerHTML = '<div class="tour-ic"><i class="bi ' + s.icon + '"></i></div>' + (s.img ? '<img src="' + img(s.img) + '" alt="" onerror="this.remove()">' : '');
     m.querySelector('.tour-step').textContent = i === 0 ? 'Rýchly sprievodca' : 'Krok ' + i + ' z ' + (STEPS.length - 1);
     m.querySelector('.tour-title').textContent = s.title;
     m.querySelector('.tour-text').innerHTML = s.text;
