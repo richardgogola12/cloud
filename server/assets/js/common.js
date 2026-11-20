@@ -283,3 +283,32 @@ window.Cloud = (function () {
 
   return { api, toast, confirm: confirmBox, prompt: promptBox, formatBytes, esc, base, csrf, unlockFolder };
 })();
+
+/* Mobil a aplikácia: menu vľavo sa otvorí potiahnutím prstom doprava a zatvorí potiahnutím doľava */
+(function () {
+  const sb = document.getElementById('sidebar');
+  if (!sb || !window.bootstrap || !('ontouchstart' in window)) return;
+  const narrow = () => window.innerWidth < 992; // na širokej obrazovke je menu stále viditeľné
+  const isOpen = () => sb.classList.contains('show') || sb.classList.contains('showing');
+  // kde sa potiahnutie nemá brať ako gesto pre menu
+  const blocked = (t) => !!t.closest('.modal, .dropdown-menu, input, textarea, select, [contenteditable], .leaflet-container, .photo-map, .mem-row, .sheet-tabs, .table-responsive, .col-resize, #previewBody, .no-swipe')
+    || (() => { for (let el = t; el && el !== document.body; el = el.parentElement) { if (el.scrollWidth > el.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true; } return false; })();
+  let x0 = 0, y0 = 0, t0 = 0, active = false, done = false;
+  document.addEventListener('touchstart', (e) => {
+    active = false; done = false;
+    if (e.touches.length !== 1 || !narrow() || document.body.classList.contains('modal-open') && !isOpen()) return;
+    const t = e.touches[0];
+    if (!isOpen() && blocked(e.target)) return;
+    x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); active = true;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (!active || done) return;
+    const t = e.touches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Math.abs(dy) > 30 && Math.abs(dy) > Math.abs(dx)) { active = false; return; } // posúvanie zoznamu
+    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6 || Date.now() - t0 > 800) return;
+    done = true;
+    const oc = bootstrap.Offcanvas.getOrCreateInstance(sb);
+    if (dx > 0 && !isOpen()) oc.show();
+    else if (dx < 0 && isOpen()) oc.hide();
+  }, { passive: true });
+})();

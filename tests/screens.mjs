@@ -46,6 +46,23 @@ for (const [name, opts] of sizes) {
   const stored = await page.evaluate(async () => ({ ls: Object.keys(localStorage).filter(k => k.startsWith('cloud-lc-') || k === 'cloud-recent-search'), caches: 'caches' in window ? await caches.keys() : [] }));
   console.log(`[${name}] uložené v zariadení: ${JSON.stringify(stored)}`);
   if (stored.ls.length || stored.caches.includes('cloud-thumbs')) { console.log('CHYBA: v zariadení ostali dáta'); process.exitCode = 1; }
+  // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)
+  if (name !== 'pc') {
+    const swipe = (x1, x2) => page.evaluate(([a, b]) => {
+      const el = document.querySelector('#items') || document.body;
+      const mk = (x) => new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
+      el.dispatchEvent(new TouchEvent('touchstart', { touches: [mk(a)], bubbles: true }));
+      for (let i = 1; i <= 6; i++) el.dispatchEvent(new TouchEvent('touchmove', { touches: [mk(a + (b - a) * i / 6)], bubbles: true }));
+      el.dispatchEvent(new TouchEvent('touchend', { touches: [], bubbles: true }));
+    }, [x1, x2]);
+    await swipe(40, 260); await page.waitForTimeout(600);
+    const opened = await page.locator('#sidebar.show').count();
+    await page.screenshot({ path: `screens/${name}-3b-menu-swipe.png` });
+    await swipe(260, 30); await page.waitForTimeout(600);
+    const closed = await page.locator('#sidebar.show').count();
+    console.log(`[${name}] menu potiahnutím: otvorené=${opened} po zatvorení=${closed}`);
+    if (opened !== 1 || closed !== 0) { console.log('CHYBA: menu sa neotvára/nezatvára potiahnutím'); process.exitCode = 1; }
+  }
   // klávesové skratky (iba počítač)
   if (name === 'pc') {
     await page.keyboard.press('Escape'); await page.mouse.click(5, 300);
