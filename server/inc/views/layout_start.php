@@ -34,6 +34,9 @@ if ($inApp) { // položky natívnej Android aplikácie
     $more[] = ['app-update', 'cloudapp://update', 'bi-box-arrow-in-down', 'Aktualizácia aplikácie'];
 }
 $navGroups[] = ['Nastavenia', $more, true];
+$help = [['help', 'help.php', 'bi-book', 'Príručka'], ['tour', 'help.php#sprievodca', 'bi-signpost-split', 'Rýchly sprievodca']];
+if ($user['role'] === 'admin') $help[] = ['devhelp', 'help.php?doc=dev', 'bi-code-slash', 'Vývojárska príručka'];
+$navGroups[] = ['Pomoc', $help, true];
 require __DIR__ . '/head.php';
 ?>
 <body class="app">

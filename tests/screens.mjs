@@ -8,6 +8,8 @@ const sizes = [['mobil', { ...devices['Pixel 7'] }], ['velky', { viewport: { wid
 for (const [name, opts] of sizes) {
   const ctx = await browser.newContext({ ...opts, locale: 'sk-SK' });
   const page = await ctx.newPage();
+  // rýchly sprievodca by prekrýval obrazovku – v týchto testoch sa automaticky neotvára (testuje sa zvlášť)
+  await page.addInitScript(() => { Object.defineProperty(window, 'CLOUD_TOUR', { value: false, writable: false }); });
   // „velky“ = širší telefón s väčším písmom (ako textZoom vo WebView)
   if (name === 'velky') await page.addInitScript(() => addEventListener('DOMContentLoaded', () => { document.documentElement.style.fontSize = '125%'; }));
   page.on('pageerror', e => console.log(`[${name}] JS chyba: ${e.message}`));
@@ -62,6 +64,19 @@ for (const [name, opts] of sizes) {
     console.log(`[${name}] rozloženie: disk ${drive0}→${drive1}, nedávne ${recent1}/${recent2}`);
     if (drive1 !== drive0 || recent1 !== other || recent2 !== other) { console.log('CHYBA: prepínanie mriežky nie je nezávislé'); process.exitCode = 1; }
     await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(600);
+  }
+  // rýchly sprievodca: otvorí sa z menu Pomoc, prekliká sa, „Viac nezobrazovať“
+  {
+    await page.evaluate(() => window.cloudTour()); await page.waitForTimeout(700);
+    const t0 = await page.locator('#tourModal.show .tour-title').innerText();
+    for (let k = 0; k < 3; k++) { await page.click('#tourModal [data-tour="next"]'); await page.waitForTimeout(250); }
+    const t3 = await page.locator('#tourModal .tour-title').innerText();
+    await page.screenshot({ path: `screens/${name}-22-sprievodca.png` });
+    const steps = await page.locator('#tourModal .tour-dots button').count();
+    await page.click('#tourModal [data-tour="later"]'); await page.waitForTimeout(500);
+    const closed = !(await page.locator('#tourModal.show').count());
+    console.log(`[${name}] sprievodca: ${steps} krokov, „${t0}“ → „${t3}“, zavretý=${closed}`);
+    if (steps < 11 || t0 === t3 || !closed) { console.log('CHYBA: sprievodca nefunguje'); process.exitCode = 1; }
   }
   // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)
   if (name !== 'pc') {

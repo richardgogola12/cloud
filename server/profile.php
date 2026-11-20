@@ -253,24 +253,44 @@ $used = used_space($uid);
       });
     })();
     </script>
+    <?php $dgc = digest_cfg($user); $dgn = digest_next($dgc); ?>
     <div class="card card-soft mb-4" id="digest">
       <div class="card-body p-4">
-        <h2 class="h6 fw-bold mb-1"><i class="bi bi-envelope-paper me-2"></i>Týždenný súhrn</h2>
-        <p class="small text-body-secondary">Každý pondelok ti príde e-mail: čo pribudlo, kto ti čo nahral alebo s tebou zdieľal, koľko miesta ostáva a fotky „v tento deň“ z minulých rokov. Ak sa za týždeň nič nestalo, nepríde nič.</p>
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" role="switch" id="digestOn" <?= digest_enabled($user) ? 'checked' : '' ?>>
-          <label class="form-check-label" for="digestOn">Posielať týždenný súhrn na <?= e($user['email']) ?></label>
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-envelope-paper me-2"></i>E-mailový súhrn</h2>
+        <p class="small text-body-secondary">Príde ti e-mail: čo pribudlo, kto ti čo nahral alebo s tebou zdieľal, koľko miesta ostáva a fotky „v tento deň“ z minulých rokov. Ak sa za to obdobie nič nestalo, nepríde nič. Posiela sa na <?= e($user['email']) ?>.</p>
+        <div class="row g-2 align-items-end mb-2" id="digestForm">
+          <div class="col-12 col-sm-6 col-lg-3"><label class="form-label small mb-1" for="dgFreq">Ako často</label>
+            <select class="form-select form-select-sm" id="dgFreq"><?php foreach (DIGEST_FREQS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['freq'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
+          <div class="col-6 col-sm-6 col-lg-3" data-dg="dow"><label class="form-label small mb-1" for="dgDow">V deň</label>
+            <select class="form-select form-select-sm" id="dgDow"><?php foreach (DIGEST_DAYS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['dow'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
+          <div class="col-6 col-sm-6 col-lg-3" data-dg="dom"><label class="form-label small mb-1" for="dgDom">Deň v mesiaci</label>
+            <select class="form-select form-select-sm" id="dgDom"><?php for ($i = 1; $i <= 28; $i++): ?><option value="<?= $i ?>" <?= $dgc['dom'] === $i ? 'selected' : '' ?>><?= $i ?>.</option><?php endfor; ?></select></div>
+          <div class="col-6 col-sm-6 col-lg-3" data-dg="hour"><label class="form-label small mb-1" for="dgHour">O koľkej</label>
+            <select class="form-select form-select-sm" id="dgHour"><?php for ($i = 0; $i <= 23; $i++): ?><option value="<?= $i ?>" <?= $dgc['hour'] === $i ? 'selected' : '' ?>><?= $i ?>:00</option><?php endfor; ?></select></div>
         </div>
+        <div class="small mb-3" id="dgInfo"><?= $dgc['freq'] === 'off' ? '<span class="text-body-secondary">Súhrn je vypnutý.</span>' : 'Chodí <b>' . e(digest_when_text($dgc)) . '</b>' . ($dgn ? ' · najbližší ' . date('j. n. Y \o G:i', $dgn) : '') ?></div>
         <button class="btn btn-outline-secondary btn-sm rounded-pill" type="button" id="digestTest"><i class="bi bi-send me-1"></i>Poslať ukážku teraz</button>
       </div>
     </div>
     <script>
     (() => {
-      document.getElementById('digestOn').addEventListener('change', async (e) => {
-        const r = await Cloud.api('api.php?action=prefs_save', { key: 'digest', value: e.target.checked ? '1' : '0' });
-        Cloud.toast(r.ok ? (e.target.checked ? 'Súhrn bude chodiť každý pondelok' : 'Súhrn je vypnutý') : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
-      });
-      document.getElementById('digestTest').addEventListener('click', async (e) => {
+      const $ = (id) => document.getElementById(id);
+      const vis = () => { const f = $('dgFreq').value;
+        document.querySelector('[data-dg="dow"]').classList.toggle('d-none', !['weekly', 'biweekly'].includes(f));
+        document.querySelector('[data-dg="dom"]').classList.toggle('d-none', f !== 'monthly');
+        document.querySelector('[data-dg="hour"]').classList.toggle('d-none', f === 'off'); };
+      vis();
+      const save = async () => {
+        vis();
+        const v = { freq: $('dgFreq').value, dow: +$('dgDow').value, dom: +$('dgDom').value, hour: +$('dgHour').value };
+        const r = await Cloud.api('api.php?action=prefs_save', { key: 'digest', value: JSON.stringify(v) });
+        if (!r.ok) return Cloud.toast(r.error || 'Chyba', 'danger');
+        const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        $('dgInfo').innerHTML = r.cfg.freq === 'off' ? '<span class="text-body-secondary">Súhrn je vypnutý.</span>' : 'Chodí <b>' + esc(r.when) + '</b>' + (r.next ? ' · najbližší ' + esc(r.next) : '');
+        Cloud.toast(r.cfg.freq === 'off' ? 'Súhrn je vypnutý' : 'Uložené – súhrn chodí ' + r.when, 'success');
+      };
+      ['dgFreq', 'dgDow', 'dgDom', 'dgHour'].forEach(id => $(id).addEventListener('change', save));
+      $('digestTest').addEventListener('click', async (e) => {
         e.target.disabled = true;
         const r = await Cloud.api('api.php?action=digest_test', {});
         e.target.disabled = false;

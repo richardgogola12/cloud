@@ -61,6 +61,12 @@ jobs:
           npx playwright install --with-deps chromium > /dev/null
           node screens.mjs
 
+      - name: Snímky do príručky (ukážkové dáta)
+        if: always()
+        run: |
+          php tests/help-demo.php
+          cd tests && node help-shots.mjs
+
       - name: Uloženie snímok
         if: always()
         uses: actions/upload-artifact@v6

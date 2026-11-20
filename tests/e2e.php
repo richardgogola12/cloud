@@ -953,9 +953,48 @@ $j = $web->api('digest_test');
 ok(!empty($j['ok']) || str_contains($j['error'] ?? '', 'E-mail sa nepodarilo odoslať'), 'odoslanie ukážky (alebo zrozumiteľná chyba bez SMTP)', json_encode($j));
 ok(!empty($web->api('prefs_save', ['key' => 'digest', 'value' => '0'])['ok']), 'vypnutie súhrnu');
 $r = $web->get('profile.php');
-ok(str_contains($r['body'], 'id="digestOn"') && !preg_match('/id="digestOn"[^>]*checked/', $r['body']), 'v profile je súhrn vypnutý');
+ok(preg_match('/<option value="off" selected/', $r['body']) === 1 && str_contains($r['body'], 'Súhrn je vypnutý'), 'v profile je súhrn vypnutý');
+$j = $web->api('prefs_save', ['key' => 'digest', 'value' => json_encode(['freq' => 'monthly', 'dom' => 15, 'hour' => 19])]);
+ok(($j['cfg']['freq'] ?? '') === 'monthly' && str_contains($j['when'] ?? '', '15. dňa o 19:00') && preg_match('/^15\. /', $j['next'] ?? '') === 1, 'súhrn raz mesačne 15. o 19:00 (najbližší termín)', json_encode($j));
+$j = $web->api('prefs_save', ['key' => 'digest', 'value' => json_encode(['freq' => 'biweekly', 'dow' => 3, 'hour' => 7])]);
+ok(($j['when'] ?? '') === 'každý druhý streda o 7:00', 'súhrn každé 2 týždne v stredu o 7:00', json_encode($j));
+$r = $web->get('profile.php');
+ok(preg_match('/<option value="biweekly" selected/', $r['body']) === 1 && preg_match('/id="dgDow".*?<option value="3" selected/s', $r['body']) === 1, 'nastavenie súhrnu sa uloží a ukáže v profile');
+// keď nastane termín, súhrn sa odošle sám (kontrola pri návšteve webu, najviac raz za 10 minút)
+$web->api('prefs_save', ['key' => 'digest', 'value' => json_encode(['freq' => 'daily', 'hour' => 0])]);
+$pdoA->exec("UPDATE cloud_users SET prefs = JSON_SET(prefs, '$.digest_last', 1000) WHERE id = $uidA");
+$pdoA->exec("INSERT INTO cloud_settings (k, v) VALUES ('digest_tick', '0') ON DUPLICATE KEY UPDATE v = '0'");
+$web->get('index.php');
+$sent = 0;
+for ($i = 0; $i < 20 && !$sent; $i++) { usleep(300000); $sent = (int)$pdoA->query("SELECT JSON_EXTRACT(prefs, '$.digest_last') FROM cloud_users WHERE id = $uidA")->fetchColumn() > 1000; }
+ok($sent, 'súhrn sa v nastavený čas spracuje automaticky');
 $web->api('prefs_save', ['key' => 'digest', 'value' => '1']);
-ok(preg_match('/id="digestOn"[^>]*checked/', $web->get('profile.php')['body']) === 1, 'zapnutie súhrnu');
+ok(preg_match('/<option value="daily" selected/', $web->get('profile.php')['body']) === 1, 'zapnutie súhrnu ponechá zvolenú frekvenciu');
+
+section('Príručky a rýchly sprievodca');
+$r = $web->get('help.php');
+ok($r['code'] === 200 && str_contains($r['body'], 'id="helpDoc"') && str_contains($r['body'], 'Zamknuté zložky') && str_contains($r['body'], 'Aplikácia pre Android'), 'používateľská príručka');
+no_php_errors($r['body'], 'help.php');
+ok(str_contains($web->get('index.php')['body'], 'href="/help.php"') || str_contains($web->get('index.php')['body'], 'help.php"'), 'príručka je v menu');
+$r = $web->get('help.php?doc=dev');
+ok($r['code'] === 200 && str_contains($r['body'], 'Databáza a migrácie') && str_contains($r['body'], 'SCHEMA_VERSION'), 'vývojárska príručka pre admina');
+no_php_errors($r['body'], 'help.php?doc=dev');
+ok(str_contains($web->get('index.php')['body'], 'help.php?doc=dev'), 'vývojárska príručka je v menu admina');
+$bw = new Client();
+$bw->loadCsrf($bw->get('login.php')['body']);
+$bw->post('login.php', ['_csrf' => $bw->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234']);
+$r = $bw->get('help.php?doc=dev');
+ok($r['code'] === 403 && !str_contains($r['body'], 'Databáza a migrácie'), 'vývojárska príručka nie je pre bežného používateľa');
+ok(!str_contains($bw->get('index.php')['body'], 'help.php?doc=dev'), 'bežný používateľ nemá v menu vývojársku príručku');
+// sprievodca sa sám otvorí, kým ho používateľ nezavrie
+$pdoA->exec("UPDATE cloud_users SET prefs = JSON_REMOVE(COALESCE(prefs, '{}'), '$.tour') WHERE email = 'beata@test.sk'");
+$b0 = $bw->get('index.php')['body'];
+ok(str_contains($b0, 'window.CLOUD_TOUR = true') && str_contains($b0, 'tour.js'), 'nový používateľ uvidí rýchly sprievodcu');
+if (preg_match('/name="csrf-token" content="([a-f0-9]+)"/', $b0, $mm)) $bw->csrf = $mm[1];
+ok(!empty($bw->api('tour', ['value' => 'later'])['ok']) && !str_contains($bw->get('index.php')['body'], 'window.CLOUD_TOUR = true'), 'zavretý sprievodca sa v tejto relácii znova neotvorí');
+ok(!empty($bw->api('tour', ['value' => 'done'])['ok']), '„Viac nezobrazovať“');
+$bw->api('tour', ['value' => 'x']);
+ok(!str_contains($bw->get('index.php')['body'], 'window.CLOUD_TOUR = true'), 'po „Viac nezobrazovať“ sa sprievodca už neotvorí');
 
 section('Terminál je odstránený');
 ok($web->get('term.php')['code'] === 404, 'term.php neexistuje');

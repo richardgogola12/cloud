@@ -94,6 +94,18 @@ if (in_array($action, ['download', 'thumb', 'zip'], true)) {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'error' => 'Metóda nie je povolená'], 405);
 csrf_check();
 
+/* rýchly sprievodca: „done“ = už nezobrazovať (na účte), „later“ = až pri ďalšom prihlásení (v relácii) */
+if ($action === 'tour') {
+    $v = (string)($_POST['value'] ?? 'later');
+    if ($v === 'done' || $v === 'reset') {
+        $prefs = user_prefs($user);
+        if ($v === 'done') $prefs['tour'] = 'done'; else unset($prefs['tour']);
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+    }
+    if ($v === 'later') $_SESSION['tour_later'] = 1; else unset($_SESSION['tour_later']);
+    session_write_close();
+    json_out(['ok' => true]);
+}
 /* odomknutie / zamknutie zložky v tejto relácii (potrebuje zapisovať do session) */
 if (in_array($action, ['folder_unlock', 'folder_relock'], true)) {
     try {
@@ -684,11 +696,23 @@ try {
 
     case 'prefs_save': { // osobné nastavenia zobrazenia (napr. stĺpce v zozname) – platia na webe aj v aplikácii
         $key = (string)($_POST['key'] ?? '');
-        if ($key === 'digest') {
+        if ($key === 'digest') { // '0' / '1' alebo {"freq":"weekly","dow":1,"dom":1,"hour":8}
             $prefs = user_prefs($user);
-            $prefs['digest'] = ($_POST['value'] ?? '1') === '1';
+            $v = (string)($_POST['value'] ?? '1');
+            $j = json_decode($v, true);
+            if (is_array($j)) {
+                $c = ['freq' => isset(DIGEST_FREQS[$j['freq'] ?? '']) ? $j['freq'] : 'weekly', 'dow' => max(1, min(7, (int)($j['dow'] ?? 1))),
+                      'dom' => max(1, min(28, (int)($j['dom'] ?? 1))), 'hour' => max(0, min(23, (int)($j['hour'] ?? 8)))];
+            } else {
+                $c = digest_cfg($user);
+                $c['freq'] = $v === '1' ? ($c['freq'] === 'off' ? 'weekly' : $c['freq']) : 'off';
+            }
+            $prefs['digest'] = $c;
+            $prefs['digest_last'] = time(); // prvý súhrn až v najbližší nový termín
             q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
-            json_out(['ok' => true]);
+            $u2 = $user; $u2['prefs'] = json_encode($prefs);
+            $c2 = digest_cfg($u2); $nx = digest_next($c2);
+            json_out(['ok' => true, 'cfg' => $c2, 'when' => digest_when_text($c2), 'next' => $nx ? date('j. n. Y \o G:i', $nx) : null]);
         }
         if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
         $val = json_decode((string)($_POST['value'] ?? ''), true);
