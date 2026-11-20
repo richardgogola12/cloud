@@ -259,13 +259,13 @@ $used = used_space($uid);
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-envelope-paper me-2"></i>E-mailový súhrn</h2>
         <p class="small text-body-secondary">Príde ti e-mail: čo pribudlo, kto ti čo nahral alebo s tebou zdieľal, koľko miesta ostáva a fotky „v tento deň“ z minulých rokov. Ak sa za to obdobie nič nestalo, nepríde nič. Posiela sa na <?= e($user['email']) ?>.</p>
         <div class="row g-2 align-items-end mb-2" id="digestForm">
-          <div class="col-12 col-sm-6 col-lg-3"><label class="form-label small mb-1" for="dgFreq">Ako často</label>
-            <select class="form-select form-select-sm" id="dgFreq"><?php foreach (DIGEST_FREQS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['freq'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
-          <div class="col-6 col-sm-6 col-lg-3" data-dg="dow"><label class="form-label small mb-1" for="dgDow">V deň</label>
-            <select class="form-select form-select-sm" id="dgDow"><?php foreach (DIGEST_DAYS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['dow'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
-          <div class="col-6 col-sm-6 col-lg-3" data-dg="dom"><label class="form-label small mb-1" for="dgDom">Deň v mesiaci</label>
+          <div class="col-12 col-sm-auto"><label class="form-label small mb-1" for="dgFreq">Ako často</label>
+            <select class="form-select form-select-sm" id="dgFreq" style="min-width:170px"><?php foreach (DIGEST_FREQS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['freq'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
+          <div class="col-6 col-sm-auto" data-dg="dow"><label class="form-label small mb-1" for="dgDow">V deň</label>
+            <select class="form-select form-select-sm" id="dgDow" style="min-width:130px"><?php foreach (DIGEST_DAYS as $k => $l): ?><option value="<?= $k ?>" <?= $dgc['dow'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></div>
+          <div class="col-6 col-sm-auto" data-dg="dom"><label class="form-label small mb-1" for="dgDom">Deň v mesiaci</label>
             <select class="form-select form-select-sm" id="dgDom"><?php for ($i = 1; $i <= 28; $i++): ?><option value="<?= $i ?>" <?= $dgc['dom'] === $i ? 'selected' : '' ?>><?= $i ?>.</option><?php endfor; ?></select></div>
-          <div class="col-6 col-sm-6 col-lg-3" data-dg="hour"><label class="form-label small mb-1" for="dgHour">O koľkej</label>
+          <div class="col-6 col-sm-auto" data-dg="hour"><label class="form-label small mb-1" for="dgHour">O koľkej</label>
             <select class="form-select form-select-sm" id="dgHour"><?php for ($i = 0; $i <= 23; $i++): ?><option value="<?= $i ?>" <?= $dgc['hour'] === $i ? 'selected' : '' ?>><?= $i ?>:00</option><?php endfor; ?></select></div>
         </div>
         <div class="small mb-3" id="dgInfo"><?= $dgc['freq'] === 'off' ? '<span class="text-body-secondary">Súhrn je vypnutý.</span>' : 'Chodí <b>' . e(digest_when_text($dgc)) . '</b>' . ($dgn ? ' · najbližší ' . date('j. n. Y \o G:i', $dgn) : '') ?></div>

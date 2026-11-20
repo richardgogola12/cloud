@@ -55,7 +55,7 @@ kde sa skončilo. Najväčšiu povolenú veľkosť súboru určuje administráto
 (pozri <a href="#verzie">Verzie a história</a>). Ak má súbor úplne rovnaký obsah, nič sa nezmení a miesto sa neminie.</p>
 <h3>Nová zložka a textový súbor</h3>
 <p><b>+ Nový → Nová zložka</b> (<kbd>Shift</kbd>+<kbd>F</kbd>) a <b>Nový textový súbor</b> (<kbd>Shift</kbd>+<kbd>T</kbd>).
-Textové súbory (.txt, .md, .csv, kód…) vieš upravovať priamo v Cloude cez <b>Upraviť</b> – zmeny sa ukladajú ako nové verzie.</p>
+Textové súbory (.txt, .md, .csv, kód…) vieš upravovať priamo v Cloude cez <b>Upraviť text</b> – zmeny sa ukladajú ako nové verzie.</p>
 <div class="tip">Cez verejný odkaz môžu súbory nahrávať aj ľudia bez účtu (kapitola <a href="#zdielanie">Zdieľanie</a> → „Povoliť nahrávanie“).</div>
 
 <?= h2('praca', 'bi-folder2-open', 'Práca so súbormi a zložkami') ?>
@@ -74,19 +74,20 @@ V mriežke použi ikonu zoradenia vpravo hore. Ktoré stĺpce sa majú ukazovať
   <thead><tr><th>Akcia</th><th>Čo robí</th></tr></thead>
   <tbody>
     <tr><td>Otvoriť / Náhľad</td><td>Zobrazí obrázok, video, zvuk, PDF alebo text priamo v Cloude.</td></tr>
-    <tr><td>Upraviť</td><td>Úprava textových súborov priamo v prehliadači.</td></tr>
+    <tr><td>Upraviť text</td><td>Úprava textových súborov priamo v prehliadači.</td></tr>
     <tr><td>Stiahnuť</td><td>Stiahne súbor; viac položiek alebo zložku stiahne ako ZIP.</td></tr>
     <tr><td>Zdieľať</td><td>Zdieľanie s ľuďmi alebo verejným odkazom.</td></tr>
-    <tr><td>Štítky</td><td>Pridá alebo odoberie farebné štítky.</td></tr>
+    <tr><td>Štítky a farba…</td><td>Pridá alebo odoberie štítky a nastaví farbu položky.</td></tr>
     <tr><td>Premenovať</td><td>Zmena názvu (<kbd>F2</kbd>).</td></tr>
-    <tr><td>Presunúť do… / Kopírovať do…</td><td>Výber cieľovej zložky v okne so stromom zložiek.</td></tr>
-    <tr><td>Pridať hviezdičku</td><td>Položka sa objaví v sekcii S hviezdičkou (<kbd>S</kbd>).</td></tr>
+    <tr><td>Presunúť / Vytvoriť kópiu</td><td>Presunie položku do inej zložky (výber v strome zložiek) alebo vytvorí jej kópiu.</td></tr>
+    <tr><td>Pridať / odstrániť hviezdičku</td><td>Položka sa objaví v sekcii S hviezdičkou (<kbd>S</kbd>).</td></tr>
     <tr><td>Verzie</td><td>Staršie verzie súboru – stiahnuť, obnoviť, zmazať.</td></tr>
     <tr><td>Informácie</td><td>Veľkosť, typ, umiestnenie, vlastník, dátumy, zdieľanie (<kbd>I</kbd>).</td></tr>
-    <tr><td>História zmien</td><td>Kto a kedy čo s položkou robil (<kbd>H</kbd>).</td></tr>
-    <tr><td>Vrátiť zložku v čase</td><td>Obnoví obsah zložky k zvolenému dátumu.</td></tr>
-    <tr><td>Zamknúť heslom</td><td>Zložka sa otvorí až po zadaní hesla.</td></tr>
-    <tr><td>Odstrániť</td><td>Presunie do Koša (<kbd>Delete</kbd>).</td></tr>
+    <tr><td>Aktivita</td><td>História zmien – kto a kedy čo s položkou robil (<kbd>H</kbd>).</td></tr>
+    <tr><td>Vrátiť do stavu k…</td><td>Obnoví obsah zložky k zvolenému dátumu a času.</td></tr>
+    <tr><td>Zamknúť heslom…</td><td>Zložka sa otvorí až po zadaní hesla.</td></tr>
+    <tr><td>Presunúť do koša</td><td>Položka sa presunie do Koša (<kbd>Delete</kbd>).</td></tr>
+    <tr><td>Otvoriť v aplikácii… / Poslať…</td><td>Iba v aplikácii pre Android: otvorí súbor v inej aplikácii v telefóne alebo ho pošle (e-mail, chat…).</td></tr>
   </tbody>
 </table>
 <h3>Výber viacerých položiek</h3>
@@ -104,7 +105,7 @@ V mobile podrž prst na položke a potom ťukaj na ďalšie.</p>
 zobrazia priamo. Šípkami <kbd>←</kbd> <kbd>→</kbd> (v mobile potiahnutím) prejdeš na ďalší súbor, <kbd>D</kbd> stiahne, <kbd>Esc</kbd> zavrie.
 Ostatné typy (napr. Word, Excel) si stiahneš alebo v aplikácii otvoríš v inej aplikácii v telefóne.</p>
 <h3>Farby, štítky a hviezdičky</h3>
-<p><b>Farbu</b> zložky alebo súboru nastavíš v okne <b>Štítky</b> (ponuka → Štítky) – farebný pásik ju zvýrazní v zozname. <b>Štítky</b> sú farebné menovky (napr. „Dôležité“, „Rodina“) –
+<p><b>Farbu</b> zložky alebo súboru nastavíš v okne <b>Štítky a farba…</b> (ponuka položky) – farebný pásik ju zvýrazní v zozname. <b>Štítky</b> sú farebné menovky (napr. „Dôležité“, „Rodina“) –
 jedna položka môže mať viac štítkov a v menu vľavo klikneš na štítok a uvidíš všetko, čo ho má. Štítky spravuješ ikonou ozubeného
 kolesa pri nadpise Štítky. <b>Hviezdička</b> označí obľúbené položky – nájdeš ich v sekcii <b>S hviezdičkou</b>.</p>
 <?= fig('u-hviezdicky', 'Sekcia S hviezdičkou.') ?>
@@ -177,7 +178,7 @@ rozdelené po mesiacoch. Hore sú karty <b>Fotky</b> a <b>Albumy</b>; vpravo pre
 <ol class="steps">
   <li>V karte <b>Albumy</b> klikni na <b>Nový album</b> a pomenuj ho.</li>
   <li>Vyber fotky (kdekoľvek v Cloude) a v ponuke daj <b>Pridať do albumu</b>.</li>
-  <li>V albume môžeš fotku nastaviť ako <b>obálku</b> alebo ju <b>odobrať z albumu</b> (súbor tým nezmizne).</li>
+  <li>V albume môžeš fotku <b>Nastaviť ako obal albumu</b> alebo ju <b>Odstrániť z albumu</b> (súbor tým nezmizne).</li>
 </ol>
 <p>Album je len „výber“ – tá istá fotka môže byť vo viacerých albumoch a stále zaberá miesto iba raz.</p>
 <?= fig('u-album', 'Obsah albumu.') ?>
@@ -191,13 +192,13 @@ rozdelené po mesiacoch. Hore sú karty <b>Fotky</b> a <b>Albumy</b>; vpravo pre
 V ponuke <b>Verzie</b> ich vidíš s dátumom a veľkosťou – môžeš ich stiahnuť, <b>obnoviť</b> (aktuálny stav sa pritom tiež uloží ako verzia) alebo zmazať.
 Počet uchovaných verzií nastavuje administrátor (predvolene 10).</p>
 <h3>História zmien a Aktivita</h3>
-<?= fig('u-historia', 'História zmien jednej položky.') ?>
-<p><b>História zmien</b> pri položke ukáže, kto ju kedy vytvoril, upravil, premenoval, presunul, zdieľal či zmazal. Sekcia <b>Aktivita</b>
+<?= fig('u-historia', 'Aktivita jednej položky – história zmien.') ?>
+<p>Položka ponuky <b>Aktivita</b> pri súbore či zložke ukáže, kto ju kedy vytvoril, upravil, premenoval, presunul, zdieľal či zmazal. Sekcia <b>Aktivita</b>
 v menu je to isté pre celý tvoj disk – ako tabuľka, ktorú môžeš zoraďovať podľa stĺpcov a filtrovať.</p>
 <?= fig('u-aktivita', 'Aktivita – všetky udalosti na disku.') ?>
-<h3>Vrátiť zložku v čase</h3>
-<?= fig('u-rewind', 'Vrátenie zložky do stavu z vybraného dňa a času.') ?>
-<p>Ak sa v zložke niečo pokazilo (omylom zmazané, prepísané, presunuté), daj na zložke <b>Vrátiť zložku v čase</b>, vyber dátum a čas
+<h3>Vrátiť zložku do stavu k dátumu</h3>
+<?= fig('u-rewind', 'Vrátenie zložky do stavu k vybranému dňu a času.') ?>
+<p>Ak sa v zložke niečo pokazilo (omylom zmazané, prepísané, presunuté), daj na zložke <b>Vrátiť do stavu k…</b>, vyber dátum a čas
 a Cloud ukáže, čo všetko sa zmení. Po potvrdení sa obnovia zmazané položky a staré verzie súborov; to, čo pribudlo neskôr, sa presunie do koša.</p>
 <h3>Kôš</h3>
 <?= fig('u-kos', 'Kôš – obnovenie alebo trvalé zmazanie.') ?>
@@ -210,14 +211,14 @@ a Cloud ukáže, čo všetko sa zmení. Po potvrdení sa obnovia zmazané polož
 <p>Citlivé dokumenty môžeš dať do zložky zamknutej <b>vlastným heslom</b> (iným ako heslo k účtu). Kým ju neodomkneš, nevidno jej obsah –
 ani v hľadaní, Fotkách či Nedávnych.</p>
 <ol class="steps">
-  <li>Na zložke vyber <b>Zamknúť heslom</b>, zadaj heslo dvakrát.</li>
+  <li>Na zložke vyber <b>Zamknúť heslom…</b>, zadaj heslo dvakrát.</li>
   <li>Zvoľ, <b>kedy sa má heslo pýtať znova</b>: <i>vždy</i> (pri každom otvorení), <i>po zatvorení prehliadača / aplikácie</i>, alebo <i>po odhlásení</i>.</li>
   <li>Hotovo – zložka má ikonu zámku.</li>
 </ol>
 <?= fig('u-zamknuta', 'Zamknutá zložka čaká na heslo.') ?>
 <p>V aplikácii pre Android môžeš zložku odomykať <b>odtlačkom prsta</b> – po prvom zadaní hesla ti to aplikácia ponúkne.
-Zložku kedykoľvek hneď zamkneš tlačidlom <i class="bi bi-lock"></i> v hornej lište. Heslo zmeníš alebo zámok zrušíš cez <b>Upraviť zámok</b>.</p>
-<div class="tip">Zabudol si heslo zložky? V okne Upraviť zámok ho môžeš zmeniť zadaním <b>hesla k svojmu účtu</b>.</div>
+Zložku kedykoľvek hneď zamkneš cez <b>Zamknúť teraz</b> (v ponuke zložky alebo tlačidlom so zámkom hore). Heslo, režim alebo zrušenie zámku nájdeš v <b>Heslo zložky…</b>.</p>
+<div class="tip">Zabudol si heslo zložky? V okne <b>Heslo zložky…</b> ho môžeš zmeniť zadaním <b>hesla k svojmu účtu</b>.</div>
 
 <?= h2('ucet', 'bi-person-gear', 'Môj účet') ?>
 <?= fig('u-profil', 'Môj účet – osobné údaje, heslo, zariadenia, odtlačok prsta, stĺpce, e-mailový súhrn, sieťový disk.') ?>
@@ -280,7 +281,7 @@ Nové fotky a súbory sa nahrajú hneď, ako vzniknú. Nastaviť môžeš:</p>
 <p>V galérii, správcovi súborov či inej aplikácii daj <b>Zdieľať → Cloud</b>, vyber cieľovú zložku (alebo vytvor novú) a ťukni na <b>Nahrať</b>.
 Nahrávanie pokračuje aj po zatvorení aplikácie – priebeh vidíš v notifikácii.</p>
 <h3>Otváranie súborov</h3>
-<p>Fotky, videá a PDF sa otvoria priamo v aplikácii. Ostatné súbory (Word, Excel…) cez <b>Otvoriť v aplikácii</b> v ponuke otvoríš v programe v telefóne.</p>
+<p>Fotky, videá a PDF sa otvoria priamo v aplikácii. Ostatné súbory (Word, Excel…) cez <b>Otvoriť v aplikácii…</b> v ponuke otvoríš v programe v telefóne.</p>
 <h3>Beh na pozadí</h3>
 <p>Aby synchronizácia a upozornenia fungovali spoľahlivo, v menu <b>Beh na pozadí</b> skontroluj odporúčané nastavenia (vypnutá optimalizácia batérie a pod.).
 Tip: v zozname otvorených aplikácií podrž kartu Cloud a ťukni na zámok.</p>
@@ -329,7 +330,7 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
 <h3>Nevidím miniatúry videí</h3>
 <p>Miniatúry videí vyžadujú na serveri program ffmpeg – povedz administrátorovi.</p>
 <h3>Niečo som omylom zmazal</h3>
-<p>Pozri do <b>Koša</b>. Ak tam nie je, skús na nadradenej zložke <b>Vrátiť zložku v čase</b> alebo staršiu <b>verziu</b> súboru.</p>
+<p>Pozri do <b>Koša</b>. Ak tam nie je, skús na nadradenej zložke <b>Vrátiť do stavu k…</b> alebo staršiu <b>verziu</b> súboru.</p>
 <h3>Nepríde mi e-mail</h3>
 <p>Pozri do priečinka Spam/Nevyžiadaná pošta. Ak nechodí žiadny e-mail, administrátor má skontrolovať nastavenie SMTP.</p>
 <h3>Zabudol som heslo</h3>

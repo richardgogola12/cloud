@@ -10,7 +10,7 @@
     { icon: 'bi-folder-plus', title: '2. Zložky a poriadok', img: 'u-disk-zoznam',
       text: 'Vytvor si zložky (<b>+ Nový → Nová zložka</b>) a súbory do nich presúvaj potiahnutím. Zložkám môžeš dať <b>farbu</b> a <b>štítky</b>. Vpravo hore prepínaš <b>zoznam</b> a <b>mriežku</b> – každé miesto si pamätá svoje.' },
     { icon: 'bi-three-dots-vertical', title: '3. Ponuka akcií', img: 'u-kontext',
-      text: 'Pravým klikom na súbor (v mobile cez <b>⋮</b>) otvoríš všetky akcie: stiahnuť, premenovať, presunúť, kopírovať, zdieľať, hviezdička, verzie, informácie, história zmien a zmazanie.' },
+      text: 'Pravým klikom na súbor (v mobile cez <b>⋮</b>) otvoríš všetky akcie: stiahnuť, zdieľať, štítky a farba, premenovať, presunúť, kópia, hviezdička, verzie, informácie, aktivita (história zmien) a presun do koša.' },
     { icon: 'bi-share', title: '4. Zdieľanie', img: 'u-zdielanie',
       text: 'Cez <b>Zdieľať</b> pridáš ľudí z Cloudu (iba čítanie alebo aj úpravy), alebo vytvoríš <b>verejný odkaz</b> – s heslom, dátumom platnosti a pri zložke aj s možnosťou, aby ti iní nahrali súbory.' },
     { icon: 'bi-search', title: '5. Vyhľadávanie', img: 'u-hladanie-vysledky',

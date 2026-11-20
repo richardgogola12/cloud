@@ -60,7 +60,7 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-hladanie-navrhy', async () => { await page.click('#searchInput'); await page.fill('#searchInput', 'zml'); await wait(page, 1000); });
   await shot(page, 'u-hladanie-vysledky', async () => { await page.fill('#searchInput', 'faktúra'); await page.press('#searchInput', 'Enter'); await wait(page, 1400); });
   await shot(page, 'u-hladanie-rozsirene', async () => { await page.click('#searchFilterBtn'); await wait(page, 600); });
-  await page.fill('#searchInput', ''); await go(page, '#');
+  await page.goto(base + 'index.php'); await wait(page, 1200);
   await go(page, '#photos', 1800);
   await shot(page, 'u-fotky');
   await go(page, '#albums');
