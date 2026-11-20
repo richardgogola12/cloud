@@ -46,6 +46,23 @@ for (const [name, opts] of sizes) {
   const stored = await page.evaluate(async () => ({ ls: Object.keys(localStorage).filter(k => k.startsWith('cloud-lc-') || k === 'cloud-recent-search'), caches: 'caches' in window ? await caches.keys() : [] }));
   console.log(`[${name}] uložené v zariadení: ${JSON.stringify(stored)}`);
   if (stored.ls.length || stored.caches.includes('cloud-thumbs')) { console.log('CHYBA: v zariadení ostali dáta'); process.exitCode = 1; }
+  // zoznam / mriežka je pre každé miesto zvlášť (Nedávne nezmení Môj disk)
+  {
+    const lay = () => page.evaluate(() => (document.querySelector('[data-view].active') || {}).dataset?.view || '?');
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(900);
+    const drive0 = await lay();
+    await page.evaluate(() => { location.hash = '#recent'; }); await page.waitForTimeout(900);
+    const other = drive0 === 'grid' ? 'list' : 'grid';
+    await page.evaluate((v) => document.querySelector('[data-view="' + v + '"]').click(), other); await page.waitForTimeout(500);
+    const recent1 = await lay();
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(900);
+    const drive1 = await lay();
+    await page.evaluate(() => { location.hash = '#recent'; }); await page.waitForTimeout(900);
+    const recent2 = await lay();
+    console.log(`[${name}] rozloženie: disk ${drive0}→${drive1}, nedávne ${recent1}/${recent2}`);
+    if (drive1 !== drive0 || recent1 !== other || recent2 !== other) { console.log('CHYBA: prepínanie mriežky nie je nezávislé'); process.exitCode = 1; }
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(600);
+  }
   // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)
   if (name !== 'pc') {
     const swipe = (x1, x2) => page.evaluate(([a, b]) => {

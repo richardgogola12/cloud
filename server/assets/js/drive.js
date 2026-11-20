@@ -29,7 +29,23 @@
   // zobrazenia mimo zložky (Nedávne, Kôš, Zdieľané, Hľadanie…) sa zoraďujú v prehliadači, každé si pamätá svoje
   state.vsort = {};
   const VSORT_DEF = { recent: ['updated', 'desc'], trash: ['deleted', 'desc'], search: ['rel', 'asc'], shared: ['updated', 'desc'], byme: ['updated', 'desc'] };
-  const curLayout = () => isPhotoView() ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : (state.view === 'dupes' || state.view === 'activity') ? 'list' : state.layout;
+  /* zoznam / mriežka si pamätá každé miesto zvlášť: Môj disk, každá zložka (podzložka zdedí nastavenie nadradenej), Nedávne, Kôš, Fotky, každý album… */
+  let layoutMap = {};
+  try { layoutMap = JSON.parse(localStorage.getItem('cloud-layouts') || '{}') || {}; } catch (e) {}
+  function layoutKeys() {
+    if (state.view === 'album') return ['album:' + (state.album || 0), 'photos'];
+    if (state.view === 'folder') {
+      const r = state.root === 'shared' ? 'shared' : 'drive';
+      const ids = [state.folder].concat((state.crumbs || []).map(c => c.id).reverse()).filter(Boolean);
+      return [...new Set(ids)].map(id => 'folder:' + id).concat([r === 'shared' ? 'shared' : 'drive']);
+    }
+    return [state.view];
+  }
+  function layoutGet() {
+    for (const k of layoutKeys()) if (layoutMap[k]) return layoutMap[k];
+    return isPhotoView() ? state.photoLayout : state.layout;
+  }
+  const curLayout = () => { const l = layoutGet(); return isPhotoView() ? (l === 'list' || l === 'grid' ? l : 'photos') : (state.view === 'dupes' || state.view === 'activity') ? 'list' : (l === 'grid' ? 'grid' : 'list'); };
   /** stĺpce, podľa ktorých sa dá v tomto zobrazení zoradiť (aj v mriežke) */
   function sortKeys() {
     const v = state.view, L = COLDEF.labels || {};
@@ -330,7 +346,7 @@
     renderPhotoBar();
     $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || (state.view === 'activity' && el.classList.contains('view-switch'))));
     const ph = isPhotoView();
-    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === (ph ? (state.photoLayout === 'list' ? 'list' : state.photoLayout === 'grid' ? 'grid' : 'photos') : state.layout)));
+    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === curLayout()));
     $$('[data-view="photos"]').forEach(b => b.classList.toggle('d-none', !ph));
     const csr = clientSortOf();
     if (csr) {
@@ -1524,7 +1540,7 @@
     if (e.shiftKey && low === 't') { e.preventDefault(); return newText(); }
     if (e.shiftKey) return;
     if (low === 'u') { e.preventDefault(); return $('#fileInput').click(); }
-    if (low === 'v') { e.preventDefault(); const L0 = isPhotoView() ? (state.photoLayout === 'photos' ? 'grid' : state.photoLayout === 'grid' ? 'list' : 'photos') : (state.layout === 'list' ? 'grid' : 'list'); return setLayout(L0); }
+    if (low === 'v') { e.preventDefault(); const cl0 = curLayout(); const L0 = isPhotoView() ? (cl0 === 'photos' ? 'grid' : cl0 === 'grid' ? 'list' : 'photos') : (cl0 === 'list' ? 'grid' : 'list'); return setLayout(L0); }
     if (!sel.length) return;
     const acts = {
       f2: () => one && rename(one), n: () => one && rename(one), s: () => star(sel), i: () => one && info(one), '.': () => one && share(one),
@@ -1537,9 +1553,15 @@
 
   // prepínače
   function setLayout(v) {
-    if (isPhotoView()) { state.photoLayout = v; try { localStorage.setItem('cloud-playout', v); } catch (e) {} render(); return; }
-    if (v === 'photos') return;
-    state.layout = v; localStorage.setItem('cloud-layout', state.layout); render();
+    if (v === 'photos' && !isPhotoView()) return;
+    const k = layoutKeys()[0];
+    layoutMap[k] = v;
+    // zložka nastavená rovnako ako nadradená nepotrebuje vlastný záznam (zmena nadradenej sa jej potom tiež prejaví)
+    const keys = layoutKeys().slice(1); let inh = null;
+    for (const k2 of keys) if (layoutMap[k2]) { inh = layoutMap[k2]; break; }
+    if (keys.length && v === (inh || (isPhotoView() ? state.photoLayout : state.layout))) delete layoutMap[k];
+    try { localStorage.setItem('cloud-layouts', JSON.stringify(layoutMap)); } catch (e) {}
+    render();
   }
   $$('[data-view]').forEach(b => b.onclick = () => setLayout(b.dataset.view));
   function setSort(k, dir) {
