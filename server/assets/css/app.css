@@ -156,7 +156,15 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
   .row-item { min-height: 58px; }
 }
 @media (max-width: 575.98px) { .list-header, .row-item { grid-template-columns: 0 minmax(0,1fr) 40px; } .c-check { overflow: hidden; } }
-.list-header { font-size: .85rem; font-weight: 600; color: var(--bs-secondary-color); height: 44px; border-bottom: 1px solid var(--c-border); }
+.list-header { font-size: .85rem; font-weight: 600; color: #041e49; height: 44px; background: var(--c-sel); border-radius: 12px; border-bottom: 0; margin-bottom: 4px; }
+[data-bs-theme="dark"] .list-header { color: #d3e3fd; }
+.list-header .sortable:hover { color: var(--c-primary); }
+[data-bs-theme="dark"] .list-header .sortable:hover { color: #fff; }
+/* rovnaká modrá hlavička aj v tabuľkách administrácie */
+.table > thead > tr > th { background: var(--c-sel); color: #041e49; font-weight: 600; border-bottom: 0; }
+[data-bs-theme="dark"] .table > thead > tr > th { color: #d3e3fd; }
+.table > thead > tr > th:first-child { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+.table > thead > tr > th:last-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
 .row-item { min-height: 52px; border-bottom: 1px solid var(--c-border); cursor: pointer; user-select: none; border-radius: 0; }
 .row-item:hover { background: var(--c-hover); }
 .row-item .c-name { display: flex; align-items: center; gap: 14px; min-width: 0; font-weight: 500; }
