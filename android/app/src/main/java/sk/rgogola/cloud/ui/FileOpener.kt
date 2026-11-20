@@ -36,7 +36,7 @@ class FileOpener(private val act: AppCompatActivity) {
         val mime = mimeFor(name, uri.getQueryParameter("mime"))
 
         val dir = File(act.cacheDir, "open").apply { mkdirs() }
-        dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 24 * 3600 * 1000L) it.delete() }
+        dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 30 * 60 * 1000L) it.delete() }
         val file = File(dir, "${id}_$name")
         if (file.exists() && size >= 0 && file.length() == size) { if (pdf) openPdf(file, name) else deliver(file, mime, send); return }
 

@@ -120,23 +120,16 @@
     else box.innerHTML = n(10).map(() => '<div class="sk-row"><span class="sk-icon thumb-loading"></span><span class="sk-line thumb-loading" style="width:' + (35 + Math.round(Math.random() * 35)) + '%"></span></div>').join('');
   }
   /* ---------------- cache zoznamov: zložka sa ukáže hneď z pamäte a potichu sa overí na serveri ---------------- */
-  const LC_KEY = 'cloud-lc-' + (window.CLOUD_UID || 0), LC_PERSIST = ['folder', 'recent', 'starred', 'photos', 'shared', 'byme', 'tag'];
+  /* zoznamy sa držia iba v pamäti (kým je stránka otvorená) – na disk zariadenia sa neukladá nič */
+  try { Object.keys(localStorage).filter(k => k.startsWith('cloud-lc-') || k === 'cloud-recent-search').forEach(k => localStorage.removeItem(k)); } catch (e) {}
   const lcMem = new Map();
-  try { Object.entries(JSON.parse(localStorage.getItem(LC_KEY) || '{}')).forEach(([k, v]) => lcMem.set(k, v)); } catch (e) {}
   const lcKey = (p) => p.view === 'search' || p.view === 'dupes' ? null : [p.view, p.folder || 0, p.view === 'tag' ? p.tag : p.view === 'album' ? p.album : 0, p.sort, p.dir].join('|');
-  let lcT;
   function lcPut(k, r) {
     if (!k) return;
-    if (r.no_cache) { lcMem.delete(k); return; } // obsah zamknutých zložiek sa nikam neukladá
+    if (r.no_cache) { lcMem.delete(k); return; } // obsah zamknutých zložiek sa nedrží ani v pamäti
     lcMem.delete(k);
     lcMem.set(k, { t: Date.now(), r: { items: r.items, crumbs: r.crumbs, perm: r.perm, root: r.root, trash_days: r.trash_days, nohash: r.nohash, total: r.total, quota: r.quota } });
     while (lcMem.size > 60) lcMem.delete(lcMem.keys().next().value);
-    clearTimeout(lcT);
-    lcT = setTimeout(() => { // do prehliadača sa uloží iba posledných 25 zoznamov (bez názvov sa nič neukáže, kým sa neoverí)
-      const o = {};
-      [...lcMem.entries()].filter(([k]) => LC_PERSIST.includes(k.split('|')[0])).slice(-25).forEach(([k, v]) => { o[k] = { t: v.t, r: Object.assign({}, v.r, { items: v.r.items.slice(0, 150), total: Math.max(v.r.total || 0, v.r.items.length) }) }; });
-      try { localStorage.setItem(LC_KEY, JSON.stringify(o)); } catch (e) { try { localStorage.removeItem(LC_KEY); } catch (e2) {} }
-    }, 800);
   }
   const lcSame = (a, b) => a.items.length === b.items.length && (a.total || 0) === (b.total || 0) && JSON.stringify([a.items, a.crumbs, a.perm]) === JSON.stringify([b.items, b.crumbs, b.perm]);
   function listParams() {
@@ -193,7 +186,6 @@
       m.hide();
       toast(op === 'remove' ? 'Heslo zložky je zrušené' : op === 'set' ? 'Zložka je zamknutá heslom' + (r.links ? ' – verejný odkaz na ňu už nefunguje' : '') : op === 'mode' ? 'Nastavenie uložené' : 'Heslo zložky je zmenené', 'success');
       for (const k of [...lcMem.keys()]) lcMem.delete(k);
-      try { localStorage.removeItem(LC_KEY); } catch (e) {}
       load(true);
     };
     form.addEventListener('submit', (e) => { e.preventDefault(); send(set ? 'set' : 'change'); });
@@ -1958,12 +1950,9 @@
     closeSearchPop(); closeAdv();
     go('#search/' + encodeURIComponent(q) + (qs ? '?' + qs : ''));
   }
-  const RS_KEY = 'cloud-recent-search';
-  const recentSearches = () => { try { return JSON.parse(localStorage.getItem(RS_KEY) || '[]'); } catch (e) { return []; } };
-  function rememberSearch(q) {
-    const l = recentSearches().filter(x => x !== q); l.unshift(q);
-    try { localStorage.setItem(RS_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {}
-  }
+  let rsMem = []; // posledné hľadania – iba v pamäti, nikam sa neukladajú
+  const recentSearches = () => rsMem.slice();
+  function rememberSearch(q) { rsMem = [q].concat(rsMem.filter(x => x !== q)).slice(0, 6); }
   const typeLabel = (id) => ((smeta && smeta.types.find(t => t.id === id)) || {}).label || id;
   const typeIcon = (id) => ((smeta && smeta.types.find(t => t.id === id)) || {}).icon || 'bi-file-earmark';
 
@@ -2033,7 +2022,7 @@
   sPop.addEventListener('mousedown', (e) => e.preventDefault()); // nech políčko nestratí fokus
   sPop.addEventListener('click', (e) => {
     const f = e.target.closest('[data-sp-forget]');
-    if (f) { e.stopPropagation(); try { localStorage.setItem(RS_KEY, JSON.stringify(recentSearches().filter(x => x !== f.dataset.spForget))); } catch (er) {} showSuggest(); return; }
+    if (f) { e.stopPropagation(); rsMem = rsMem.filter(x => x !== f.dataset.spForget); showSuggest(); return; }
     const el = e.target.closest('[data-sp-type],[data-sp-q],[data-sp-tag],[data-sp-item],[data-sp-adv]');
     if (!el) return;
     if (el.dataset.spType) { goSearch(sInput.value, { type: el.dataset.spType }); return; }

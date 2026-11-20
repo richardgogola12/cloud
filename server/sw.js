@@ -1,6 +1,6 @@
 /* Service worker – Cloud PWA */
-const VERSION = 'cloud-v4';
-const THUMBS = 'cloud-thumbs'; // miniatúry (adresa obsahuje verziu súboru → bezpečné držať dlho)
+const VERSION = 'cloud-v5';
+// miniatúry, súbory ani zoznamy sa do zariadenia neukladajú (stará cache miniatúr 'cloud-thumbs' sa pri aktualizácii zmaže)
 const SHELL = [
   'offline.html',
   'assets/icons/icon-192.png',
@@ -11,7 +11,7 @@ self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new URL(u, self.registration.scope)))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== INBOX && k !== THUMBS).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== INBOX).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 const INBOX = 'cloud-share-inbox';
@@ -37,17 +37,6 @@ self.addEventListener('fetch', (e) => {
   if (req.method === 'POST' && url.pathname.endsWith('/share-target.php')) { e.respondWith(handleShare(req)); return; }
   if (req.method !== 'GET') return;
 
-  // miniatúry: najprv z telefónu/počítača, sieť iba ak tam nie sú
-  if (url.origin === location.origin && url.pathname.endsWith('/api.php') && url.searchParams.get('action') === 'thumb' && url.searchParams.has('v')) {
-    e.respondWith(caches.open(THUMBS).then(async (c) => {
-      const hit = await c.match(req);
-      if (hit) return hit;
-      const res = await fetch(req);
-      if (res.ok) { c.put(req, res.clone()); trimThumbs(c); }
-      return res;
-    }));
-    return;
-  }
   // dynamické dáta a súbory nikdy necacheujeme
   if (url.origin === location.origin && /\/(api|passkey|logout|admin|switch)\.php/.test(url.pathname)) return;
 
@@ -57,8 +46,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // statické súbory (vlastné + CDN): stale-while-revalidate
-  if (/\.(css|js|png|svg|woff2?|ttf)(\?|$)/.test(url.pathname + url.search) || url.hostname === 'cdn.jsdelivr.net') {
+  // statické súbory aplikácie (vlastné + CDN, nikdy nie súbory používateľov z .php): stale-while-revalidate
+  if (!url.pathname.endsWith('.php') && /\.(css|js|png|svg|woff2?|ttf)(\?|$)/.test(url.pathname + url.search) || url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(caches.open(VERSION).then(async (c) => {
       const hit = await c.match(req);
       const net = fetch(req).then(res => { if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res; }).catch(() => hit);
@@ -66,11 +55,3 @@ self.addEventListener('fetch', (e) => {
     }));
   }
 });
-
-/* najviac ~3000 miniatúr (~60 MB), najstaršie preč */
-let trimming = false;
-async function trimThumbs(c) {
-  if (trimming || Math.random() > 0.05) return;
-  trimming = true;
-  try { const keys = await c.keys(); for (let i = 0; i < keys.length - 3000; i++) await c.delete(keys[i]); } finally { trimming = false; }
-}

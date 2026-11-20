@@ -40,15 +40,12 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-2b-cesta-3-urovne.png` });
   await page.goto(base + 'index.php#'); await page.waitForTimeout(1200);
   await page.screenshot({ path: `screens/${name}-3-moj-disk.png` });
-  // cache zoznamov: po obnovení stránky sa zložka ukáže skôr, než odpovie server
+  // do zariadenia sa nič neukladá: po obnovení stránky nie je zoznam ani miniatúry v localStorage / CacheStorage
   await page.waitForTimeout(1000);
-  const nItems = await page.locator('#items .item').count();
-  await page.route('**/api.php?action=list*', async (route) => { await new Promise(r => setTimeout(r, 2500)); await route.continue().catch(() => {}); });
-  await page.reload(); await page.waitForTimeout(900);
-  const early = await page.locator('#items .item').count();
-  console.log(`[${name}] cache zoznamu: ${early}/${nItems} položiek pred odpoveďou servera`);
-  if (nItems > 0 && early < 1) { console.log('CHYBA: zoznam sa neukázal z cache'); process.exitCode = 1; }
-  await page.waitForTimeout(2500); await page.unroute('**/api.php?action=list*');
+  await page.reload(); await page.waitForTimeout(1500);
+  const stored = await page.evaluate(async () => ({ ls: Object.keys(localStorage).filter(k => k.startsWith('cloud-lc-') || k === 'cloud-recent-search'), caches: 'caches' in window ? await caches.keys() : [] }));
+  console.log(`[${name}] uložené v zariadení: ${JSON.stringify(stored)}`);
+  if (stored.ls.length || stored.caches.includes('cloud-thumbs')) { console.log('CHYBA: v zariadení ostali dáta'); process.exitCode = 1; }
   // klávesové skratky (iba počítač)
   if (name === 'pc') {
     await page.keyboard.press('Escape'); await page.mouse.click(5, 300);

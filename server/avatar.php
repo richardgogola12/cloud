@@ -9,6 +9,6 @@ $jpg = $u ? avatar_read($u) : null;
 if ($jpg === null) { http_response_code(404); exit; }
 header('Content-Type: image/jpeg');
 header('Content-Length: ' . strlen($jpg));
-header('Cache-Control: private, max-age=31536000, immutable');
+header('Cache-Control: private, no-store');
 header('X-Content-Type-Options: nosniff');
 echo $jpg;

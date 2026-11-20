@@ -565,7 +565,7 @@ function send_file(string $path, string $name, string $mime, bool $inline): neve
     header('Content-Type: ' . ($inline ? $mime : 'application/octet-stream'));
     $ascii = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', $name);
     header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
-    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Cache-Control: private, no-store'); // nič sa neukladá na disk zariadenia
     if (isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $m)) {
         if ($m[1] === '' && $m[2] !== '') { $start = max(0, $size - (int)$m[2]); }
         else { $start = (int)$m[1]; if ($m[2] !== '') $end = min((int)$m[2], $size - 1); }
@@ -600,7 +600,7 @@ function send_stored(array $row, string $name, bool $inline): never {
     header('Content-Type: ' . ($inline ? $mime : 'application/octet-stream'));
     $ascii = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', $name);
     header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
-    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Cache-Control: private, no-store'); // nič sa neukladá na disk zariadenia
     if ($size > 0 && isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $m)) {
         if ($m[1] === '' && $m[2] !== '') { $start = max(0, $size - (int)$m[2]); }
         else { $start = (int)$m[1]; if ($m[2] !== '') $end = min((int)$m[2], $size - 1); }
@@ -694,7 +694,7 @@ function send_thumb(array $f): never {
     if (!$tpath) { http_response_code(404); exit; }
     $key = row_key($f);
     header('Content-Type: image/jpeg');
-    header('Cache-Control: private, max-age=2592000' . (isset($_GET['v']) ? ', immutable' : '')); // adresa obsahuje verziu súboru
+    header('Cache-Control: private, no-store'); // miniatúry sa v zariadení neukladajú (iba v pamäti otvorenej stránky)
     if ($key === null) {
         header('Content-Length: ' . filesize($tpath));
         readfile($tpath);

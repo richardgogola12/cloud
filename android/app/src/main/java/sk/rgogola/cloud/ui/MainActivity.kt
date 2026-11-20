@@ -207,6 +207,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(b.root)
         applySystemInsets(b.root)
         setupWeb()
+        if (savedInstanceState == null) wipeDeviceCache()
 
         b.retryBtn.setOnClickListener { b.offline.visibility = View.GONE; loadWeb() }
         b.offlineSyncBtn.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
@@ -312,6 +313,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
+    /** Na disk telefónu sa nič neukladá: pri každom spustení zmaže HTTP cache WebView (miniatúry, náhľady)
+     *  a dočasné kópie súborov, ktoré sa otvárali v iných aplikáciách. */
+    private fun wipeDeviceCache() {
+        runCatching { b.web.clearCache(true) }
+        Thread {
+            for (d in listOf("open", "camera", "share_text")) runCatching { java.io.File(cacheDir, d).deleteRecursively() }
+        }.start()
+    }
+
     private fun setupWeb() {
         val w = b.web
         CookieManager.getInstance().setAcceptCookie(true)

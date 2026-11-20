@@ -154,6 +154,9 @@ $thumb = glob(STORAGE . '/thumbs/*/*.jpg');
 ok($thumb && substr(file_get_contents($thumb[0]), 0, 6) === "CLDE1\0", 'miniatúra je na disku zašifrovaná');
 $r = $web->get("api.php?action=thumb&id=$fileId");
 ok($r['code'] === 200 && @imagecreatefromstring($r['body']) !== false, 'miniatúra z cache (rozšifrovaná)');
+ok(stripos($r['headers'], 'Cache-Control: private, no-store') !== false, 'miniatúra sa v zariadení neukladá (no-store)');
+$r = $web->get("api.php?action=download&id=$fileId&inline=1");
+ok(stripos($r['headers'], 'no-store') !== false, 'náhľad súboru sa v zariadení neukladá (no-store)');
 
 section('Verzie a duplicity');
 $up2 = upload($web, $folder, 'fotka.jpg', $img);
