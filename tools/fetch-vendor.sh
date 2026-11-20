@@ -15,10 +15,6 @@ get jquery@3.7.1/dist/jquery.min.js                          jquery/jquery.min.j
 get select2@4.1.0-rc.0/dist/css/select2.min.css              select2/select2.min.css
 get select2@4.1.0-rc.0/dist/js/select2.min.js                select2/select2.min.js
 get select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css select2/select2-bootstrap-5-theme.min.css
-get leaflet@1.9.4/dist/leaflet.js                            leaflet/leaflet.js
-get leaflet@1.9.4/dist/leaflet.css                           leaflet/leaflet.css
-get leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js leaflet/leaflet.markercluster.js
-get leaflet.markercluster@1.5.3/dist/MarkerCluster.css       leaflet/MarkerCluster.css
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
 echo "Hotovo: $D"

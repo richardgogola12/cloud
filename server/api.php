@@ -378,7 +378,7 @@ try {
         json_out(['ok' => true, 'result' => $res]);
     }
 
-    /* ---------------- fotky: albumy, mapa, spomienky ---------------- */
+    /* ---------------- fotky: albumy, spomienky ---------------- */
     case 'albums': {
         json_out(['ok' => true, 'albums' => albums_list($uid)]);
     }
@@ -414,15 +414,6 @@ try {
         $al = album_get($uid, (int)($_POST['album'] ?? 0));
         q('UPDATE ' . P . 'albums SET cover_id = ? WHERE id = ?', [(int)($_POST['file'] ?? 0) ?: null, $al['id']]);
         json_out(['ok' => true]);
-    }
-    case 'photo_map': {
-        $pending = photo_meta_pending($uid);
-        if ($pending) defer_task(fn() => backfill_photo_meta($uid, 60)); // staršie fotky sa doplnia na pozadí
-        $rows = q("SELECT f.id, f.name, f.folder_id, f.user_id, f.lat, f.lng, f.updated_at, f.taken_at, f.created_at, f.mime FROM $F f
-                   WHERE f.user_id = ? AND f.deleted_at IS NULL AND f.lat IS NOT NULL ORDER BY COALESCE(f.taken_at, f.created_at) DESC LIMIT 50000", [$uid])->fetchAll();
-        $none = [];
-        filter_locked($none, $rows);
-        json_out(['ok' => true, 'pending' => $pending, 'points' => array_map(fn($r) => [(int)$r['id'], (float)$r['lat'], (float)$r['lng'], $r['name'], $r['taken_at'] ?: $r['created_at'], $r['updated_at']], $rows)]);
     }
     case 'memories': {
         json_out(['ok' => true, 'groups' => photo_memories($uid)]);

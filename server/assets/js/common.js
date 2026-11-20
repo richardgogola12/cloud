@@ -291,7 +291,7 @@ window.Cloud = (function () {
   const narrow = () => window.innerWidth < 992; // na širokej obrazovke je menu stále viditeľné
   const isOpen = () => sb.classList.contains('show') || sb.classList.contains('showing');
   // kde sa potiahnutie nemá brať ako gesto pre menu
-  const blocked = (t) => !!t.closest('.modal, .dropdown-menu, input, textarea, select, [contenteditable], .leaflet-container, .photo-map, .mem-row, .sheet-tabs, .table-responsive, .col-resize, #previewBody, .no-swipe')
+  const blocked = (t) => !!t.closest('.modal, .dropdown-menu, input, textarea, select, [contenteditable], .mem-row, .sheet-tabs, .table-responsive, .col-resize, #previewBody, .no-swipe')
     || (() => { for (let el = t; el && el !== document.body; el = el.parentElement) { if (el.scrollWidth > el.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true; } return false; })();
   let x0 = 0, y0 = 0, t0 = 0, active = false, done = false;
   document.addEventListener('touchstart', (e) => {

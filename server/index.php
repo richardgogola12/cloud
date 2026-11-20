@@ -321,12 +321,6 @@ require __DIR__ . '/inc/views/layout_start.php';
 </div>
 <script>
   // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
-  window.CLOUD_LIB = <?= json_encode([
-    'leafletJs' => lib('leaflet/leaflet.js', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'),
-    'leafletCss' => lib('leaflet/leaflet.css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'),
-    'clusterJs' => lib('leaflet/leaflet.markercluster.js', 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'),
-    'clusterCss' => lib('leaflet/MarkerCluster.css', 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css'),
-  ], JSON_UNESCAPED_SLASHES) ?>;
   window.CLOUD_UID = <?= (int)$user['id'] ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>

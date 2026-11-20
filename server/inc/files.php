@@ -320,7 +320,6 @@ function store_file_inner(int $owner, ?int $folder, string $name, string $src, b
         $size = filesize($plain);
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($plain) ?: 'application/octet-stream';
         $taken = photo_date($plain, $mime);
-        [$lat, $lng] = photo_gps($plain, $mime);
         $sha = hash_file('sha256', $plain);
 
         $ex = q('SELECT * FROM ' . P . 'files WHERE user_id = ? AND folder_id <=> ? AND name = ? AND deleted_at IS NULL LIMIT 1', [$owner, $folder, $name])->fetch();
@@ -350,7 +349,6 @@ function store_file_inner(int $owner, ?int $folder, string $name, string $src, b
           [$ex['id'], $owner, $ex['stored_name'], $ex['size'], $ex['mime'], $ex['enc_key'] ?? null, $ex['sha256'] ?? null, $ex['updated_at']]);
         q('UPDATE ' . P . 'files SET stored_name = ?, size = ?, mime = ?, enc_key = ?, sha256 = ?, taken_at = COALESCE(?, taken_at), updated_at = NOW() WHERE id = ?',
           [$stored, $size, $mime, $encKey, $sha, $taken, $ex['id']]);
-        try { q('UPDATE ' . P . 'files SET lat = ?, lng = ?, meta_done = 1 WHERE id = ?', [$lat, $lng, $ex['id']]); } catch (Throwable $e) {}
         @unlink(data_path('thumbs/' . $owner . '/' . $ex['stored_name'] . '.jpg'));
         prune_versions((int)$ex['id'], $owner);
         $id = (int)$ex['id'];
@@ -360,7 +358,6 @@ function store_file_inner(int $owner, ?int $folder, string $name, string $src, b
           [$owner, $folder, $name, $stored, $size, $mime, $encKey, $sha, $taken]);
         $id = (int)db()->lastInsertId();
         $versioned = false;
-        try { q('UPDATE ' . P . 'files SET lat = ?, lng = ?, meta_done = 1 WHERE id = ?', [$lat, $lng, $id]); } catch (Throwable $e) {}
     }
     if ($folder) q('UPDATE ' . P . 'folders SET updated_at = NOW() WHERE id = ?', [$folder]);
     return ['id' => $id, 'name' => $name, 'versioned' => $versioned, 'size' => $size];
@@ -515,7 +512,6 @@ function housekeeping(): void {
     try { backfill_hashes(null, 120); } catch (Throwable $e) {}
     try { backfill_thumbs(120); } catch (Throwable $e) {}
     try { backfill_text(120); } catch (Throwable $e) {}
-    try { backfill_photo_meta(null, 120); } catch (Throwable $e) {}
     try { q('DELETE FROM ' . P . 'activity WHERE created_at < NOW() - INTERVAL ' . ACTIVITY_DAYS . ' DAY'); } catch (Throwable $e) {}
     try { send_weekly_digests(); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');

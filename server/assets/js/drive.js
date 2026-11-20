@@ -20,7 +20,7 @@
   };
   const key = (it) => it.type + ':' + it.id;
   const isPhotoView = () => state.view === 'photos' || state.view === 'album';
-  const CUSTOM_VIEWS = ['albums', 'map'];
+  const CUSTOM_VIEWS = ['albums'];
   // zoradenie a rozloženie, ktoré sa robí v prehliadači (Aktivita, Fotky, album)
   const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
   state.actSort = { k: 'when', dir: 'desc' };
@@ -263,7 +263,7 @@
 
   function renderCrumbs() {
     const c = $('#crumbs');
-    const titles = { album: 'Album: ' + ((state.crumbs[0] || {}).name || ''), albums: 'Albumy', map: 'Mapa fotiek', activity: 'Aktivita', recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: state.q ? 'Výsledky pre „' + state.q + '“' : 'Výsledky hľadania' };
+    const titles = { album: 'Album: ' + ((state.crumbs[0] || {}).name || ''), albums: 'Albumy', activity: 'Aktivita', recent: 'Nedávne', starred: 'S hviezdičkou', trash: 'Kôš', shared: 'Zdieľané so mnou', byme: 'Zdieľané mnou', dupes: 'Duplicitné súbory', photos: 'Fotky', search: state.q ? 'Výsledky pre „' + state.q + '“' : 'Výsledky hľadania' };
     const txt = (s) => '<span class="crumb-text" title="' + esc(s) + '">' + esc(s) + '</span>';
     if (state.view === 'tag') {
       const t = state.crumbs[0] || {};
@@ -326,7 +326,7 @@
     renderSearchChips();
     $('#relockBtn').classList.toggle('d-none', !(state.view === 'folder' && state.lockHere));
     document.title = (state.view === 'folder' ? (state.crumbs.at(-1)?.name || (state.root === 'shared' ? 'Zdieľané' : 'Môj disk')) : $('#crumbs').textContent) + ' · Cloud';
-    const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums', 'map'].includes(state.view) ? 'photos' : state.view;
+    const navKey = state.view === 'folder' ? (state.root === 'shared' ? 'shared' : 'drive') : state.view === 'search' ? 'drive' : ['album', 'albums'].includes(state.view) ? 'photos' : state.view;
     renderPhotoBar();
     $$('.drive-head .view-switch, .drive-head #sortMenu').forEach(el => (el.closest('.dropdown') || el).classList.toggle('d-none', CUSTOM_VIEWS.includes(state.view) || (state.view === 'activity' && el.classList.contains('view-switch'))));
     const ph = isPhotoView();
@@ -736,7 +736,7 @@
   function route() {
     const h = decodeURIComponent(location.hash.slice(1));
     if (h.startsWith('folder/')) { state.view = 'folder'; state.folder = parseInt(h.slice(7)) || null; }
-    else if (['recent', 'starred', 'trash', 'shared', 'byme', 'dupes', 'photos', 'albums', 'map', 'activity'].includes(h)) { state.view = h; state.folder = null; }
+    else if (['recent', 'starred', 'trash', 'shared', 'byme', 'dupes', 'photos', 'albums', 'activity'].includes(h)) { state.view = h; state.folder = null; }
     else if (h.startsWith('album/')) { state.view = 'album'; state.albumId = parseInt(h.slice(6)) || 0; state.folder = null; }
     else if (h.startsWith('tag/')) { state.view = 'tag'; state.tagId = parseInt(h.slice(4)) || null; state.folder = null; }
     else if (h.startsWith('search/')) {
@@ -1568,7 +1568,7 @@
     if (map[a.dataset.nav] !== undefined) a.addEventListener('click', (e) => { e.preventDefault(); go(map[a.dataset.nav]); });
   });
 
-  /* ================= Fotky: lišta, spomienky, albumy, mapa, prezentácia ================= */
+  /* ================= Fotky: lišta, spomienky, albumy, prezentácia ================= */
   function renderPhotoBar() {
     const bar = $('#photoBar');
     if (state.view === 'activity' && false) {
@@ -1577,7 +1577,7 @@
         + '<div class="pb-right"><button class="btn btn-sm btn-light rounded-pill" data-pb="history"><i class="bi bi-clock-history me-1"></i>Celá história</button></div>';
       return;
     }
-    const show = ['photos', 'album', 'albums', 'map'].includes(state.view);
+    const show = ['photos', 'album', 'albums'].includes(state.view);
     bar.classList.toggle('d-none', !show);
     if (!show) return;
     const tab = (v, href, ic, t) => '<a class="pb-tab' + (state.view === v || (v === 'albums' && state.view === 'album') ? ' active' : '') + '" href="' + href + '"><i class="bi ' + ic + '"></i><span>' + t + '</span></a>';
@@ -1588,7 +1588,7 @@
     if (state.view === 'album') right += '<div class="dropdown d-inline-block"><button class="btn btn-sm btn-light rounded-pill" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end shadow">'
       + '<li><a class="dropdown-item" href="#" data-pb="renamealbum"><i class="bi bi-input-cursor-text me-2"></i>Premenovať album</a></li>'
       + '<li><a class="dropdown-item text-danger" href="#" data-pb="delalbum"><i class="bi bi-trash3 me-2"></i>Zmazať album</a></li></ul></div>';
-    bar.innerHTML = '<div class="pb-tabs">' + tab('photos', '#photos', 'bi-images', 'Fotky') + tab('albums', '#albums', 'bi-journals', 'Albumy') + tab('map', '#map', 'bi-geo-alt', 'Mapa') + '</div><div class="pb-right">' + right + '</div>';
+    bar.innerHTML = '<div class="pb-tabs">' + tab('photos', '#photos', 'bi-images', 'Fotky') + tab('albums', '#albums', 'bi-journals', 'Albumy') + '</div><div class="pb-right">' + right + '</div>';
   }
   $('#photoBar').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-pb]'); if (!b) return;
@@ -1639,50 +1639,10 @@
         + (a.cover ? '<img loading="lazy" src="' + base + 'api.php?action=thumb&id=' + a.cover.id + '&v=' + encodeURIComponent(a.cover.v || '') + '" alt="">' : '<i class="bi bi-journals"></i>')
         + '</div><div class="album-name text-truncate">' + esc(a.name) + '</div><div class="small text-body-secondary">' + a.count + ' ' + (a.count === 1 ? 'položka' : a.count > 1 && a.count < 5 ? 'položky' : 'položiek') + '</div></a>').join('') + '</div>'
         : '<div class="text-center text-body-secondary py-5"><i class="bi bi-journals display-4 d-block mb-3"></i><h5>Zatiaľ žiadne albumy</h5><p>Vytvor album tlačidlom <b>Nový album</b> alebo vyber fotky a daj ⋮ → Pridať do albumu.</p></div>';
-    } else if (state.view === 'map') {
-      await renderMap(box, ticket);
     } else if (state.view === 'activity') {
       box.innerHTML = '';
       loadActivity(box, {}, 60, false);
     }
-  }
-
-  async function renderMap(box, ticket) {
-    const L0 = window.CLOUD_LIB || {};
-    const css = (href) => { if (!$$('link').some(l => l.href === href)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l); } };
-    try {
-      css(L0.leafletCss); css(L0.clusterCss);
-      await loadScript(L0.leafletJs); await loadScript(L0.clusterJs);
-    } catch (e) { box.innerHTML = '<div class="alert alert-warning">Mapu sa nepodarilo načítať (potrebuje pripojenie na internet).</div>'; return; }
-    const r = await api('api.php?action=photo_map', {});
-    if (ticket !== state.loadTicket) return;
-    if (!r.ok) return toast(r.error, 'danger');
-    box.innerHTML = (r.pending ? '<div class="small text-body-secondary mb-2"><i class="bi bi-hourglass-split me-1"></i>Polohu zisťujem ešte z ' + r.pending + ' starších fotiek – mapa sa doplní, obnov ju o chvíľu.</div>' : '')
-      + (r.points.length ? '' : '<div class="small text-body-secondary mb-2">Zatiaľ žiadne fotky s polohou. Poloha sa berie z fotiek s GPS (zapni ukladanie polohy v aplikácii Fotoaparát).</div>')
-      + '<div id="photoMap" class="photo-map"></div>';
-    const items = r.points.map(p => ({ type: 'f', id: p[0], name: p[3], taken: p[4], updated: p[5], mime: 'image/jpeg', thumb: true, size: 0, lat: p[1], lng: p[2] }));
-    state.items = items;
-    const map = L.map('photoMap', { worldCopyJump: true }).setView([48.7, 19.5], 7);
-    // OpenStreetMap vyžaduje adresu stránky (Referer) – stránka ju inak neposiela; pri odmietnutí sa prepne na CARTO
-    let tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '&copy; OpenStreetMap' }).addTo(map);
-    let tileErr = 0;
-    tiles.on('tileerror', () => {
-      if (++tileErr !== 3) return;
-      map.removeLayer(tiles);
-      tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
-    });
-    const thumb = (it) => base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '');
-    const cl = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50,
-      iconCreateFunction: (c) => { const first = c.getAllChildMarkers()[0].options.item; return L.divIcon({ className: 'map-pin', html: '<img src="' + thumb(first) + '" alt=""><b>' + c.getChildCount() + '</b>', iconSize: [52, 52] }); } });
-    items.forEach(it => {
-      const m = L.marker([it.lat, it.lng], { item: it, icon: L.divIcon({ className: 'map-pin', html: '<img src="' + thumb(it) + '" alt="">', iconSize: [46, 46] }) });
-      m.on('click', () => preview(it));
-      cl.addLayer(m);
-    });
-    cl.on('clusterclick', (e) => { if (map.getZoom() >= 17) { const list = e.layer.getAllChildMarkers().map(m => m.options.item); pvOverride = list; preview(list[0]); } });
-    map.addLayer(cl);
-    if (items.length) map.fitBounds(cl.getBounds(), { padding: [30, 30], maxZoom: 14 });
-    setTimeout(() => map.invalidateSize(), 200);
   }
 
   // albumy z kontextového menu

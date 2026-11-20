@@ -900,17 +900,11 @@ $ph = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Dovolenka foto'])['id'
 $p1 = (int)(upload($web, $ph, 'more1.jpg', $gpsJpeg(11))['file']['id'] ?? 0);
 $p2 = (int)(upload($web, $ph, 'more2.jpg', jpeg(320, 240, 12))['file']['id'] ?? 0);
 ok($p1 && $p2, 'fotky nahraté');
+// mapa je zrušená: poloha z fotiek sa nikam neukladá
 $j = $web->api('photo_map');
-$pt = array_values(array_filter($j['points'] ?? [], fn($p) => $p[0] === $p1))[0] ?? null;
-ok($pt && abs($pt[1] - 48.14) < 0.001 && abs($pt[2] - 17.11) < 0.001, 'poloha z EXIF je na mape', json_encode($pt));
-ok(!array_filter($j['points'] ?? [], fn($p) => $p[0] === $p2), 'fotka bez GPS na mape nie je');
-// staršia fotka bez zistenej polohy sa doplní na pozadí
-$pdoA->exec("UPDATE cloud_files SET lat = NULL, lng = NULL, meta_done = 0 WHERE id = $p1");
-$j = $web->api('photo_map');
-ok(($j['pending'] ?? 0) >= 1, 'mapa hlási fotky čakajúce na zistenie polohy');
-$okBack = false;
-for ($i = 0; $i < 20 && !$okBack; $i++) { usleep(300000); $okBack = (bool)array_filter($web->api('photo_map')['points'] ?? [], fn($p) => $p[0] === $p1); }
-ok($okBack, 'poloha starších fotiek sa doplní na pozadí');
+ok(empty($j['ok']), 'mapa fotiek už neexistuje');
+$ll = $pdoA->query("SELECT COUNT(*) FROM cloud_files WHERE lat IS NOT NULL OR lng IS NOT NULL")->fetchColumn();
+ok((int)$ll === 0, 'poloha z GPS fotky sa neuloží do databázy');
 // albumy
 $j = $web->api('album_save', ['name' => 'More 2026']);
 $al = (int)($j['id'] ?? 0);
@@ -941,7 +935,7 @@ ok($g && $g['ago'] === 2 && in_array($p2, array_column($g['items'], 'id'), true)
 ok(!empty($web->api('album_delete', ['id' => $al])['ok']) && empty($web->api('list', ['view' => 'album', 'album' => $al])['ok']), 'zmazanie albumu');
 ok($web->get("api.php?action=thumb&id=$p1")['code'] === 200, 'fotky po zmazaní albumu ostali');
 $r = $web->get('index.php');
-ok(str_contains($r['body'], 'id="photoBar"') && str_contains($r['body'], 'id="previewPlay"') && str_contains($r['body'], 'leaflet'), 'na stránke je lišta fotiek, prezentácia a mapa');
+ok(str_contains($r['body'], 'id="photoBar"') && str_contains($r['body'], 'id="previewPlay"') && !str_contains($r['body'], 'leaflet'), 'na stránke je lišta fotiek a prezentácia (bez mapy)');
 $web->api('delete', ['items' => ["d:$ph"]]);
 
 section('Týždenný súhrn e-mailom');

@@ -1,44 +1,5 @@
 <?php
-/* Fotky: poloha z EXIF (mapa), albumy, „v tento deň“. */
-
-/** GPS súradnice z EXIF fotky → [lat, lng] alebo [null, null]. */
-function photo_gps(string $path, string $mime): array {
-    if ($mime !== 'image/jpeg' || !function_exists('exif_read_data')) return [null, null];
-    $ex = @exif_read_data($path, 'GPS');
-    if (!$ex || empty($ex['GPSLatitude']) || empty($ex['GPSLongitude'])) return [null, null];
-    $num = function ($v): float {
-        if (is_string($v) && str_contains($v, '/')) { [$a, $b] = array_map('floatval', explode('/', $v, 2)); return $b ? $a / $b : 0.0; }
-        return (float)$v;
-    };
-    $deg = fn(array $p): float => $num($p[0] ?? 0) + $num($p[1] ?? 0) / 60 + $num($p[2] ?? 0) / 3600;
-    $lat = $deg((array)$ex['GPSLatitude']) * (strtoupper((string)($ex['GPSLatitudeRef'] ?? 'N')) === 'S' ? -1 : 1);
-    $lng = $deg((array)$ex['GPSLongitude']) * (strtoupper((string)($ex['GPSLongitudeRef'] ?? 'E')) === 'W' ? -1 : 1);
-    if (abs($lat) < 0.0001 && abs($lng) < 0.0001) return [null, null]; // 0,0 = bez polohy
-    if (abs($lat) > 90 || abs($lng) > 180) return [null, null];
-    return [round($lat, 6), round($lng, 6)];
-}
-
-/** Doplní polohu starším fotkám (stačí začiatok súboru – EXIF je na začiatku). */
-function backfill_photo_meta(?int $uid, int $seconds): int {
-    $t0 = microtime(true); $n = 0;
-    try {
-        $rows = q('SELECT * FROM ' . P . "files WHERE meta_done = 0 AND deleted_at IS NULL AND mime = 'image/jpeg'" . ($uid ? ' AND user_id = ' . (int)$uid : '') . ' ORDER BY id DESC LIMIT 2000')->fetchAll();
-    } catch (Throwable $e) { return 0; }
-    foreach ($rows as $r) {
-        if (microtime(true) - $t0 > $seconds) break;
-        $lat = $lng = null; $tmp = null;
-        try { $tmp = stored_to_temp($r, 262144); [$lat, $lng] = photo_gps($tmp, 'image/jpeg'); }
-        catch (Throwable $e) {}
-        finally { if ($tmp) @unlink($tmp); }
-        q('UPDATE ' . P . 'files SET lat = ?, lng = ?, meta_done = 1 WHERE id = ?', [$lat, $lng, $r['id']]);
-        $n++;
-    }
-    return $n;
-}
-function photo_meta_pending(int $uid): int {
-    try { return (int)q('SELECT COUNT(*) FROM ' . P . "files WHERE user_id = ? AND meta_done = 0 AND deleted_at IS NULL AND mime = 'image/jpeg'", [$uid])->fetchColumn(); }
-    catch (Throwable $e) { return 0; }
-}
+/* Fotky: albumy, „v tento deň“. (Poloha z fotiek sa nezisťuje ani neukladá.) */
 
 /* ---------- albumy ---------- */
 function album_get(int $uid, int $id): array {

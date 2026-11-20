@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -36,6 +36,7 @@ function migrate(): void {
         if ($v < 14) migrate_v14();
         if ($v < 15) migrate_v15();
         if ($v < 16) migrate_v16();
+        if ($v < 17) migrate_v17();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -403,4 +404,13 @@ function migrate_v16(): void {
     add_col("{$p}files", 'lng', 'DECIMAL(9,6) NULL');
     add_col("{$p}files", 'meta_done', 'TINYINT NOT NULL DEFAULT 0');
     if (!idx_exists("{$p}files", 'idx_cloud_files_geo')) db()->exec("ALTER TABLE {$p}files ADD INDEX idx_cloud_files_geo (user_id, lat)");
+}
+
+/* v17: mapa fotiek zrušená – zmaže uloženú polohu fotiek a knižnicu mapy (aktualizácia súbory sama nemaže) */
+function migrate_v17(): void {
+    try { q('UPDATE ' . P . 'files SET lat = NULL, lng = NULL WHERE lat IS NOT NULL OR lng IS NOT NULL'); } catch (Throwable $e) {}
+    foreach (['leaflet.js', 'leaflet.css', 'leaflet.markercluster.js', 'MarkerCluster.css'] as $f) @unlink(APP_ROOT . '/assets/vendor/leaflet/' . $f);
+    foreach (glob(APP_ROOT . '/assets/vendor/leaflet/images/*') ?: [] as $f) @unlink($f);
+    @rmdir(APP_ROOT . '/assets/vendor/leaflet/images');
+    @rmdir(APP_ROOT . '/assets/vendor/leaflet');
 }

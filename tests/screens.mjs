@@ -116,8 +116,7 @@ for (const [name, opts] of sizes) {
   await page.screenshot({ path: `screens/${name}-18-fotky.png` });
   await page.evaluate(() => { location.hash = '#albums'; }); await page.waitForTimeout(1000);
   await page.screenshot({ path: `screens/${name}-19-albumy.png` });
-  await page.evaluate(() => { location.hash = '#map'; }); await page.waitForTimeout(2500);
-  await page.screenshot({ path: `screens/${name}-20-mapa.png` });
+  if (await page.locator('#photoBar .pb-tab[href="#map"]').count()) { console.log('CHYBA: mapa je stále v lište fotiek'); process.exitCode = 1; }
   await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(1000);
   // vyhľadávanie: návrhy, výsledky s čipmi filtrov, rozšírené vyhľadávanie
   await page.click('#searchInput'); await page.waitForTimeout(500);
