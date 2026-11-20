@@ -52,7 +52,7 @@ function is_https(): bool {
 }
 function start_session(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
-    $dir = rtrim(cfg('storage_path'), '/') . '/sessions';
+    $dir = rtrim(cfg('storage_path'), '/\\') . '/sessions';
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     if (is_dir($dir) && is_writable($dir)) {
         session_save_path($dir);
@@ -477,7 +477,7 @@ function used_space(int $uid): int {
 function user_quota(array $u): int { return (int)$u['quota']; } // 0 = neobmedzené
 
 function storage_dir(int $uid): string {
-    $d = rtrim(cfg('storage_path'), '/') . '/files/' . $uid;
+    $d = rtrim(cfg('storage_path'), '/\\') . '/files/' . $uid;
     if (!is_dir($d)) mkdir($d, 0750, true);
     return $d;
 }
@@ -490,6 +490,7 @@ function view(string $name, array $vars = []): void {
 /* ---------- Načítanie modulov, migrácie, denná údržba ---------- */
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/migrate.php';
+require_once __DIR__ . '/platform.php';
 require_once __DIR__ . '/files.php';
 require_once __DIR__ . '/crypto.php';
 require_once __DIR__ . '/notify.php';

@@ -155,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($id === $me) throw new RuntimeException('Nemôžeš zmazať vlastný účet.');
             $u = q("SELECT * FROM $U WHERE id = ?", [$id])->fetch();
             if ($u) {
-                rrmdir(rtrim(cfg('storage_path'), '/') . '/files/' . $id);
-                rrmdir(rtrim(cfg('storage_path'), '/') . '/thumbs/' . $id);
+                rrmdir(rtrim(cfg('storage_path'), '/\\') . '/files/' . $id);
+                rrmdir(rtrim(cfg('storage_path'), '/\\') . '/thumbs/' . $id);
                 @unlink(avatar_path($id));
                 $roots = q('SELECT id FROM ' . P . 'folders WHERE user_id = ? AND parent_id IS NULL', [$id])->fetchAll(PDO::FETCH_COLUMN);
                 if ($roots) delete_folder_rows($id, $roots);
@@ -403,10 +403,30 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
   <div class="small text-body-secondary">Cloud = súbory a verzie používateľov (bez miniatúr a dočasných súborov).</div>
 </div></div>
 <?php endif; ?>
-<?php $hh = server_health();
+<?php $hh = server_health(); $pi = platform_info();
   $tCls = $hh['temp'] === null ? '' : ($hh['temp'] >= 80 ? 'text-danger' : ($hh['temp'] >= 70 ? 'text-warning' : 'text-success'));
   $memPct = $hh['mem_total'] ? round($hh['mem_used'] / $hh['mem_total'] * 100) : null;
-  $loadPct = $hh['load'] && $hh['cores'] ? min(100, round($hh['load'][0] / $hh['cores'] * 100)) : null; ?>
+  $loadPct = $hh['cpu']; ?>
+<div class="card card-soft mb-3" id="platformCard"><div class="card-body">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div class="platform-ic"><i class="bi <?= e($pi['icon']) ?>"></i></div>
+    <div class="me-auto"><h2 class="h6 fw-bold mb-0">Beží na: <span data-platform="<?= e($pi['os']) ?>"><?= e($pi['title']) ?></span><?= $pi['docker'] ? ' · Docker' : '' ?></h2>
+      <div class="small text-body-secondary">Cloud to zistil sám a prispôsobil sa tomu.</div></div>
+  </div>
+  <dl class="row small mb-0 health-info">
+    <?php if ($hh['model'] || $pi['device']): ?><dt class="col-sm-3 text-body-secondary fw-normal">Zariadenie</dt><dd class="col-sm-9"><?= e($hh['model'] ?: $pi['device']) ?></dd><?php endif; ?>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Operačný systém</dt><dd class="col-sm-9"><?= e($hh['os']) ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Webový server</dt><dd class="col-sm-9" data-web="<?= e($pi['web']) ?>"><?= e($pi['web_label']) ?> · PHP <?= e(PHP_VERSION) ?> (<?= e($pi['php_mode']) ?>)<?= $hh['db'] ? ' · databáza ' . e($hh['db']) : '' ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Ochrana úložiska</dt><dd class="col-sm-9 text-<?= e($pi['protect']['level']) ?>" data-protect="<?= e($pi['protect']['level']) ?>"><i class="bi <?= $pi['protect']['level'] === 'success' ? 'bi-shield-check' : 'bi-shield-exclamation' ?> me-1"></i><?= $pi['protect']['text'] ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Programy</dt><dd class="col-sm-9">
+      <?php if (!$pi['exec']): ?><span class="text-warning">PHP nesmie spúšťať programy (funkcia <code>exec</code> je zakázaná) – miniatúry videí a hľadanie v PDF sú vypnuté.</span>
+      <?php else: foreach ($pi['tools'] as $t => $ti): ?>
+        <div class="mb-1" data-tool="<?= e($t) ?>"><?= $ti['path'] ? '<i class="bi bi-check-circle-fill text-success me-1"></i>' : '<i class="bi bi-dash-circle text-warning me-1"></i>' ?><b><?= e($t) ?></b> <span class="text-body-secondary">(<?= e($ti['why']) ?>)</span>
+          <?= $ti['path'] ? '· <code>' . e($ti['path']) . '</code>' : '· chýba – ' . $ti['hint'] ?></div>
+      <?php endforeach; endif; ?></dd>
+    <dt class="col-sm-3 text-body-secondary fw-normal">Prispôsobené</dt><dd class="col-sm-9"><ul class="mb-0 ps-3"><?php foreach ($pi['adapt'] as $a): ?><li><?= e($a) ?></li><?php endforeach; ?></ul></dd>
+  </dl>
+</div></div>
 <div class="card card-soft mb-3" id="healthCard"><div class="card-body">
   <div class="d-flex align-items-center mb-3"><h2 class="h6 fw-bold mb-0 me-auto"><i class="bi bi-cpu me-2"></i>Stav servera</h2>
     <span class="small text-body-secondary"><span class="live-dot"></span>obnovuje sa každých 10 s</span></div>
@@ -414,11 +434,11 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <div class="col-6 col-md-3"><div class="health-tile">
       <div class="small text-body-secondary">Teplota CPU</div>
       <div class="fs-4 fw-bold <?= $tCls ?>" data-h="temp"><?= $hh['temp'] !== null ? $hh['temp'] . ' °C' : '—' ?></div>
-      <div class="small text-body-secondary"><?= $hh['temp'] === null ? 'nedostupné' : 'nad 80 °C sa spomaľuje' ?></div></div></div>
+      <div class="small text-body-secondary"><?= $hh['temp'] === null ? ($pi['os'] === 'windows' ? 'Windows ju neposkytuje' : 'nedostupné') : 'nad 80 °C sa spomaľuje' ?></div></div></div>
     <div class="col-6 col-md-3"><div class="health-tile">
       <div class="small text-body-secondary">Záťaž procesora</div>
       <div class="fs-4 fw-bold" data-h="load"><?= $loadPct !== null ? $loadPct . ' %' : '—' ?></div>
-      <div class="small text-body-secondary" data-h="loadsub"><?= $hh['load'] ? implode(' · ', $hh['load']) . ' (' . $hh['cores'] . ' jadrá)' : 'nedostupné' ?></div></div></div>
+      <div class="small text-body-secondary" data-h="loadsub"><?= $hh['load'] ? implode(' · ', $hh['load']) . ' (' . $hh['cores'] . ' jadrá)' : ($hh['cpu'] !== null ? $hh['cores'] . ' jadrá' : 'nedostupné') ?></div></div></div>
     <div class="col-6 col-md-3"><div class="health-tile">
       <div class="small text-body-secondary">Pamäť RAM</div>
       <div class="fs-4 fw-bold <?= $memPct !== null && $memPct >= 90 ? 'text-danger' : '' ?>" data-h="mempct"><?= $memPct !== null ? $memPct . ' %' : '—' ?></div>
@@ -429,15 +449,12 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
       <div class="small text-body-secondary"><?= $hh['swap_total'] ? 'swap ' . format_bytes($hh['swap_used']) . ' / ' . format_bytes($hh['swap_total']) : '&nbsp;' ?></div></div></div>
   </div>
   <dl class="row small mb-0 mt-3 health-info">
-    <?php if ($hh['model']): ?><dt class="col-sm-3 text-body-secondary fw-normal">Zariadenie</dt><dd class="col-sm-9"><?= e($hh['model']) ?></dd><?php endif; ?>
-    <dt class="col-sm-3 text-body-secondary fw-normal">Systém</dt><dd class="col-sm-9"><?= e($hh['os']) ?></dd>
-    <dt class="col-sm-3 text-body-secondary fw-normal">Softvér</dt><dd class="col-sm-9">PHP <?= e($hh['php']) ?><?= $hh['db'] ? ' · databáza ' . e($hh['db']) : '' ?><?= $hh['web'] ? ' · ' . e($hh['web']) : '' ?></dd>
     <?php if ($hh['db_size'] !== null): ?><dt class="col-sm-3 text-body-secondary fw-normal">Veľkosť databázy</dt><dd class="col-sm-9"><?= format_bytes((int)$hh['db_size']) ?></dd><?php endif; ?>
     <dt class="col-sm-3 text-body-secondary fw-normal">PHP OPcache</dt><dd class="col-sm-9"><?= $hh['opcache'] && $hh['opcache']['on'] ? '<span class="text-success">✓ zapnutý</span>' . ($hh['opcache']['hit'] !== null ? ' · úspešnosť ' . $hh['opcache']['hit'] . ' %' : '') . ' · ' . format_bytes($hh['opcache']['mem']) : '<span class="text-danger">vypnutý</span>' ?></dd>
-    <?php if ($hh['storage_dev']): $sdLabel = ['sd' => 'SD karta', 'usb' => 'USB / SATA disk (SSD)', 'ssd' => 'NVMe SSD', 'hdd' => 'pevný disk (HDD)'][$hh['storage_dev']['type']] ?? 'disk'; ?>
+    <?php if ($hh['storage_dev']): $sdLabel = ['sd' => 'SD karta', 'usb' => 'USB disk', 'ssd' => 'NVMe SSD', 'ssd_sata' => 'SSD (SATA)', 'hdd' => 'pevný disk (HDD)'][$hh['storage_dev']['type']] ?? 'disk'; ?>
     <dt class="col-sm-3 text-body-secondary fw-normal">Úložisko súborov</dt><dd class="col-sm-9"><?= e($sdLabel) ?> · <code><?= e($hh['storage_dev']['dev']) ?></code> · <?= e($hh['storage_dev']['fs']) ?></dd>
     <?php endif; ?>
-    <dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><?= $hh['ffmpeg'] ? '<span class="text-success">✓ ffmpeg je nainštalovaný</span>' : '<span class="text-warning">vypnuté</span> – ' . ($hh['ffmpeg_why'] ?? 'nainštaluj <code>ffmpeg</code> (<code>sudo apt install ffmpeg</code>)') ?></dd>
+    <?php if (!$hh['ffmpeg'] && $pi['exec']): ?><dt class="col-sm-3 text-body-secondary fw-normal">Miniatúry videí</dt><dd class="col-sm-9"><span class="text-warning">vypnuté</span> – <?= $hh['ffmpeg_why'] ?? tool_install_hint('ffmpeg') ?></dd><?php endif; ?>
   </dl>
   <?php $tips = speed_tips($hh); if ($tips): ?>
   <h3 class="h6 fw-bold mt-3 mb-2"><i class="bi bi-lightning-charge me-1"></i>Ako zrýchliť server</h3>
@@ -456,7 +473,8 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     if (!r || !r.ok) return;
     const h = r.h;
     if (h.temp != null) set('temp', h.temp + ' °C', h.temp >= 80 ? 'text-danger' : h.temp >= 70 ? 'text-warning' : 'text-success');
-    if (h.load && h.cores) { set('load', Math.min(100, Math.round(h.load[0] / h.cores * 100)) + ' %'); set('loadsub', h.load.join(' · ') + ' (' + h.cores + ' jadrá)'); }
+    if (h.cpu != null) set('load', h.cpu + ' %');
+    if (h.load && h.cores) set('loadsub', h.load.join(' · ') + ' (' + h.cores + ' jadrá)');
     if (h.mem_total) { const p = Math.round(h.mem_used / h.mem_total * 100); set('mempct', p + ' %', p >= 90 ? 'text-danger' : ''); set('mem', r.mem); }
     if (r.uptime) set('uptime', r.uptime);
   }, 10000);
@@ -701,7 +719,7 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     <h2 class="h6 fw-bold mb-3"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Hľadanie v obsahu dokumentov</h2>
     <p class="small text-body-secondary">Vyhľadávanie nájde aj slová vnútri dokumentov (TXT, Word, Excel, PowerPoint, OpenDocument<?= ffmpeg_bin('pdftotext') ? ', PDF' : '' ?>), nielen v názvoch – ako Google Disk.</p>
     <div class="alert alert-warning small"><i class="bi bi-exclamation-triangle me-1"></i>Index obsahu sa ukladá do databázy <b>nezašifrovaný</b> – kto má prístup k databáze, uvidí text dokumentov. Vypnutím sa index zmaže.</div>
-    <?php if (!ffmpeg_bin('pdftotext')): ?><div class="small text-body-secondary mb-2"><i class="bi bi-info-circle me-1"></i>Pre PDF nainštaluj <code>sudo apt install poppler-utils</code>.</div><?php endif; ?>
+    <?php if (!ffmpeg_bin('pdftotext')): ?><div class="small text-body-secondary mb-2"><i class="bi bi-info-circle me-1"></i>Pre PDF: <?= tool_install_hint('pdftotext') ?>.</div><?php endif; ?>
     <form method="post" class="mb-2">
       <?= csrf_field() ?><input type="hidden" name="act" value="content_index"><input type="hidden" name="tab" value="maintenance">
       <div class="form-check form-switch">

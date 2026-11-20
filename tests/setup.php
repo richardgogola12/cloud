@@ -1,7 +1,7 @@
 <?php
 /* Príprava testovacieho prostredia: config.php, databáza, používatelia */
 $root = dirname(__DIR__) . '/server';
-$storage = '/tmp/cloud-storage';
+$storage = getenv('CLOUD_TEST_STORAGE') ?: '/tmp/cloud-storage';
 @mkdir($storage, 0777, true);
 file_put_contents("$root/config.php", "<?php return " . var_export([
     'app_name' => 'Cloud', 'app_url' => 'http://127.0.0.1:8080', 'timezone' => 'Europe/Bratislava', 'update_repo' => 'richardgogola12/cloud',

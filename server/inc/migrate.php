@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -17,7 +17,7 @@ function add_col(string $table, string $col, string $def): void {
 
 function migrate(): void {
     $v = (int)setting('schema_version', '1');
-    $lockFile = rtrim(cfg('storage_path'), '/') . '/migrate.lock';
+    $lockFile = rtrim(cfg('storage_path'), '/\\') . '/migrate.lock';
     $fp = @fopen($lockFile, 'c');
     if ($fp && !flock($fp, LOCK_EX | LOCK_NB)) return; // migrácia už beží
     try {
@@ -37,6 +37,7 @@ function migrate(): void {
         if ($v < 15) migrate_v15();
         if ($v < 16) migrate_v16();
         if ($v < 17) migrate_v17();
+        if ($v < 18) migrate_v18();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -413,4 +414,20 @@ function migrate_v17(): void {
     foreach (glob(APP_ROOT . '/assets/vendor/leaflet/images/*') ?: [] as $f) @unlink($f);
     @rmdir(APP_ROOT . '/assets/vendor/leaflet/images');
     @rmdir(APP_ROOT . '/assets/vendor/leaflet');
+}
+
+/** Ochrana úložiska pre IIS (Windows) – rovnaký význam ako storage/.htaccess pre Apache. */
+function storage_web_config(): void {
+    $f = rtrim((string)cfg('storage_path'), '/\\') . '/web.config';
+    if (is_file($f) || !is_dir(dirname($f))) return;
+    @file_put_contents($f, '<?xml version="1.0" encoding="UTF-8"?>' . "\n<configuration><system.webServer><security><requestFiltering><fileExtensions allowUnlisted=\"false\" />"
+        . '<hiddenSegments><add segment="files" /><add segment="thumbs" /><add segment="tmp" /><add segment="sessions" /><add segment="backups" /></hiddenSegments>'
+        . "</requestFiltering></security></system.webServer></configuration>\n");
+}
+
+/* v18: beh aj na Windows (IIS) – ochrana úložiska aj cez web.config */
+function migrate_v18(): void {
+    storage_web_config();
+    $sp = rtrim((string)cfg('storage_path'), '/\\');
+    if (is_dir($sp) && !is_file($sp . '/.htaccess')) @file_put_contents($sp . '/.htaccess', "Require all denied\nDeny from all\n");
 }

@@ -2,7 +2,7 @@
 /* Inštalátor – spusti raz: https://tvoja-domena/install/  Potom priečinok install/ ZMAŽ. */
 require dirname(__DIR__) . '/inc/core.php';
 
-$lock = rtrim(cfg('storage_path'), '/') . '/installed.lock';
+$lock = rtrim(cfg('storage_path'), '/\\') . '/installed.lock';
 $msg = []; $done = false;
 if (is_file($lock)) { $msg[] = ['warning', 'Aplikácia je už nainštalovaná. Zmaž priečinok install/.']; $done = true; }
 
@@ -32,9 +32,10 @@ if (!$done && $_SERVER['REQUEST_METHOD'] === 'POST') {
         q('INSERT INTO ' . P . "users (name, email, password, role, quota, is_active) VALUES (?,?,?,'admin',0,1)
            ON DUPLICATE KEY UPDATE password = VALUES(password), role = 'admin', is_active = 1", [$name, $email, password_hash($pass, PASSWORD_DEFAULT)]);
         setting_set('default_quota', (string)cfg('default_quota'));
-        $sp = rtrim(cfg('storage_path'), '/');
+        $sp = rtrim(cfg('storage_path'), '/\\');
         foreach (['files', 'thumbs', 'tmp', 'sessions'] as $d) if (!is_dir("$sp/$d")) mkdir("$sp/$d", 0750, true);
         file_put_contents("$sp/.htaccess", "Require all denied\nDeny from all\n");
+        storage_web_config();
         file_put_contents("$sp/index.html", '');
         file_put_contents($lock, date('c'));
         $msg[] = ['success', 'Hotovo! Admin účet bol vytvorený. ZMAŽ priečinok install/ a prihlás sa.'];

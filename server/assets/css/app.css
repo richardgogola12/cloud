@@ -517,3 +517,6 @@ a.act-item:hover { background: var(--bs-primary-bg-subtle); color: var(--bs-prim
 .kbd-sep { font-size: .72rem; color: var(--bs-secondary-color); }
 .kbd-hint { float: right; margin-left: 16px; font-size: .75rem; border: 1px solid var(--c-border); border-radius: 5px; padding: 0 6px; color: var(--bs-secondary-color); }
 body:not(:has(#items)) .kbd-menu { display: none !important; }
+
+/* administrácia: na čom server beží */
+.platform-ic { width: 46px; height: 46px; border-radius: 14px; background: var(--c-sel); color: var(--c-primary); display: grid; place-items: center; font-size: 1.4rem; flex: none; }

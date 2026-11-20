@@ -4,7 +4,7 @@
  *  Spúšťa sa v GitHub Actions proti skutočnému PHP serveru a MySQL.
  * ================================================================== */
 const BASE = 'http://127.0.0.1:8080/';
-const STORAGE = '/tmp/cloud-storage';
+define('STORAGE', getenv('CLOUD_TEST_STORAGE') ?: '/tmp/cloud-storage');
 $fails = 0; $passes = 0;
 
 function ok(bool $cond, string $msg, string $detail = ''): bool {
@@ -21,7 +21,7 @@ class Client {
     public ?string $csrf = null;
     public ?string $token = null;
     public array $last = [];
-    function __construct() { $this->jar = tempnam('/tmp', 'jar'); }
+    function __construct() { $this->jar = tempnam(sys_get_temp_dir(), 'jar'); }
     function req(string $method, string $path, array $opt = []): array {
         $ch = curl_init(BASE . ltrim($path, '/'));
         $h = $opt['headers'] ?? [];
@@ -65,7 +65,7 @@ function upload(Client $c, int $folder, string $name, string $data, string $rel 
     $off = (int)$init['received']; $sent = 0;
     while (true) {
         $part = substr($data, $off, $chunk);
-        $tmp = tempnam('/tmp', 'ch'); file_put_contents($tmp, $part);
+        $tmp = tempnam(sys_get_temp_dir(), 'ch'); file_put_contents($tmp, $part);
         $r = $c->req('POST', 'api.php?action=upload_chunk', ['ajax' => true, 'multipart' => true,
             'form' => ['id' => $init['id'], 'offset' => (string)$off, 'chunk' => new CURLFile($tmp, 'application/octet-stream', 'chunk')]]);
         unlink($tmp);
@@ -202,7 +202,7 @@ $j = $web->api('folders');
 ok(!empty($j['ok']) && count($j['results']) >= 3, 'zoznam zložiek pre presun (Select2)');
 
 $r = $web->get('api.php?action=zip&items=' . urlencode("d:$folder"));
-$zf = tempnam('/tmp', 'z'); file_put_contents($zf, $r['body']);
+$zf = tempnam(sys_get_temp_dir(), 'z'); file_put_contents($zf, $r['body']);
 $z = new ZipArchive();
 $zo = $z->open($zf) === true;
 ok($zo && $z->getFromName('Test zložka/fotka.jpg') === $img, 'ZIP zložky obsahuje rozšifrované súbory', "HTTP {$r['code']}");
@@ -398,7 +398,7 @@ $init = $guest->req('POST', $upPath . '&up=init', ['ajax' => true, 'form' => ['_
 ok(!empty($init['ok']), 'host: začiatok nahrávania', json_encode($init));
 $off = 0; $gdone = null;
 while (!empty($init['ok']) && $off < strlen($gdata)) {
-    $tmp = tempnam('/tmp', 'g'); file_put_contents($tmp, substr($gdata, $off, 300000));
+    $tmp = tempnam(sys_get_temp_dir(), 'g'); file_put_contents($tmp, substr($gdata, $off, 300000));
     $jr = $guest->req('POST', $upPath . '&up=chunk', ['ajax' => true, 'multipart' => true, 'form' => ['_csrf' => $guest->csrf, 'id' => $init['id'], 'offset' => (string)$off, 'chunk' => new CURLFile($tmp, 'application/octet-stream', 'chunk')]])['json'];
     unlink($tmp);
     if (empty($jr['ok'])) { $gdone = $jr; break; }
@@ -502,6 +502,13 @@ ok(str_contains($r['body'], 'Stav servera') && str_contains($r['body'], 'Pamäť
 $web->loadCsrf($r['body']);
 $h = $web->req('POST', 'admin.php?ajax=health', ['ajax' => true, 'form' => ['_csrf' => $web->csrf]])['json'];
 ok(!empty($h['ok']) && !empty($h['h']['mem_total']), 'stav servera sa obnovuje (RAM, záťaž)', json_encode($h));
+// na čom server beží – zistí sa samo a ukáže sa v Prehľade
+$expOs = getenv('CLOUD_EXPECT_OS') ?: 'linux';
+preg_match('/data-platform="([a-z]+)"/', $r['body'], $mPl);
+ok(($mPl[1] ?? '') === $expOs, "platforma sa zistí sama ($expOs)", $mPl[1] ?? 'nič');
+ok(str_contains($r['body'], 'data-web="builtin"') && str_contains($r['body'], 'Prispôsobené'), 'Prehľad ukazuje webový server a čo sa prispôsobilo');
+ok(str_contains($r['body'], 'data-protect="success"'), 'úložisko je chránené (mimo webového priečinka)');
+ok(($h['h']['platform'] ?? '') === $expOs && ($h['h']['cores'] ?? 0) > 0 && ($h['h']['uptime'] ?? 0) > 0, 'stav servera má jadrá a čas behu aj na tejto platforme', json_encode([$h['h']['platform'] ?? null, $h['h']['cores'] ?? null, $h['h']['uptime'] ?? null, $h['h']['cpu'] ?? null]));
 
 section('Administrácia');
 foreach (['dashboard', 'users', 'settings', 'smtp', 'log', 'maintenance', 'update'] as $tab) {
@@ -618,7 +625,7 @@ $pdoS = new PDO('mysql:host=127.0.0.1;dbname=cloud', 'root', 'root', [PDO::ATTR_
 $sd = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Hľadanie test'])['id'] ?? 0);
 $sub2 = (int)($web->api('mkdir', ['parent' => $sd, 'name' => 'Zmluvy 2026'])['id'] ?? 0);
 $mkDocx = function (string $text): string {
-    $tmp = tempnam('/tmp', 'dx'); $z = new ZipArchive(); $z->open($tmp, ZipArchive::OVERWRITE);
+    $tmp = tempnam(sys_get_temp_dir(), 'dx'); $z = new ZipArchive(); $z->open($tmp, ZipArchive::OVERWRITE);
     $z->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>');
     $z->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>' . htmlspecialchars($text) . '</w:t></w:r></w:p></w:body></w:document>');
     $z->close(); $d = file_get_contents($tmp); unlink($tmp); return $d;

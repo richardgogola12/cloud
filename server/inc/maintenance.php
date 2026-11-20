@@ -113,10 +113,13 @@ function maint_orphans(): array {
     return ['items' => $out, 'bytes' => $bytes];
 }
 
-/* ================== Stav servera (Raspberry Pi aj bežný Linux) ================== */
+/* ================== Stav servera (Raspberry Pi, Linux, Docker aj Windows) ================== */
 function server_health(): array {
     $read = function (string $f): ?string { return @is_readable($f) ? (@file_get_contents($f) ?: null) : null; };
-    $h = ['temp' => null, 'load' => null, 'cores' => null, 'mem_total' => null, 'mem_used' => null, 'swap_total' => null, 'swap_used' => null, 'uptime' => null];
+    $h = ['temp' => null, 'load' => null, 'cpu' => null, 'cores' => null, 'mem_total' => null, 'mem_used' => null, 'swap_total' => null, 'swap_used' => null, 'uptime' => null];
+    $pl = platform_detect();
+    $h['platform'] = $pl['os'];
+    if (is_windows()) return server_health_common($h + ['model' => null, 'os' => $pl['os_label']], true);
     // teplota CPU (°C) – prvá teplotná zóna, ktorá vyzerá ako CPU
     foreach (glob('/sys/class/thermal/thermal_zone*') ?: [] as $z) {
         $t = $read("$z/temp");
@@ -134,11 +137,24 @@ function server_health(): array {
         if (!empty($mi['SwapTotal'])) { $h['swap_total'] = $mi['SwapTotal']; $h['swap_used'] = $mi['SwapTotal'] - ($mi['SwapFree'] ?? 0); }
     }
     if ($u = $read('/proc/uptime')) $h['uptime'] = (int)explode(' ', $u)[0];
-    $model = $read('/proc/device-tree/model') ?: $read('/sys/firmware/devicetree/base/model');
-    $h['model'] = $model ? trim(str_replace("\0", '', $model)) : null;
-    $h['os'] = php_uname('s') . ' ' . php_uname('r') . ' (' . php_uname('m') . ')';
-    if ($osr = $read('/etc/os-release')) { if (preg_match('/^PRETTY_NAME="?([^"\n]+)/m', $osr, $o)) $h['os'] = $o[1] . ' · ' . php_uname('m'); }
-    if (in_docker()) $h['os'] .= ' · Docker kontajner';
+    $h['model'] = $pl['device'];
+    $h['os'] = $pl['os_label'] . ' · ' . $pl['arch'] . ($pl['docker'] ? ' · Docker kontajner' : '');
+    if ($h['load'] && $h['cores']) $h['cpu'] = min(100, round($h['load'][0] / $h['cores'] * 100));
+    return server_health_common($h, false);
+}
+
+/** Časť stavu servera spoločná pre všetky systémy (+ Windows údaje cez CIM). */
+function server_health_common(array $h, bool $win): array {
+    if ($win) {
+        $w = win_health((string)cfg('storage_path'));
+        $h['cores'] = $w['cores'] ?? null;
+        if (!empty($w['os'])) $h['os'] = $w['os'] . ' · ' . php_uname('m');
+        $h['model'] = $w['model'] ?? null;
+        if (!empty($w['mem_total'])) { $h['mem_total'] = $w['mem_total']; $h['mem_used'] = $w['mem_total'] - ($w['mem_free'] ?? 0); }
+        if (!empty($w['swap_total'])) { $h['swap_total'] = $w['swap_total']; $h['swap_used'] = $w['swap_total'] - ($w['swap_free'] ?? 0); }
+        $h['uptime'] = $w['uptime'] ?? null;
+        $h['cpu'] = isset($w['cpu']) ? (int)round($w['cpu']) : null;
+    }
     $h['php'] = PHP_VERSION;
     $h['web'] = $_SERVER['SERVER_SOFTWARE'] ?? null;
     try { $h['db'] = db()->query('SELECT VERSION()')->fetchColumn(); } catch (Throwable $e) { $h['db'] = null; }
@@ -157,8 +173,17 @@ function server_health(): array {
                              'mem' => (int)($st['memory_usage']['used_memory'] ?? 0)];
         } else $h['opcache'] = ['on' => false, 'hit' => null, 'mem' => 0];
     }
-    $h['storage_dev'] = storage_device((string)cfg('storage_path'));
+    $h['storage_dev'] = $win ? win_storage_device() : storage_device((string)cfg('storage_path'));
     return $h;
+}
+
+/** Windows: písmeno disku, súborový systém a typ (SSD / HDD / USB) úložiska. */
+function win_storage_device(): ?array {
+    $w = win_health((string)cfg('storage_path'));
+    if (empty($w['drive'])) return null;
+    $media = strtoupper((string)($w['media'] ?? '')); $bus = strtoupper((string)($w['bus'] ?? ''));
+    $type = $bus === 'USB' ? 'usb' : ($bus === 'NVME' ? 'ssd' : ($media === 'SSD' ? 'ssd_sata' : ($media === 'HDD' ? 'hdd' : null)));
+    return ['dev' => $w['drive'], 'mount' => $w['drive'] . '\\', 'fs' => $w['fs'] ?: 'disk', 'type' => $type];
 }
 
 /** Na akom zariadení je úložisko: sd (SD karta), usb, ssd (NVMe), hdd, alebo null. */
@@ -200,9 +225,11 @@ function speed_tips(array $h): array {
     if (version_compare(PHP_VERSION, '8.2', '<')) $t[] = ['warning', 'PHP ' . e(PHP_VERSION) . ' je staršie – novšie PHP (8.2+) je citeľne rýchlejšie.'];
     if (($h['storage_dev']['type'] ?? null) === 'sd') $t[] = ['warning', 'Súbory sú na <b>SD karte</b> (' . e($h['storage_dev']['dev']) . '). USB disk alebo SSD je pri Raspberry Pi niekoľkonásobne rýchlejší a SD karta sa častým zápisom opotrebúva.'];
     if (($h['storage_dev']['type'] ?? null) === 'hdd') $t[] = ['info', 'Súbory sú na klasickom pevnom disku – SSD by zrýchlil najmä miniatúry a hľadanie duplicít.'];
-    if (!$h['ffmpeg']) $t[] = ['info', 'Bez ffmpeg sa nevytvárajú miniatúry videí (<code>sudo apt install ffmpeg</code>).'];
+    if (!$h['ffmpeg']) $t[] = ['info', 'Bez ffmpeg sa nevytvárajú miniatúry videí – ' . tool_install_hint('ffmpeg') . '.'];
+    if (web_server_kind() === 'builtin' && PHP_SAPI !== 'cli') $t[] = ['warning', 'Beží vstavaný server PHP – na ostrú prevádzku použi Apache, nginx alebo IIS.'];
     if ($h['mem_total'] && $h['mem_used'] / $h['mem_total'] > 0.9) $t[] = ['warning', 'Pamäť RAM je takmer plná – server môže spomaľovať.'];
     if (($h['temp'] ?? 0) >= 80) $t[] = ['danger', 'Procesor je prehriaty a spomaľuje sa – pridaj chladič alebo ventilátor.'];
+    if (($h['cpu'] ?? 0) >= 90 && ($h['platform'] ?? '') === 'windows') $t[] = ['warning', 'Procesor je takmer úplne vyťažený – server môže spomaľovať.'];
     return $t;
 }
 

@@ -277,7 +277,7 @@ function extract_text(string $path, string $name): ?string {
         if (!$bin) return null;
         $out = tmp_file();
         try {
-            @exec(escapeshellarg($bin) . ' -q -l 60 -enc UTF-8 ' . escapeshellarg($path) . ' ' . escapeshellarg($out) . ' 2>/dev/null', $o, $rc);
+            @exec(escapeshellarg($bin) . ' -q -l 60 -enc UTF-8 ' . escapeshellarg($path) . ' ' . escapeshellarg($out) . ' 2>' . null_dev(), $o, $rc);
             $txt = $rc === 0 && is_file($out) ? (string)file_get_contents($out, false, null, 0, TEXT_BODY_MAX * 3) : null;
         } finally { @unlink($out); }
     } else {

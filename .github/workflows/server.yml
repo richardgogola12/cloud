@@ -39,7 +39,7 @@ jobs:
         run: |
           cd server
           zip -r -q ../cloud-server-${{ steps.ver.outputs.version }}.zip . -x 'config.php' -x 'storage/*' -x '*.DS_Store'
-          zip -q ../cloud-server-${{ steps.ver.outputs.version }}.zip storage/.htaccess storage/index.html
+          zip -q ../cloud-server-${{ steps.ver.outputs.version }}.zip storage/.htaccess storage/web.config storage/index.html
           cd .. && unzip -l cloud-server-${{ steps.ver.outputs.version }}.zip | tail -1
 
       - name: Vydanie (GitHub Release)

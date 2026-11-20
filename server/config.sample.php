@@ -18,8 +18,14 @@ return [
     'db_prefix'  => 'cloud_',
 
     // --- Úložisko ---
-    // Ideálne mimo webrootu, napr. '/var/www/cloud-data'. Predvolene ./storage (chránené .htaccess).
+    // Ideálne mimo webrootu, napr. '/var/www/cloud-data' alebo na Windows 'D:\\cloud-data'.
+    // Predvolene ./storage (chránené .htaccess pre Apache a web.config pre IIS).
     'storage_path' => __DIR__ . '/storage',
+
+    // --- Programy (nepovinné) ---
+    // Cloud si ffmpeg a pdftotext nájde sám (Linux: /usr/bin…, Windows: PATH, C:\\ffmpeg\\bin, C:\\poppler\\Library\\bin…).
+    // Ak sú inde, zadaj priečinky oddelené bodkočiarkou, napr. 'C:\\nastroje\\ffmpeg\\bin;C:\\nastroje\\poppler\\bin'.
+    // 'tools_path' => '',
 
     // --- Session (izolácia od ostatných webov na serveri) ---
     'session_name' => 'CLOUD_SID_7f3a',            // unikátny názov cookie

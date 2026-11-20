@@ -31,6 +31,7 @@ function ffmpeg_bin(string $tool = 'ffmpeg'): ?string {
     static $cache = [];
     if (array_key_exists($tool, $cache)) return $cache[$tool];
     if (!exec_allowed()) return $cache[$tool] = null;
+    if (is_windows()) return $cache[$tool] = win_find_tool($tool);
     $dirs = ['/usr/bin', '/usr/local/bin', '/bin', '/usr/sbin', '/opt/homebrew/bin'];
     foreach ($dirs as $d) { if (@is_executable("$d/$tool")) return $cache[$tool] = "$d/$tool"; }
     // open_basedir môže PHP zakázať pozrieť sa do /usr/bin – vtedy sa opýtame shellu (s plnou cestou PATH)
@@ -39,6 +40,23 @@ function ffmpeg_bin(string $tool = 'ffmpeg'): ?string {
     $p = trim($out[0] ?? '');
     if ($rc === 0 && $p !== '' && $p[0] === '/') return $cache[$tool] = $p;
     return $cache[$tool] = null;
+}
+/** Windows: program.exe v PATH, v nastavenom priečinku (config 'tools_path') alebo v bežných priečinkoch. */
+function win_find_tool(string $tool): ?string {
+    $exe = $tool . '.exe';
+    $pf = [getenv('ProgramFiles') ?: 'C:\\Program Files', getenv('ProgramFiles(x86)') ?: 'C:\\Program Files (x86)'];
+    $dirs = array_merge(
+        array_filter(array_map('trim', explode(';', (string)cfg('tools_path', '')))),
+        array_filter(array_map('trim', explode(';', (string)getenv('PATH')))),
+        ['C:\\ffmpeg\\bin', 'C:\\poppler\\Library\\bin', 'C:\\poppler\\bin', 'C:\\tools\\ffmpeg\\bin', 'C:\\ProgramData\\chocolatey\\bin',
+         $pf[0] . '\\ffmpeg\\bin', $pf[0] . '\\poppler\\Library\\bin', $pf[1] . '\\ffmpeg\\bin'],
+        glob('C:\\ffmpeg*\\bin') ?: [], glob('C:\\poppler*\\Library\\bin') ?: [], glob($pf[0] . '\\ffmpeg*\\bin') ?: [], glob($pf[0] . '\\poppler*\\Library\\bin') ?: []
+    );
+    foreach ($dirs as $d) { $p = rtrim(trim($d, '"'), '\\/') . '\\' . $exe; if (@is_file($p)) return $p; }
+    $out = []; $rc = 1;
+    @exec('where ' . escapeshellarg($exe) . ' 2>NUL', $out, $rc);
+    $p = trim($out[0] ?? '');
+    return $rc === 0 && $p !== '' && @is_file($p) ? $p : null;
 }
 function exec_allowed(): bool {
     $disabled = array_map('trim', explode(',', strtolower((string)ini_get('disable_functions'))));
@@ -54,18 +72,18 @@ function in_docker(): bool {
 function exec_diag(string $tool): string {
     if (!exec_allowed()) return 'PHP má zakázanú funkciu <code>exec</code> (disable_functions v ' . e((string)php_ini_loaded_file()) . ').';
     $out = []; $rc = -1;
-    @exec('echo ok 2>&1', $out, $rc);
+    @exec('echo ok', $out, $rc);
     if ($rc !== 0 || trim($out[0] ?? '') !== 'ok') return 'PHP nedokáže spustiť ani jednoduchý príkaz (návratový kód ' . (int)$rc . '). Skontroluj, či Apache/PHP nebeží v obmedzenom režime (AppArmor, systemd <code>NoNewPrivileges</code>/<code>ProtectSystem</code>, chroot).';
+    if (is_windows()) return 'Program <code>' . e($tool) . '.exe</code> sa nenašiel v PATH ani v bežných priečinkoch. Riešenie: ' . tool_install_hint($tool) . '. Prípadne nastav priečinok v config.php: <code>\'tools_path\' => \'C:\\\\ffmpeg\\\\bin\'</code>.';
     $out = []; @exec('PATH=/usr/local/bin:/usr/bin:/bin:$PATH; command -v ' . escapeshellarg($tool) . ' 2>&1; ls -l /usr/bin/' . escapeshellarg($tool) . ' 2>&1; id 2>&1', $out);
     $ob = (string)ini_get('open_basedir');
     if (in_docker()) {
-        $pkg = ['ffmpeg' => 'ffmpeg', 'pdftotext' => 'poppler-utils'][$tool] ?? $tool;
-        return 'Web beží v <b>Docker kontajneri</b> – programy nainštalované priamo na Pi v ňom nie sú. Nainštaluj ich do kontajnera: <code>docker exec -u 0 &lt;kontajner&gt; sh -c "apt-get update &amp;&amp; apt-get install -y ' . e($pkg) . '"</code> (po novom vytvorení kontajnera treba znova – natrvalo ich pridaj do Dockerfile).';
+        return 'Web beží v <b>Docker kontajneri</b> – programy nainštalované priamo na hostiteľovi v ňom nie sú. Nainštaluj ich do kontajnera: ' . tool_install_hint($tool) . ' (po novom vytvorení kontajnera treba znova – natrvalo ich pridaj do Dockerfile).';
     }
     return 'PHP (' . e(trim((string)@exec('whoami'))) . ') program <code>' . e($tool) . '</code> nenašlo. Výpis zo servera: <code>' . e(implode(' | ', $out)) . '</code>'
         . ($ob !== '' ? ' · open_basedir: <code>' . e($ob) . '</code>' : '');
 }
-function data_path(string $sub = ''): string { return rtrim(cfg('storage_path'), '/') . ($sub !== '' ? '/' . $sub : ''); }
+function data_path(string $sub = ''): string { return rtrim(cfg('storage_path'), '/\\') . ($sub !== '' ? '/' . $sub : ''); }
 function tmp_file(): string {
     $d = data_path('tmp');
     if (!is_dir($d)) mkdir($d, 0750, true);
@@ -279,7 +297,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
 function photo_date(string $path, string $mime): ?string {
     if (str_starts_with($mime, 'video/') && ($probe = ffmpeg_bin('ffprobe'))) { // dátum natočenia videa
         $out = [];
-        @exec(escapeshellarg($probe) . ' -v quiet -show_entries format_tags=creation_time -of default=nw=1:nk=1 ' . escapeshellarg($path) . ' 2>/dev/null', $out);
+        @exec(escapeshellarg($probe) . ' -v quiet -show_entries format_tags=creation_time -of default=nw=1:nk=1 ' . escapeshellarg($path) . ' 2>' . null_dev(), $out);
         if (!empty($out[0]) && ($t = strtotime($out[0])) && $t > 631152000) return date('Y-m-d H:i:s', $t);
         return null;
     }
@@ -621,7 +639,7 @@ function make_video_thumb(string $src, string $dst, int $max): bool {
     $ff = ffmpeg_bin(); if (!$ff) return false;
     $tmp = $dst . '.v.jpg';
     foreach (['1', '0'] as $ss) {
-        @exec(escapeshellarg($ff) . ' -v quiet -y -ss ' . $ss . ' -i ' . escapeshellarg($src) . ' -frames:v 1 -vf ' . escapeshellarg("scale='min($max,iw)':-2") . ' -q:v 4 -f image2 ' . escapeshellarg($tmp) . ' 2>/dev/null', $o, $rc);
+        @exec(escapeshellarg($ff) . ' -v quiet -y -ss ' . $ss . ' -i ' . escapeshellarg($src) . ' -frames:v 1 -vf ' . escapeshellarg("scale='min($max,iw)':-2") . ' -q:v 4 -f image2 ' . escapeshellarg($tmp) . ' 2>' . null_dev(), $o, $rc);
         if (is_file($tmp) && filesize($tmp) > 0) return rename($tmp, $dst);
     }
     @unlink($tmp);
