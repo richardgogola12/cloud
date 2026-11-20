@@ -975,6 +975,7 @@ section('Príručky a rýchly sprievodca');
 $r = $web->get('help.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'id="helpDoc"') && str_contains($r['body'], 'Zamknuté zložky') && str_contains($r['body'], 'Aplikácia pre Android'), 'používateľská príručka');
 no_php_errors($r['body'], 'help.php');
+ok(substr_count($r['body'], '<figure') >= 25, 'príručka má snímky obrazovky', (string)substr_count($r['body'], '<figure'));
 ok(str_contains($web->get('index.php')['body'], 'href="/help.php"') || str_contains($web->get('index.php')['body'], 'help.php"'), 'príručka je v menu');
 $r = $web->get('help.php?doc=dev');
 ok($r['code'] === 200 && str_contains($r['body'], 'Databáza a migrácie') && str_contains($r['body'], 'SCHEMA_VERSION'), 'vývojárska príručka pre admina');
