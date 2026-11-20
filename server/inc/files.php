@@ -52,11 +52,15 @@ function win_find_tool(string $tool): ?string {
          $pf[0] . '\\ffmpeg\\bin', $pf[0] . '\\poppler\\Library\\bin', $pf[1] . '\\ffmpeg\\bin'],
         glob('C:\\ffmpeg*\\bin') ?: [], glob('C:\\poppler*\\Library\\bin') ?: [], glob($pf[0] . '\\ffmpeg*\\bin') ?: [], glob($pf[0] . '\\poppler*\\Library\\bin') ?: []
     );
-    foreach ($dirs as $d) { $p = rtrim(trim($d, '"'), '\\/') . '\\' . $exe; if (@is_file($p)) return $p; }
-    $out = []; $rc = 1;
-    @exec('where ' . escapeshellarg($exe) . ' 2>NUL', $out, $rc);
-    $p = trim($out[0] ?? '');
-    return $rc === 0 && $p !== '' && @is_file($p) ? $p : null;
+    // výsledok sa pamätá 10 minút (prechádzanie PATH na Windows môže trvať)
+    $cf = data_path('tmp/tools.json');
+    $c = is_file($cf) && filemtime($cf) > time() - 600 ? (json_decode((string)@file_get_contents($cf), true) ?: []) : [];
+    if (array_key_exists($tool, $c) && ($c[$tool] === null || @is_file($c[$tool]))) return $c[$tool];
+    $found = null;
+    foreach (array_unique($dirs) as $d) { $p = rtrim(trim($d, '"'), '\\/') . '\\' . $exe; if (@is_file($p)) { $found = $p; break; } }
+    $c[$tool] = $found;
+    if (is_dir(dirname($cf))) @file_put_contents($cf, json_encode($c));
+    return $found;
 }
 function exec_allowed(): bool {
     $disabled = array_map('trim', explode(',', strtolower((string)ini_get('disable_functions'))));

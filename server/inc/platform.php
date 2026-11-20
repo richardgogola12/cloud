@@ -149,7 +149,7 @@ function win_health(string $storagePath): array {
     static $mem = null;
     if ($mem !== null) return $mem;
     $cacheF = data_path('tmp/win-health.json');
-    if (is_file($cacheF) && filemtime($cacheF) > time() - 8 && ($j = json_decode((string)@file_get_contents($cacheF), true))) return $mem = $j;
+    if (is_file($cacheF) && filemtime($cacheF) > time() - 20 && ($j = json_decode((string)@file_get_contents($cacheF), true))) return $mem = $j;
     $out = ['cores' => (int)getenv('NUMBER_OF_PROCESSORS') ?: null];
     if (exec_allowed()) {
         $drive = preg_match('/^([A-Za-z]):/', (string)realpath($storagePath), $m) ? strtoupper($m[1]) : 'C';
@@ -163,9 +163,7 @@ function win_health(string $storagePath): array {
             . 'try{$d=Get-Partition -DriveLetter ' . $drive . '|Get-Disk|Get-PhysicalDisk|Select-Object -First 1;$r.media=[string]$d.MediaType;$r.bus=[string]$d.BusType}catch{};'
             . '$r|ConvertTo-Json -Compress';
         $enc = base64_encode(mb_convert_encoding($ps, 'UTF-16LE', 'UTF-8'));
-        $o = []; $rc = 1;
-        @exec('powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' . $enc . ' 2>' . null_dev(), $o, $rc);
-        $j = json_decode(implode('', $o), true);
+        $j = json_decode(run_timeout('powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' . $enc, 8), true);
         if (is_array($j)) {
             $out = ['os' => $j['os'] ?? null, 'mem_total' => (int)($j['mt'] ?? 0) ?: null, 'mem_free' => (int)($j['mf'] ?? 0), 'uptime' => (int)($j['up'] ?? 0) ?: null,
                     'cores' => (int)($j['cores'] ?? 0) ?: $out['cores'], 'model' => trim((string)($j['model'] ?? '')) ?: null, 'cpu' => isset($j['cpu']) ? (float)$j['cpu'] : null,
@@ -175,4 +173,23 @@ function win_health(string $storagePath): array {
     }
     if (is_dir(dirname($cacheF))) @file_put_contents($cacheF, json_encode($out));
     return $mem = $out;
+}
+
+/** Spustí príkaz a po $sec sekundách ho ukončí (aby pomalý systémový príkaz nezablokoval stránku). Vráti výstup. */
+function run_timeout(string $cmd, int $sec): string {
+    if (!function_exists('proc_open')) { $o = []; @exec($cmd . ' 2>' . null_dev(), $o); return implode("\n", $o); }
+    $p = @proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['file', null_dev(), 'w']], $pipes, null, null, ['bypass_shell' => true]);
+    if (!is_resource($p)) return '';
+    stream_set_blocking($pipes[1], false);
+    $out = ''; $t0 = microtime(true);
+    while (true) {
+        $chunk = fread($pipes[1], 65536);
+        if ($chunk !== false && $chunk !== '') $out .= $chunk;
+        $st = proc_get_status($p);
+        if (!$st['running']) { $out .= (string)stream_get_contents($pipes[1]); break; }
+        if (microtime(true) - $t0 > $sec) { proc_terminate($p); break; }
+        usleep(50000);
+    }
+    fclose($pipes[1]); proc_close($p);
+    return $out;
 }
