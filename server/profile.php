@@ -226,8 +226,8 @@ $used = used_space($uid);
         <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
           <label class="small fw-semibold" for="prefFlashTime">Dĺžka bliknutia</label>
           <select class="form-select form-select-sm w-auto" id="prefFlashTime">
-            <?php foreach ([0.5 => 'veľmi krátko (0,5 s)', 1 => 'krátko (1 s)', 2 => 'normálne (2 s)', 3 => 'dlhšie (3 s)', 5 => 'dlho (5 s)', 8 => 'veľmi dlho (8 s)'] as $sec => $lbl): ?>
-            <option value="<?= e((string)$sec) ?>" <?= abs($ft - $sec) < 0.01 ? 'selected' : '' ?>><?= e($lbl) ?></option>
+            <?php foreach (['0.5' => 'veľmi krátko (0,5 s)', '1' => 'krátko (1 s)', '2' => 'normálne (2 s)', '3' => 'dlhšie (3 s)', '5' => 'dlho (5 s)', '8' => 'veľmi dlho (8 s)'] as $sec => $lbl): $sec = (string)$sec; ?>
+            <option value="<?= e((string)$sec) ?>" <?= abs($ft - (float)$sec) < 0.01 ? 'selected' : '' ?>><?= e($lbl) ?></option>
             <?php endforeach; ?>
           </select>
           <button class="btn btn-sm btn-outline-secondary rounded-pill" type="button" id="flashTry"><i class="bi bi-play me-1"></i>Vyskúšať</button>
