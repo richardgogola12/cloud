@@ -123,6 +123,15 @@ for (const [name, opts] of sizes) {
       if (Math.abs(y1 - y0) > 1 || !bar) { console.log('CHYBA: výber posunul položky'); process.exitCode = 1; }
       await page.keyboard.press('Escape'); await page.click('#selBar [data-sel="clear"]').catch(() => {}); await page.waitForTimeout(300);
     }
+    // návrat do nadradenej zložky: zložka, z ktorej prichádzam, blikne
+    const fk = await page.evaluate(() => document.querySelector('#items .item[data-key^="d:"]')?.dataset.key);
+    if (fk) {
+      await page.evaluate((k) => { location.hash = '#folder/' + k.slice(2); }, fk); await page.waitForTimeout(1000);
+      await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(500);
+      const fl = await page.evaluate((k) => document.querySelector('#items .item[data-key="' + k + '"]')?.classList.contains('flash'), fk);
+      console.log(`[${name}] návrat zo zložky: bliknutie=${fl}`);
+      if (!fl) { console.log('CHYBA: zložka po návrate neblikla'); process.exitCode = 1; }
+    }
     // pozícia posúvania sa po návrate zachová
     await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '3000px'; window.scrollTo(0, 400); }); await page.waitForTimeout(300);
     await page.evaluate(() => { location.hash = '#recent'; }); await page.waitForTimeout(900);

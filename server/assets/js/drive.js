@@ -444,7 +444,7 @@
       io.observe(more);
     }
     updateSel();
-    if (restoreTo) requestAnimationFrame(restoreScroll);
+    if (restoreTo || flashKey) requestAnimationFrame(() => { if (restoreTo) restoreScroll(); if (flashKey) requestAnimationFrame(() => flashKey && flashItem(flashKey)); });
   }
 
   const badges = (it) => (it.locked ? '<i class="bi ' + (it.unlocked ? 'bi-unlock text-success' : 'bi-lock-fill text-body-secondary') + ' small ms-1" title="' + (it.unlocked ? 'Zamknutá heslom – teraz odomknutá' : 'Zamknutá heslom') + '"></i>' : '')
@@ -775,7 +775,36 @@
     const oc = bootstrap.Offcanvas.getInstance($('#sidebar')); oc && oc.hide();
     load();
   }
-  window.addEventListener('hashchange', () => { scrollEnter(); route(); });
+  window.addEventListener('hashchange', () => { flashParentTarget(); scrollEnter(); route(); });
+  /* po návrate do nadradenej zložky zvýrazni zložku, z ktorej si prišiel (aj o viac úrovní vyššie) */
+  function flashParentTarget() {
+    if (state.view !== 'folder' || !state.folder) return;
+    const h = location.hash.slice(1);
+    const to = h.startsWith('folder/') ? parseInt(h.slice(7)) || null : (h === '' ? null : undefined);
+    if (to === undefined) return;
+    const cr = state.crumbs || [];
+    const i = to === null ? -1 : cr.findIndex(c => +c.id === to);
+    if (to !== null && i < 0) return;
+    const next = cr[i + 1];
+    if (next) flashLater('d:' + next.id);
+  }
+  /* krátke bliknutie položky (návrat zo zložky, zavretie náhľadu či editora); ak nie je vidieť, posunie sa k nej */
+  let flashKey = null;
+  function flashLater(k) { flashKey = k; }
+  function flashItem(k) {
+    const el = document.querySelector('#items .item[data-key="' + CSS.escape(k) + '"]');
+    if (!el) {
+      const i = state.items.findIndex(x => key(x) === k);
+      if (i >= 0 && i >= state.limit) { state.limit = i + 60; flashKey = k; render(); return; }
+      flashKey = i < 0 && state.partial ? k : null; // zoznam sa ešte dotiahne
+      return;
+    }
+    flashKey = null;
+    const r = el.getBoundingClientRect(), top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 60;
+    if (r.top < top || r.bottom > innerHeight - 20) el.scrollIntoView({ block: 'center' });
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    clearTimeout(el._flT); el._flT = setTimeout(() => el.classList.remove('flash'), 1900);
+  }
   /* pozícia posúvania pre každé miesto (zložka, sekcia) – keď sa tam vrátiš, ukáže sa to, kde si bol */
   const scrollMem = new Map();
   let scrollKey = location.hash || '#', restoreTo = null;
@@ -836,11 +865,11 @@
   function editSheet(it, readOnly) {
     bootstrap.Modal.getInstance($('#previewModal'))?.hide();
     CloudSheet.open(it, { url: fileUrl(it.id), folder: it.folder_id || curFolder(), readOnly: !!readOnly,
-      onSaved: () => { lcMem.clear?.(); }, onClose: () => load(true) });
+      onSaved: () => { lcMem.clear?.(); }, onClose: () => { flashLater(key(it)); load(true); } });
   }
   function editImage(it) {
     bootstrap.Modal.getInstance($('#previewModal'))?.hide();
-    CloudImageEditor.open(it, { url: fileUrl(it.id, true), folder: it.folder_id || curFolder(), onSaved: () => load(true) });
+    CloudImageEditor.open(it, { url: fileUrl(it.id, true), folder: it.folder_id || curFolder(), onSaved: () => { flashLater(key(it)); load(true); } });
   }
   async function newSheet() {
     const name = await Cloud.prompt('Nová tabuľka', 'Tabuľka bez názvu.xlsx', 'Vytvoriť');
@@ -1213,6 +1242,7 @@
     bootstrap.Modal.getOrCreateInstance($('#editorModal')).show();
   }
   $('#editorModal').addEventListener('shown.bs.modal', () => $('#edText').focus());
+  $('#editorModal').addEventListener('hidden.bs.modal', () => { if (edIt && byKey(key(edIt))) flashItem(key(edIt)); });
   $('#edText').addEventListener('input', () => { edDirty = true; $('#edStatus').textContent = 'Neuložené zmeny'; });
   $('#edText').addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); const t = e.target, s = t.selectionStart; t.setRangeText('    ', s, t.selectionEnd, 'end'); edDirty = true; }
@@ -1334,7 +1364,11 @@
   const pvStep = (d) => { const n = pvList()[pvIdx + d]; if (n) preview(n); };
   $('#previewPrev').onclick = () => pvStep(-1);
   $('#previewNext').onclick = () => pvStep(1);
-  $('#previewModal').addEventListener('hidden.bs.modal', () => { if (pvPlayer) { pvPlayer.destroy(); pvPlayer = null; } $('#previewBody').innerHTML = ''; });
+  $('#previewModal').addEventListener('hidden.bs.modal', () => {
+    if (pvPlayer) { pvPlayer.destroy(); pvPlayer = null; } $('#previewBody').innerHTML = '';
+    const cur = pvList()[pvIdx]; // súbor, ktorý si naposledy pozeral, blikne v zozname
+    if (cur && !document.querySelector('.modal.show') && byKey(key(cur))) flashItem(key(cur));
+  });
   document.addEventListener('keydown', (e) => {
     if (!$('#previewModal').classList.contains('show')) return;
     if (e.key === 'ArrowLeft') pvStep(-1); if (e.key === 'ArrowRight') pvStep(1); // pri videe šípky posúvajú video, súbor sa mení so Shift
