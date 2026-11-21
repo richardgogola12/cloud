@@ -129,7 +129,13 @@ for (const [name, opts] of sizes) {
       // zložka je mimo obrazovky (posunuté ďaleko dole) → po návrate sa k nej posunie a blikne
       await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '4000px'; window.scrollTo(0, 2500); }); await page.waitForTimeout(300);
       await page.evaluate((k) => { location.hash = '#folder/' + k.slice(2); }, fk); await page.waitForTimeout(1000);
-      await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(700);
+      await page.evaluate(() => {
+        window.__log = []; const L = (m) => window.__log.push(Math.round(performance.now()) + ' ' + m + ' y=' + Math.round(scrollY) + ' h=' + document.documentElement.scrollHeight);
+        const st0 = window.scrollTo.bind(window); window.scrollTo = (a, b) => { st0(a, b); L('scrollTo(' + b + ')'); };
+        const si0 = Element.prototype.scrollIntoView; Element.prototype.scrollIntoView = function (o) { si0.call(this, o); L('intoView ' + (this.dataset.key || this.className) + ' top=' + Math.round(this.getBoundingClientRect().top)); };
+        addEventListener('scroll', () => L('scroll'), { passive: true });
+        location.hash = '#'; }); await page.waitForTimeout(700);
+      console.log((await page.evaluate(() => window.__log)).slice(0, 25).join('\n'));
       const st = await page.evaluate((k) => { const el = document.querySelector('#items .item[data-key="' + k + '"]'); if (!el) return {}; const r = el.getBoundingClientRect(); return { fl: el.classList.contains('flash'), vis: r.top >= 0 && r.bottom <= innerHeight }; }, fk);
       await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
       console.log(`[${name}] návrat zo zložky: bliknutie=${st.fl}, viditeľná=${st.vis}`);
