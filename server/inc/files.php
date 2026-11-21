@@ -284,7 +284,7 @@ function rows_out(int $uid, array $folders, array $files, array $extra = []): ar
         $out[] = ['type' => 'f', 'id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'mime' => $f['mime'],
                   'starred' => (bool)$f['starred'], 'updated' => $f['updated_at'], 'taken' => $f['taken_at'] ?? null,
                   'folder_id' => $f['folder_id'] ? (int)$f['folder_id'] : null,
-                  'thumb' => is_thumbable($f['mime']), 'shared' => isset($sh['f'][(int)$f['id']]),
+                  'thumb' => is_thumbable($f['mime']) || ($vt = video_thumb_missing($f)) === false, 'vthumb' => !empty($vt), 'shared' => isset($sh['f'][(int)$f['id']]),
                   'versions' => isset($f['vcnt']) ? (int)$f['vcnt'] : 0,
                   'owner' => (int)$f['user_id'] === $uid ? null : ($owners[(int)$f['user_id']] ?? '?'),
                   'perm' => $extra['fperm'][$f['id']] ?? ((int)$f['user_id'] === $uid ? 'owner' : ($extra['default_perm'] ?? 'view')),
@@ -585,12 +585,7 @@ function housekeeping(): void {
     try { q('DELETE FROM ' . P . 'activity WHERE created_at < NOW() - INTERVAL ' . ACTIVITY_DAYS . ' DAY'); } catch (Throwable $e) {}
     try { send_due_digests(); } catch (Throwable $e) {}
     try { expire_versions(); } catch (Throwable $e) {}
-    $days = (int)setting('trash_days', '30');
-    if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
-        $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY
-                   UNION ALL SELECT user_id FROM ' . P . 'folders WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY) t GROUP BY user_id')->fetchAll();
-        foreach ($rows as $r) notify((int)$r['user_id'], 'trash', 'Kôš sa čoskoro vyprázdni', $r['c'] . ' položiek sa o 3 dni natrvalo zmaže. Ak ich potrebuješ, obnov ich.', 'index.php#trash');
-    }
+    try { trash_tick(); } catch (Throwable $e) { error_log('[cloud] kôš: ' . $e->getMessage()); }
     // nová verzia servera → upozorni administrátorov
     try {
         require_once __DIR__ . '/updater.php';
@@ -600,11 +595,6 @@ function housekeeping(): void {
             notify_admins('update', 'Dostupná aktualizácia servera ' . $rel['version'], 'Nainštalovaná je ' . APP_VERSION . '. Aktualizuješ ju jedným tlačidlom.', 'admin.php?tab=update');
         }
     } catch (Throwable $e) {}
-    if ($days > 0) {
-        $owners = q('SELECT DISTINCT user_id FROM ' . P . 'files WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)
-                     UNION SELECT DISTINCT user_id FROM ' . P . 'folders WHERE trash_root = 1 AND deleted_at < (NOW() - INTERVAL ' . $days . ' DAY)')->fetchAll(PDO::FETCH_COLUMN);
-        foreach ($owners as $o) purge_trash((int)$o, $days);
-    }
     // nedokončené nahrávania starších ako 3 dni
     foreach (q('SELECT id FROM ' . P . 'uploads WHERE updated_at < (NOW() - INTERVAL 3 DAY)')->fetchAll(PDO::FETCH_COLUMN) as $id) {
         @unlink(data_path('tmp/chunks/' . $id));
@@ -719,12 +709,31 @@ function make_thumb(string $src, string $dst, int $max): bool {
     return $ok;
 }
 /** Vytvorí (zašifrovanú) miniatúru, ak ešte nie je. Vráti cestu k nej alebo null. */
+/** Video bez ffmpeg na serveri: true = náhľad ešte chýba (vyrobí ho prehliadač), false = už je (od prehliadača), null = nejde o video / server si poradí sám. */
+function video_thumb_missing(array $f): ?bool {
+    if (!str_starts_with((string)$f['mime'], 'video/') || ffmpeg_bin() !== null) return null;
+    return !is_file(data_path('thumbs/' . (int)$f['user_id'] . '/' . $f['stored_name'] . '.jpg'));
+}
+/** Náhľad videa, ktorý vyrobil prehliadač (snímka z videa): zmenší sa, prípadne zašifruje ako ostatné miniatúry. */
+function thumb_store_client(array $f, string $imgPath): void {
+    $owner = (int)$f['user_id'];
+    $tdir = data_path('thumbs/' . $owner); if (!is_dir($tdir)) @mkdir($tdir, 0750, true);
+    $tpath = $tdir . '/' . $f['stored_name'] . '.jpg';
+    $plain = tmp_file();
+    try {
+        if (!make_thumb($imgPath, $plain, 400)) throw new RuntimeException('Náhľad sa nepodarilo spracovať.');
+        $key = row_key($f);
+        $tmp = $tpath . '.part' . bin2hex(random_bytes(3));
+        if ($key !== null) crypto_encrypt_file($plain, $tmp, $key); else rename($plain, $tmp);
+        rename($tmp, $tpath);
+    } finally { if (is_file($plain)) @unlink($plain); }
+}
 function thumb_ensure(array $f): ?string {
-    if (!is_thumbable($f['mime'])) return null;
     $owner = (int)$f['user_id'];
     $tdir = data_path('thumbs/' . $owner);
     $tpath = $tdir . '/' . $f['stored_name'] . '.jpg';
     if (is_file($tpath)) return $tpath;
+    if (!is_thumbable($f['mime'])) return null;
     if (!is_dir($tdir)) @mkdir($tdir, 0750, true);
     $video = str_starts_with($f['mime'], 'video/');
     if ((int)$f['size'] > ($video ? 600 : 40) * 1024 * 1024) return null;
@@ -828,4 +837,41 @@ function sheet_extras_get(int $fileId, string $updated): ?array {
         $d = json_decode($r['data'], true);
         return is_array($d) ? $d : null;
     } catch (Throwable $e) { return null; }
+}
+
+/* ================== Pripnuté zložky (menu vľavo) ================== */
+/** Pripnuté zložky používateľa – iba tie, ktoré ešte existujú a má k nim prístup. */
+function user_pins(array $u): array {
+    $ids = array_slice(array_map('intval', user_prefs($u)['pins'] ?? []), 0, 20);
+    $out = [];
+    foreach ($ids as $id) {
+        try {
+            $a = folder_access((int)$u['id'], $id);
+            if (!empty($a['row']['deleted_at'])) continue;
+            $path = array_map(fn($c) => $c['name'], breadcrumbs((int)$u['id'], $id));
+            $out[] = ['id' => $id, 'name' => $a['row']['name'], 'color' => $a['row']['color'] ?? null, 'path' => implode(' / ', $path)];
+        } catch (Throwable $e) {}
+    }
+    return $out;
+}
+
+/* ================== Kôš: doba podľa používateľa ================== */
+/** Po koľkých dňoch sa kôš používateľa vysype (vlastné nastavenie, inak podľa servera); 0 = nikdy. */
+function user_trash_days(array $u): int {
+    $d = (int)(user_prefs($u)['trash_days'] ?? 0);
+    return $d > 0 ? min(3650, $d) : max(0, (int)setting('trash_days', '30'));
+}
+/** Vysypanie koša a upozornenie 3 dni vopred – pre každého používateľa podľa jeho nastavenia (raz denne). */
+function trash_tick(): void {
+    $owners = q('SELECT DISTINCT user_id FROM ' . P . 'files WHERE trash_root = 1 UNION SELECT DISTINCT user_id FROM ' . P . 'folders WHERE trash_root = 1')->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($owners as $o) {
+        $u = q('SELECT id, prefs FROM ' . P . 'users WHERE id = ?', [(int)$o])->fetch(); if (!$u) continue;
+        $days = user_trash_days($u); if ($days <= 0) continue;
+        if ($days > 3) {
+            $c = (int)q('SELECT (SELECT COUNT(*) FROM ' . P . 'files WHERE user_id = ? AND trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY)
+                       + (SELECT COUNT(*) FROM ' . P . 'folders WHERE user_id = ? AND trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY)', [$o, $o])->fetchColumn();
+            if ($c) notify((int)$o, 'trash', 'Kôš sa čoskoro vyprázdni', $c . ' položiek sa o 3 dni natrvalo zmaže. Ak ich potrebuješ, obnov ich.', 'index.php#trash');
+        }
+        purge_trash((int)$o, $days);
+    }
 }

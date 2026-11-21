@@ -6,7 +6,7 @@
 
   function ensure() {
     if (M) return M;
-    document.body.insertAdjacentHTML('beforeend', '<div class="modal" id="sheetModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false"><div class="modal-dialog modal-fullscreen"><div class="modal-content sheet-frame-wrap"><iframe class="sheet-frame" title="Editor tabuliek" allow="clipboard-read; clipboard-write"></iframe></div></div></div>');
+    document.body.insertAdjacentHTML('beforeend', '<div class="modal" id="sheetModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false"><div class="modal-dialog modal-fullscreen"><div class="modal-content sheet-frame-wrap"><iframe class="sheet-frame" title="Editor" allow="clipboard-read; clipboard-write"></iframe></div></div></div>');
     M = document.getElementById('sheetModal');
     // zatvorenie (aj tlačidlom Späť) – editor najprv dokončí ukladanie
     M.addEventListener('hide.bs.modal', (e) => {
@@ -25,11 +25,11 @@
   }
   function finish() { canClose = true; bootstrap.Modal.getOrCreateInstance(M).hide(); }
 
-  /** Otvorí tabuľku v editore. o: { readOnly, onSaved, onClose } */
-  function open(it, o) {
+  /** Otvorí tabuľku (sheet.php) alebo dokument (doc.php) v editore. o: { readOnly, onSaved, onClose } */
+  function open(it, o, pageName) {
     ensure();
     cur = { it, o: o || {} }; canClose = false;
-    M.querySelector('iframe').src = base() + 'sheet.php?embed=1&id=' + encodeURIComponent(it.id) + (cur.o.readOnly ? '&ro=1' : '');
+    M.querySelector('iframe').src = base() + (pageName || 'sheet.php') + '?embed=1&id=' + encodeURIComponent(it.id) + (cur.o.readOnly ? '&ro=1' : '');
     bootstrap.Modal.getOrCreateInstance(M).show();
     setTimeout(() => { try { M.querySelector('iframe').focus(); } catch (e) {} }, 300);
   }
@@ -45,4 +45,5 @@
   }
 
   window.CloudSheet = { open, blankXlsx };
+  window.CloudDoc = { open: (it, o) => open(it, o, 'doc.php') };
 })();

@@ -29,6 +29,11 @@ try {
         }
         if (isset($u['email_verified']) && !$u['email_verified']) throw new RuntimeException('Najprv over svoj e-mail (odkaz v e-maile z registrácie).');
         if (!$u['is_active']) throw new RuntimeException('Účet zatiaľ nie je aktívny.');
+        if (totp_enabled($u)) { // dvojstupňové overenie: aplikácia sa opýta na kód a pošle ho s heslom znova
+            $code = trim((string)($in['code'] ?? ''));
+            if ($code === '') json_out(['ok' => false, 'need_code' => true, 'error' => 'Zadaj overovací kód z aplikácie (alebo záložný kód).'], 428);
+            if (!totp_check($u, $code)) { record_failed_attempt($email); json_out(['ok' => false, 'need_code' => true, 'error' => 'Nesprávny overovací kód.'], 428); }
+        }
         $token = bin2hex(random_bytes(32));
         $device = mb_substr(trim((string)($in['device'] ?? 'Android')) ?: 'Android', 0, 100);
         q('INSERT INTO ' . P . 'app_tokens (user_id, token_hash, name, ip) VALUES (?,?,?,?)', [$u['id'], hash('sha256', $token), $device, client_ip()]);

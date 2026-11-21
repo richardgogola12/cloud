@@ -70,7 +70,27 @@ class LoginActivity : AppCompatActivity() {
         b.error.visibility = if (msg.isNullOrBlank()) View.GONE else View.VISIBLE
     }
 
-    private fun doLogin() {
+    /** Dvojstupňové overenie: server chce kód z overovacej aplikácie (alebo záložný kód). */
+    private fun askCode(msg: String) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            hint = "123456"
+            textSize = 22f
+            gravity = android.view.Gravity.CENTER
+        }
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Overovací kód")
+            .setMessage(msg + "\n\nNemáš telefón s aplikáciou? Zadaj záložný kód.")
+            .setView(box)
+            .setPositiveButton("Overiť") { _, _ -> doLogin(input.text?.toString()?.trim().orEmpty()) }
+            .setNegativeButton("Zrušiť", null)
+            .show()
+        input.requestFocus()
+    }
+
+    private fun doLogin(code: String = "") {
         val server = serverUrl()
         val email = b.email.text?.toString()?.trim().orEmpty()
         val pass = b.password.text?.toString().orEmpty()
@@ -80,10 +100,11 @@ class LoginActivity : AppCompatActivity() {
         b.loginBtn.isEnabled = false
         b.progress.visibility = View.VISIBLE
         lifecycleScope.launch {
-            val res = withContext(Dispatchers.IO) { runCatching { Api(prefs).login(server, email, pass) } }
+            val res = withContext(Dispatchers.IO) { runCatching { Api(prefs).login(server, email, pass, code) } }
             b.loginBtn.isEnabled = true
             b.progress.visibility = View.INVISIBLE
             res.onFailure { e ->
+                if (e is sk.rgogola.cloud.net.ApiException && e.code == 428) { askCode(e.message ?: "Zadaj overovací kód."); return@onFailure }
                 val ssl = generateSequence(e as Throwable?) { it.cause }.any { it is javax.net.ssl.SSLException || it is java.security.cert.CertificateException }
                 showError(when {
                     ssl -> "Certifikát servera nie je dôveryhodný. Ťukni na „Server“ a over ho."

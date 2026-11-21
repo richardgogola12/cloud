@@ -104,8 +104,31 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
     await fr.evaluate(() => luckysheet.setRangeShow('C7')); await fr.waitForFunction(() => /Všetky zmeny/.test(document.getElementById('gsStatus').textContent), null, { timeout: 15000 }).catch(() => {}); await wait(page, 500); });
   await page.frameLocator('#sheetModal iframe').locator('body').press('Escape').catch(() => {});
   await page.evaluate(() => { const f = document.querySelector('#sheetModal iframe'); f && f.contentWindow.postMessage({ cloudSheetCmd: 'close' }, location.origin); }); await wait(page, 2500);
+  await shot(page, 'u-dokument', async () => {
+    await page.evaluate(() => { location.hash = '#'; }); await wait(page, 800);
+    await page.click('.btn-new'); await wait(page, 300); await page.click('.dropdown-menu.show [data-action="new-doc"]'); await wait(page, 500);
+    await page.fill('.modal.show input', 'Zápisnica – rodinná porada'); await page.click('.modal.show .btn-primary');
+    await page.waitForSelector('#sheetModal.show iframe', { timeout: 20000 });
+    let df = null; for (let i = 0; i < 80 && !df; i++) { df = page.frames().find(f => f.url().includes('doc.php')); if (!df) await wait(page, 250); }
+    await df.waitForFunction(() => window.CloudDocEditor && CloudDocEditor.ready, null, { timeout: 30000 });
+    await df.evaluate(() => {
+      const p = document.getElementById('gdPage');
+      p.innerHTML = '<h1>Rodinná porada</h1><p><span style="color:#5f6368">Nedeľa 23. novembra 2026 · obývačka</span></p><h2>Program</h2><ol><li>Dovolenka v lete – <b>Tatry alebo more?</b></li><li>Rozpočet na Vianoce</li><li>Kto sa postará o záhradu</li></ol>'
+        + '<h2>Rozhodli sme</h2><table><tbody><tr><td><b>Úloha</b></td><td><b>Kto</b></td><td><b>Do kedy</b></td></tr><tr><td>Zistiť ceny chát</td><td>Jana</td><td>30. 11.</td></tr><tr><td>Zoznam darčekov</td><td>Peter</td><td>5. 12.</td></tr></tbody></table>'
+        + '<p>Ďalšie stretnutie: <span style="background-color:#fff475">nedeľa 7. decembra</span>.</p>';
+      p.dispatchEvent(new Event('input'));
+    });
+    await wait(page, 3500); });
+  await page.evaluate(() => { const f = document.querySelector('#sheetModal iframe'); f && f.contentWindow.postMessage({ cloudSheetCmd: 'close' }, location.origin); }); await wait(page, 2500);
   await page.goto(base + 'profile.php'); await wait(page, 1200);
   await shot(page, 'u-profil');
+  await shot(page, 'u-2fa', async () => { await page.locator('#tfaStart').click(); await wait(page, 800); await page.locator('#tfa').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });
+  await shot(page, 'u-kos-verzie', async () => { await page.locator('#versions').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });
+  await shot(page, 'u-pripnute', async () => {
+    await page.goto(base + 'index.php'); await wait(page, 1200);
+    await page.evaluate(async (ids) => { for (const id of [ids.dok, ids.dov].filter(Boolean)) await Cloud.api('api.php?action=pin', { id, on: '1' }); }, ids);
+    await page.reload(); await wait(page, 1500); });
+  await page.goto(base + 'profile.php'); await wait(page, 1200);
   await shot(page, 'u-suhrn', async () => { await page.locator('#digest').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });
   await shot(page, 'u-webdav', async () => { await page.locator('#dav').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });
   await shot(page, 'u-stlpce', async () => { await page.locator('#cols').scrollIntoViewIfNeeded().catch(() => {}); await page.evaluate(() => { const c = document.getElementById('cols') || [...document.querySelectorAll('h2')].find(h => h.textContent.includes('Stĺpce')); c && c.scrollIntoView(); scrollBy(0, -80); }); await wait(page, 300); });
@@ -134,7 +157,7 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'sk-SK' });
   const page = await ctx.newPage();
   await login(page, 'admin@test.sk', 'Heslo1234');
-  for (const [tab, name] of [['dashboard', 'a-prehlad'], ['users', 'a-pouzivatelia'], ['settings', 'a-nastavenia'], ['smtp', 'a-smtp'], ['log', 'a-zaznamy'], ['maintenance', 'a-udrzba'], ['update', 'a-aktualizacia']]) {
+  for (const [tab, name] of [['dashboard', 'a-prehlad'], ['users', 'a-pouzivatelia'], ['settings', 'a-nastavenia'], ['smtp', 'a-smtp'], ['log', 'a-zaznamy'], ['maintenance', 'a-udrzba'], ['backup', 'a-zalohy'], ['update', 'a-aktualizacia']]) {
     await page.goto(base + 'admin.php?tab=' + tab); await wait(page, 1200);
     await shot(page, name);
   }

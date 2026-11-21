@@ -94,6 +94,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <ul class="dropdown-menu dropdown-menu-end shadow mb-2">
     <li><a class="dropdown-item py-2" href="#" data-action="new-folder"><i class="bi bi-folder-plus me-2"></i>Nová zložka</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="new-text"><i class="bi bi-file-earmark-text me-2"></i>Nový textový súbor</a></li>
+    <li><a class="dropdown-item py-2" href="#" data-action="new-doc"><i class="bi bi-file-earmark-text me-2 ic-doc"></i>Nový dokument</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="new-sheet"><i class="bi bi-file-earmark-spreadsheet me-2 ic-sheet"></i>Nová tabuľka</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="upload-files"><i class="bi bi-file-earmark-arrow-up me-2"></i>Nahrať súbory</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="upload-camera"><i class="bi bi-camera me-2"></i>Odfotiť a nahrať</a></li>
@@ -131,6 +132,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="move"><i class="bi bi-folder-symlink me-2"></i>Presunúť<span class="kbd-hint d-none d-lg-inline">Z</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="copy"><i class="bi bi-copy me-2"></i>Vytvoriť kópiu</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="star"><i class="bi bi-star me-2"></i><span>Pridať hviezdičku</span><span class="kbd-hint d-none d-lg-inline">S</span></a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="pin"><i class="bi bi-pin-angle me-2"></i><span>Pripnúť do menu</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="versions"><i class="bi bi-clock-history me-2"></i>Verzie</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="info"><i class="bi bi-info-circle me-2"></i>Informácie<span class="kbd-hint d-none d-lg-inline">I</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="albumadd"><i class="bi bi-journal-plus me-2"></i>Pridať do albumu…</a></li>
@@ -330,6 +332,7 @@ require __DIR__ . '/inc/views/layout_start.php';
     'mammoth' => lib('mammoth/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'),
     'xlsx' => lib('xlsx/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'),
     'exceljs' => lib('exceljs/exceljs.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'),
+    'pdfjs' => lib('pdfjs/pdf.min.js', ''), 'pdfjs_worker' => lib('pdfjs/pdf.worker.min.js', ''),
   ], JSON_UNESCAPED_SLASHES) ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>

@@ -190,6 +190,72 @@ $used = used_space($uid);
     </div>
   </div>
   <div class="col-lg-5">
+    <?php $tfaOn = totp_enabled($user); ?>
+    <div class="card card-soft mb-4" id="tfa">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-shield-lock me-2"></i>Dvojstupňové overenie</h2>
+        <p class="small text-body-secondary">Pri prihlásení heslom zadáš aj 6-miestny kód z aplikácie v telefóne (Google Authenticator, Microsoft Authenticator, Aegis, 2FAS…).
+          Aj keď niekto zistí tvoje heslo, bez telefónu sa neprihlási. Prihlásenie odtlačkom prsta (passkey) kód nepotrebuje – je bezpečné samo osebe.</p>
+        <?php if (totp_required($user)): ?><div class="alert alert-warning small py-2">Administrátor vyžaduje, aby si mal ako administrátor dvojstupňové overenie zapnuté.</div><?php endif; ?>
+        <div id="tfaOn" class="<?= $tfaOn ? '' : 'd-none' ?>">
+          <div class="d-flex align-items-center gap-2 mb-2"><span class="badge rounded-pill text-bg-success"><i class="bi bi-check-lg me-1"></i>Zapnuté</span>
+            <span class="small text-body-secondary">Záložných kódov: <b id="tfaLeft"><?= totp_backup_left($user) ?></b></span></div>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-secondary btn-sm rounded-pill" id="tfaNewCodes"><i class="bi bi-key me-1"></i>Nové záložné kódy</button>
+            <button class="btn btn-outline-danger btn-sm rounded-pill" id="tfaOff"><i class="bi bi-shield-x me-1"></i>Vypnúť</button>
+          </div>
+        </div>
+        <div id="tfaOffBox" class="<?= $tfaOn ? 'd-none' : '' ?>">
+          <button class="btn btn-primary btn-sm rounded-pill px-3" id="tfaStart"><i class="bi bi-shield-plus me-1"></i>Zapnúť</button>
+          <div id="tfaSetup" class="d-none mt-3">
+            <ol class="small ps-3 mb-2"><li>V aplikácii v telefóne pridaj účet a <b>naskenuj QR kód</b> (alebo opíš kľúč).</li><li>Zadaj 6-miestny kód, ktorý aplikácia ukáže.</li></ol>
+            <div class="tfa-qr mb-2" id="tfaQr"></div>
+            <div class="small mb-2">Kľúč: <code id="tfaSecret" class="user-select-all"></code></div>
+            <div class="input-group"><input class="form-control" id="tfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"><button class="btn btn-primary" id="tfaConfirm">Potvrdiť</button></div>
+          </div>
+        </div>
+        <div id="tfaCodes" class="d-none mt-3">
+          <div class="alert alert-warning small py-2 mb-2"><b>Ulož si tieto záložné kódy</b> (napr. vytlač alebo daj do správcu hesiel). Každý platí raz a pomôže, keď nemáš telefón. Ukážu sa iba teraz.</div>
+          <pre class="tfa-codes" id="tfaCodesList"></pre>
+          <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary rounded-pill" id="tfaCopy"><i class="bi bi-clipboard me-1"></i>Kopírovať</button><button class="btn btn-sm btn-outline-secondary rounded-pill" id="tfaDl"><i class="bi bi-download me-1"></i>Stiahnuť</button></div>
+        </div>
+      </div>
+    </div>
+    <?php if (is_file(APP_ROOT . '/assets/vendor/qrcode/qrcode.js')): ?><script src="<?= e(url('assets/vendor/qrcode/qrcode.js')) ?>?v=<?= e(APP_VERSION) ?>"></script><?php endif; ?>
+    <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const showCodes = (codes) => { $('tfaCodesList').textContent = codes.join('\n'); $('tfaCodes').classList.remove('d-none'); $('tfaLeft').textContent = codes.length; };
+      $('tfaStart').addEventListener('click', async () => {
+        const r = await Cloud.api('api.php?action=tfa_setup', {}); if (!r.ok) return Cloud.toast(r.error, 'danger');
+        $('tfaSecret').textContent = r.secret; $('tfaSetup').classList.remove('d-none'); $('tfaStart').classList.add('d-none');
+        if (window.qrcode) { const q = qrcode(0, 'M'); q.addData(r.uri); q.make(); $('tfaQr').innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); }
+        else $('tfaQr').innerHTML = '<a class="btn btn-sm btn-outline-primary rounded-pill" href="' + r.uri.replace(/"/g, '') + '">Otvoriť v aplikácii v tomto telefóne</a>';
+        $('tfaCode').focus();
+      });
+      const confirm = async () => {
+        const r = await Cloud.api('api.php?action=tfa_enable', { code: $('tfaCode').value });
+        if (!r.ok) return Cloud.toast(r.error, 'danger');
+        $('tfaOffBox').classList.add('d-none'); $('tfaOn').classList.remove('d-none'); showCodes(r.codes);
+        Cloud.toast('Dvojstupňové overenie je zapnuté', 'success');
+      };
+      $('tfaConfirm').addEventListener('click', confirm);
+      $('tfaCode').addEventListener('input', (e) => { if (/^\d{6}$/.test(e.target.value)) confirm(); });
+      $('tfaOff').addEventListener('click', async () => {
+        const pw = await Cloud.prompt('Vypnúť dvojstupňové overenie', '', 'Vypnúť', 'password'); if (!pw) return;
+        const r = await Cloud.api('api.php?action=tfa_disable', { password: pw }); if (!r.ok) return Cloud.toast(r.error, 'danger');
+        $('tfaOn').classList.add('d-none'); $('tfaCodes').classList.add('d-none'); $('tfaOffBox').classList.remove('d-none'); $('tfaStart').classList.remove('d-none'); $('tfaSetup').classList.add('d-none');
+        Cloud.toast('Dvojstupňové overenie je vypnuté', 'warning');
+      });
+      $('tfaNewCodes').addEventListener('click', async () => {
+        const pw = await Cloud.prompt('Nové záložné kódy – zadaj heslo', '', 'Vytvoriť', 'password'); if (!pw) return;
+        const r = await Cloud.api('api.php?action=tfa_codes', { password: pw }); if (!r.ok) return Cloud.toast(r.error, 'danger');
+        showCodes(r.codes);
+      });
+      $('tfaCopy').addEventListener('click', () => { navigator.clipboard?.writeText($('tfaCodesList').textContent); Cloud.toast('Skopírované', 'success'); });
+      $('tfaDl').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['Záložné kódy – ' + document.title + '\n\n' + $('tfaCodesList').textContent + '\n'], { type: 'text/plain' })); a.download = 'zalozne-kody.txt'; a.click(); });
+    })();
+    </script>
     <div class="card card-soft mb-4">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-fingerprint me-2"></i>Prihlásenie odtlačkom prsta</h2>
@@ -283,6 +349,35 @@ $used = used_space($uid);
         cur = r.days;
         info.innerHTML = r.days ? 'Staré verzie sa zmažú <b>' + r.days + ' ' + dn(r.days) + '</b> po vzniku.' : '<span class="text-body-secondary">Staré verzie sa podľa času nemažú.</span>';
         Cloud.toast('Uložené' + (r.removed ? ' · zmazaných starých verzií: ' + r.removed : ''), 'success');
+      });
+    })();
+    </script>
+    <?php $tdays = (int)(user_prefs($user)['trash_days'] ?? 0); $tdef = (int)setting('trash_days', '30'); $tpre = [1, 3, 7, 14, 30, 60, 90]; ?>
+    <div class="card card-soft mb-4" id="trash">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-trash3 me-2"></i>Kôš</h2>
+        <p class="small text-body-secondary mb-2">Po koľkých dňoch sa zmazané položky z koša natrvalo vymažú. 3 dni vopred ti príde upozornenie.</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <label class="small fw-semibold" for="trDays">Vysypať po</label>
+          <select class="form-select form-select-sm w-auto" id="trDays">
+            <option value="0" <?= $tdays === 0 ? 'selected' : '' ?>>podľa servera (<?= $tdef ? $tdef . ' dní' : 'nikdy' ?>)</option>
+            <?php foreach ($tpre as $d): ?><option value="<?= $d ?>" <?= $tdays === $d ? 'selected' : '' ?>><?= $d === 1 ? '1 dni' : $d . ' dňoch' ?></option><?php endforeach; ?>
+            <option value="custom" <?= $tdays && !in_array($tdays, $tpre, true) ? 'selected' : '' ?>>vlastný počet dní…</option>
+          </select>
+          <input type="number" class="form-control form-control-sm <?= $tdays && !in_array($tdays, $tpre, true) ? '' : 'd-none' ?>" id="trDaysN" min="1" max="3650" style="width:100px" value="<?= $tdays ?: 30 ?>">
+          <button class="btn btn-sm btn-primary rounded-pill px-3" type="button" id="trDaysSave">Uložiť</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (() => {
+      const sel = document.getElementById('trDays'), num = document.getElementById('trDaysN');
+      sel.addEventListener('change', () => { num.classList.toggle('d-none', sel.value !== 'custom'); });
+      document.getElementById('trDaysSave').addEventListener('click', async () => {
+        const d = sel.value === 'custom' ? parseInt(num.value, 10) : parseInt(sel.value, 10);
+        if (sel.value === 'custom' && !(d >= 1)) return Cloud.toast('Najmenej 1 deň', 'warning');
+        const r = await Cloud.api('api.php?action=prefs_save', { key: 'trash_days', value: String(d || 0) });
+        Cloud.toast(r.ok ? 'Uložené – kôš sa vysype po ' + (r.effective ? r.effective + (r.effective === 1 ? ' dni' : ' dňoch') : 'nikdy') : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
       });
     })();
     </script>

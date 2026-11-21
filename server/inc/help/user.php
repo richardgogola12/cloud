@@ -53,8 +53,8 @@ kde sa skončilo. Najväčšiu povolenú veľkosť súboru určuje administráto
 <h3>Rovnaký názov = nová verzia</h3>
 <p>Ak nahráš súbor s rovnakým názvom, aký už v zložke je, pôvodný sa <b>nestratí</b> – uloží sa ako staršia verzia
 (pozri <a href="#verzie">Verzie a história</a>). Ak má súbor úplne rovnaký obsah, nič sa nezmení a miesto sa neminie.</p>
-<h3>Nová zložka a textový súbor</h3>
-<p><b>+ Nový → Nová zložka</b> (<kbd>Shift</kbd>+<kbd>F</kbd>) a <b>Nový textový súbor</b> (<kbd>Shift</kbd>+<kbd>T</kbd>).
+<h3>Nová zložka, dokument, tabuľka a textový súbor</h3>
+<p><b>+ Nový → Nová zložka</b> (<kbd>Shift</kbd>+<kbd>F</kbd>), <b>Nový dokument</b> (Word, kapitola <a href="#dokumenty">Dokumenty</a>), <b>Nová tabuľka</b> (Excel, kapitola <a href="#tabulky">Tabuľky</a>) a <b>Nový textový súbor</b> (<kbd>Shift</kbd>+<kbd>T</kbd>).
 Textové súbory (.txt, .md, .csv, kód…) vieš upravovať priamo v Cloude cez <b>Upraviť text</b> – zmeny sa ukladajú ako nové verzie.</p>
 <div class="tip">Cez verejný odkaz môžu súbory nahrávať aj ľudia bez účtu (kapitola <a href="#zdielanie">Zdieľanie</a> → „Povoliť nahrávanie“).</div>
 
@@ -109,6 +109,10 @@ Ostatné typy (napr. Word, Excel) si stiahneš alebo v aplikácii otvoríš v in
 jedna položka môže mať viac štítkov a v menu vľavo klikneš na štítok a uvidíš všetko, čo ho má. Štítky spravuješ ikonou ozubeného
 kolesa pri nadpise Štítky. <b>Hviezdička</b> označí obľúbené položky – nájdeš ich v sekcii <b>S hviezdičkou</b>.</p>
 <?= fig('u-hviezdicky', 'Sekcia S hviezdičkou.') ?>
+<h3>Pripnuté zložky</h3>
+<?= fig('u-pripnute', 'Pripnuté zložky v menu vľavo.') ?>
+<p>Zložky, do ktorých chodíš často, si pripni: v ponuke zložky <b>Pripnúť do menu</b>. Objavia sa v menu vľavo v časti <b>Pripnuté</b> (na webe aj v aplikácii)
+a otvoríš ich jedným klikom odkiaľkoľvek. Rovnakou položkou ich odopneš. Pripnúť môžeš najviac 20 zložiek – aj zdieľaných s tebou.</p>
 <h3>Nedávne a duplicity</h3>
 <p><b>Nedávne</b> ukazuje, s čím si naposledy pracoval. <b>Duplicitné súbory</b> nájdu súbory s rovnakým obsahom (aj s iným názvom),
 aby si mohol uvoľniť miesto.</p>
@@ -150,6 +154,27 @@ podmienené formátovanie, overenie údajov, komentáre, odkazy aj obrázky, tak
 (Excel ich nezobrazí).</p>
 <div class="warn">Grafy a kontingenčné tabuľky vytvorené v Exceli a makrá editor nezobrazí. Ak ich súbor obsahuje, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili.
 Staré formáty <b>.xls</b> a <b>.xlsm</b> sa uložia ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa. CSV obsahuje iba jeden hárok a hodnoty (bez formátovania).</div>
+
+<?= h2('dokumenty', 'bi-file-earmark-text', 'Dokumenty (Word)') ?>
+<?= fig('u-dokument', 'Editor dokumentov vyzerá ako Google Dokumenty: ponuky, panel nástrojov a strana A4.') ?>
+<p>Dokumenty <b>.docx</b> (Word) píšeš a upravuješ priamo v Cloude – na počítači aj v mobile. Editor vyzerá ako Google Dokumenty, je po slovensky
+a všetko beží v tvojom prehliadači.</p>
+<ul>
+  <li><b>Nový dokument:</b> <b>+ Nový → Nový dokument</b>, zadaj názov.</li>
+  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>. Šípka vľavo hore (v telefóne tlačidlo Späť) editor zavrie.</li>
+  <li><b>Panel nástrojov:</b> späť/znova, tlač, priblíženie, štýl odseku (Normálny text, Nadpis 1–4), písmo a veľkosť, tučné, kurzíva, podčiarknuté,
+    farba textu a zvýraznenia, odkaz, obrázok, zarovnanie, číslovaný zoznam a odrážky, odsadenie, vymazanie formátovania.</li>
+  <li><b>Ponuky:</b> <b>Súbor</b> (uložiť, stiahnuť ako Word, HTML alebo text, tlačiť / uložiť ako PDF, orientácia na šírku), <b>Úpravy</b> (späť, nájsť a nahradiť),
+    <b>Vložiť</b> (obrázok, tabuľka, odkaz, zlom strany, dnešný dátum, pomlčka, slovenské úvodzovky), <b>Formát</b> (písmo, nadpisy, zarovnanie, zoznamy),
+    <b>Nástroje</b> (počet slov, prehľad nadpisov).</li>
+  <li><b>Obrázky</b> vložíš aj prilepením (<kbd>Ctrl</kbd>+<kbd>V</kbd>) alebo potiahnutím. Klikni na obrázok a <kbd>Ctrl</kbd>+koliesko myši ho zmenší či zväčší, <kbd>Delete</kbd> ho zmaže.</li>
+  <li><b>Skratky:</b> <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>3</kbd> nadpisy, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>0</kbd> normálny text, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>7</kbd>/<kbd>8</kbd> zoznamy,
+    <kbd>Tab</kbd> v zozname = nižšia úroveň, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zlom strany, <kbd>Ctrl</kbd>+<kbd>K</kbd> odkaz, <kbd>Ctrl</kbd>+<kbd>H</kbd> nájsť a nahradiť.</li>
+</ul>
+<p><b>Ukladanie:</b> zmeny sa uložia samé pár sekúnd po úprave (alebo hneď <kbd>Ctrl</kbd>+<kbd>S</kbd>), každé uloženie je nová verzia vo <b>Verziách</b>.
+Zachová sa text, nadpisy, písmo, veľkosť a farby, zvýraznenie, zarovnanie, zoznamy, tabuľky, obrázky, odkazy a zlomy strán – dokument otvoríš rovnako vo Worde.</p>
+<div class="warn">Hlavičky a päty, komentáre, sledované zmeny, poznámky pod čiarou, textové polia, grafy a rovnice z Wordu editor nezobrazí. Ak ich dokument má,
+Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili. Starý formát .doc treba najprv uložiť ako .docx.</div>
 
 <?= h2('obrazky', 'bi-magic', 'Úprava fotiek') ?>
 <?= fig('u-obrazok', 'Editor obrázkov: orezanie s pomerom strán 16:9.') ?>
@@ -196,7 +221,8 @@ posledné hľadania a rýchle filtre. <kbd>Enter</kbd> zobrazí všetky výsledk
 <?= fig('u-hladanie-vysledky', 'Výsledky hľadania s filtrami (čipy) – typ, vlastník, dátum, umiestnenie, veľkosť, štítok.') ?>
 <h3>Filtre</h3>
 <p>Pod nadpisom výsledkov sú <b>čipy</b>: Typ (zložky, dokumenty, tabuľky, prezentácie, PDF, obrázky, videá, zvuk, archívy…),
-Vlastník (ja / iní), Upravené (dnes, 7 dní, 30 dní, rok, vlastný rozsah), Umiestnenie (Môj disk, zdieľané, kôš, s hviezdičkou), Veľkosť a Štítok.
+Vlastník (ja / iní), Upravené (dnes, 7 dní, 30 dní, rok, vlastný rozsah), Umiestnenie (Môj disk, zdieľané, kôš, s hviezdičkou), Veľkosť, <b>Odfotené</b> (rok, mesiac v ktoromkoľvek roku
+alebo <b>„Tento mesiac v minulých rokoch“</b>) a Štítok. Hľadať môžeš aj bez slova – napr. iba typ Obrázky a Odfotené: Rok 2024.
 Ikona <i class="bi bi-sliders"></i> v poli hľadania otvorí <b>rozšírené hľadanie</b> so všetkými možnosťami naraz.</p>
 <?= fig('u-hladanie-rozsirene', 'Rozšírené hľadanie.') ?>
 <h3>Skratky do poľa hľadania</h3>
@@ -212,10 +238,13 @@ Ikona <i class="bi bi-sliders"></i> v poli hľadania otvorí <b>rozšírené hľ
     <tr><td><code>is:hviezdicka</code></td><td>iba s hviezdičkou</td></tr>
     <tr><td><code>in:kos</code>, <code>in:shared</code></td><td>v koši / v zdieľaných</td></tr>
     <tr><td><code>tag:Rodina</code></td><td>so štítkom</td></tr>
+    <tr><td><code>odfotene:2024</code>, <code>odfotene:7.2024</code></td><td>fotky a videá odfotené v roku / mesiaci (inak podľa dátumu nahratia)</td></tr>
+    <tr><td><code>mesiac:12</code></td><td>odfotené v decembri ktoréhokoľvek roka</td></tr>
     <tr><td><code>-koncept</code></td><td>vylúči slovo</td></tr>
   </tbody>
 </table>
-<div class="tip">Ak administrátor zapol <b>hľadanie v obsahu</b>, Cloud nájde slová aj vnútri dokumentov (Word, Excel, PowerPoint, OpenDocument, TXT a PDF), nielen v názvoch.</div>
+<div class="tip">Ak administrátor zapol <b>hľadanie v obsahu</b>, Cloud nájde slová aj vnútri dokumentov (Word, Excel, PowerPoint, OpenDocument, TXT a PDF), nielen v názvoch.
+Na hostingu, kde server nemá program na čítanie PDF, text z PDF vytiahne tvoj prehliadač na pozadí, keď máš Cloud otvorený – nové PDF sa tak dajú nájsť o chvíľu po nahratí.</div>
 
 <?= h2('fotky', 'bi-images', 'Fotky, albumy a spomienky') ?>
 <?= fig('u-fotky', 'Sekcia Fotky – všetky obrázky a videá podľa dátumu odfotenia.') ?>
@@ -255,7 +284,8 @@ a Cloud ukáže, čo všetko sa zmení. Po potvrdení sa obnovia zmazané polož
 <h3>Kôš</h3>
 <?= fig('u-kos', 'Kôš – obnovenie alebo trvalé zmazanie.') ?>
 <p>Zmazané položky sú v <b>Koši</b>. Odtiaľ ich <b>obnovíš</b> na pôvodné miesto alebo <b>zmažeš natrvalo</b> (<kbd>Shift</kbd>+<kbd>Delete</kbd>).
-<b>Vysypať kôš</b> zmaže všetko naraz. Položky sa z koša samy natrvalo zmažú po nastavenom počte dní (predvolene 30) – 3 dni predtým dostaneš upozornenie.</p>
+<b>Vysypať kôš</b> zmaže všetko naraz. Položky sa z koša samy natrvalo zmažú po nastavenom počte dní (predvolene podľa servera, zvyčajne 30) – 3 dni predtým dostaneš upozornenie.
+Vlastnú dobu (1 deň až 10 rokov) si nastavíš v <b>Môj účet → Kôš</b>.</p>
 <div class="warn">Natrvalo zmazané súbory sa už obnoviť nedajú. Položky v koši sa započítavajú do obsadeného miesta.</div>
 
 <?= h2('zamky', 'bi-lock-fill', 'Zamknuté zložky') ?>
@@ -279,6 +309,20 @@ Zložku kedykoľvek hneď zamkneš cez <b>Zamknúť teraz</b> (v ponuke zložky 
 <h3>Heslo a prihlásené zariadenia</h3>
 <p>V časti <b>Zmena hesla</b> zadáš súčasné a nové heslo. <b>Prihlásené zariadenia</b> ukazujú, kde všade si prihlásený (prehliadače a aplikácie) –
 neznáme zariadenie môžeš odhlásiť. Pri prihlásení z nového zariadenia ti môže prísť upozornenie e-mailom.</p>
+<h3>Dvojstupňové overenie (kód z telefónu)</h3>
+<?= fig('u-2fa', 'Zapnutie dvojstupňového overenia: QR kód pre aplikáciu v telefóne.') ?>
+<p>S dvojstupňovým overením sa pri prihlásení heslom zadáva aj <b>6-miestny kód</b> z aplikácie v telefóne (Google Authenticator, Microsoft Authenticator, Aegis, 2FAS…).
+Aj keby niekto zistil tvoje heslo, bez telefónu sa neprihlási.</p>
+<ol class="steps">
+  <li>V <b>Môj účet → Dvojstupňové overenie</b> klikni na <b>Zapnúť</b>.</li>
+  <li>V aplikácii v telefóne pridaj účet a <b>naskenuj QR kód</b> (alebo opíš kľúč pod ním).</li>
+  <li>Zadaj 6-miestny kód, ktorý aplikácia ukáže – overenie sa zapne.</li>
+  <li><b>Ulož si 10 záložných kódov</b> (vytlač, stiahni alebo daj do správcu hesiel). Každý platí raz a pomôže, keď nemáš pri sebe telefón.</li>
+</ol>
+<p>Pri prihlásení najprv zadáš e-mail a heslo, potom kód. Aplikácia pre Android sa na kód opýta tiež. Prihlásenie <b>odtlačkom prsta</b> kód nepotrebuje –
+je bezpečné samo osebe. Keď ti ostanú posledné 2 záložné kódy, Cloud ťa upozorní; nové vytvoríš tlačidlom <b>Nové záložné kódy</b> (staré prestanú platiť).
+Vypnúť overenie sa dá iba so zadaním hesla.</p>
+<div class="warn">Stratil si telefón aj záložné kódy? Požiadaj administrátora – môže ti nastaviť nové heslo a dvojstupňové overenie vypnúť.</div>
 <h3>Prihlásenie odtlačkom prsta (passkey)</h3>
 <p>Klikni na <b>Pridať</b> a potvrď odtlačkom, tvárou alebo PIN-om zariadenia. Potom sa na prihlasovacej stránke prihlásiš tlačidlom
 <b>Prihlásiť sa odtlačkom prsta</b> bez hesla. Funguje na počítačoch s Windows Hello / Touch ID aj v mobile.</p>
@@ -298,8 +342,9 @@ Nastavíš si:</p>
 <p>Keď sa vrátiš do nadradenej zložky (šípkou Späť, v telefóne tlačidlom Späť alebo kliknutím v ceste hore), Cloud sa posunie tam, kde si bol, a zložka,
 z ktorej prichádzaš, je vždy vidieť a krátko <b>blikne na modro</b>. To isté spraví súbor po zavretí náhľadu či editora. V časti <b>Zobrazenie</b> bliknutie
 vypneš alebo zvolíš jeho dĺžku (0,5 s až 8 s, predvolene 2 s) – tlačidlo <b>Vyskúšať</b> ukáže, ako bude vyzerať.</p>
-<h3>Verzie súborov</h3>
-<p>Nastavíš, ako dlho sa uchovávajú staré verzie: <b>bez časového limitu</b>, 1 deň až rok, alebo <b>vlastný počet dní</b> (najmenej 1). Čas sa ráta od chvíle, keď verzia vznikla.
+<h3>Verzie súborov a kôš</h3>
+<?= fig('u-kos-verzie', 'Ako dlho uchovávať staré verzie a po koľkých dňoch vysypať kôš.') ?>
+<p>V časti <b>Kôš</b> nastavíš, po koľkých dňoch sa zmazané položky natrvalo vymažú – podľa servera alebo vlastný počet dní (najmenej 1). V časti <b>Verzie súborov</b> nastavíš, ako dlho sa uchovávajú staré verzie: <b>bez časového limitu</b>, 1 deň až rok, alebo <b>vlastný počet dní</b> (najmenej 1). Čas sa ráta od chvíle, keď verzia vznikla.
 Ak skrátiš dobu, Cloud sa najprv opýta, lebo staršie verzie sa zmažú hneď. Pred zmazaním ti príde <b>upozornenie</b> so zoznamom súborov, ktorých verzie sa čoskoro zmažú –
 kliknutím naň sa otvoria Verzie prvého z nich. Počet verzií na súbor (predvolene 10) určuje administrátor.</p>
 <h3>Sieťový disk (WebDAV)</h3>
@@ -312,7 +357,7 @@ heslo sa zobrazí iba raz, tak si ho skopíruj). Tvoje hlavné heslo sa tak v po
 <p>Kliknutím na avatar vpravo hore vidíš uložené účty. <b>Pridať účet</b> ťa prihlási do ďalšieho účtu bez odhlásenia z prvého;
 medzi účtami potom prepínaš jedným klikom. <b>Odhlásiť všetky</b> odhlási všetky účty v tomto prehliadači.</p>
 <h3>Upozornenia</h3>
-<p>Zvonček hore ukazuje nové udalosti: zdieľanie, nahratie cez verejný odkaz, dochádzajúce miesto, kôš pred vysypaním, staré verzie pred zmazaním, prihlásenie z nového zariadenia.
+<p>Zvonček hore ukazuje nové udalosti: zdieľanie, zapnutie či vypnutie dvojstupňového overenia, nahratie cez verejný odkaz, dochádzajúce miesto, kôš pred vysypaním, staré verzie pred zmazaním, prihlásenie z nového zariadenia.
 Kliknutím na upozornenie sa presunieš na dané miesto.</p>
 <h3>Miesto na disku</h3>
 <p>Dole v menu vidíš obsadené miesto a limit. Pri 80 % ťa Cloud upozorní. Miesto uvoľníš zmazaním súborov, <b>vysypaním koša</b>,
@@ -325,6 +370,7 @@ zmazaním starých verzií a v sekcii <b>Duplicitné súbory</b>.</p>
   <li>V <b>Môj účet</b> klikni na <b>Stiahnuť aplikáciu pre Android</b> a otvor stiahnutý súbor.</li>
   <li>Ak to telefón vyžaduje, povoľ inštaláciu z tohto zdroja.</li>
   <li>V aplikácii zadaj adresu servera (ak sa nevyplnila sama), e-mail a heslo.</li>
+  <li>Ak máš zapnuté <b>dvojstupňové overenie</b>, aplikácia sa opýta na kód z overovacej aplikácie (alebo záložný kód).</li>
 </ol>
 <p>Aplikácia sa vie <b>sama aktualizovať</b> – keď vyjde nová verzia, ponúkne ju (alebo v menu <b>Aktualizácia aplikácie</b>).</p>
 <h3>Automatické nahrávanie fotiek a synchronizácia</h3>
@@ -381,6 +427,8 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
   <li><b>Žiadne sledovanie</b> – Cloud nepoužíva reklamy, analytiku ani cudzie služby. Okrem tvojho servera komunikuje iba s GitHubom kvôli aktualizáciám.</li>
   <li><b>Nič v zariadení</b> – miniatúry, náhľady a zoznamy sa neukladajú na disk počítača ani telefónu.</li>
   <li><b>Silné heslo</b> – používaj dlhé heslo, ktoré nepoužívaš inde, alebo prihlásenie odtlačkom.</li>
+  <li><b>Dvojstupňové overenie</b> – zapni si ho v Môj účet: bez kódu z tvojho telefónu sa nikto neprihlási ani so správnym heslom.</li>
+  <li><b>Zálohy</b> – administrátor môže zapnúť nočnú šifrovanú zálohu databázy aj súborov na iný počítač, takže dáta prežijú aj pád servera.</li>
   <li><b>Zariadenia</b> – v Môj účet pravidelne skontroluj prihlásené zariadenia a neznáme odhlás.</li>
 </ul>
 
@@ -388,7 +436,8 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
 <h3>Súbor sa nenahral / nahrávanie stojí</h3>
 <p>Skontroluj pripojenie a voľné miesto (dole v menu). Nahraj súbor znova – pokračuje sa od miesta prerušenia. Ak je súbor väčší než povolený limit, Cloud to napíše.</p>
 <h3>Nevidím miniatúry videí</h3>
-<p>Miniatúry videí vyžadujú na serveri program ffmpeg – povedz administrátorovi.</p>
+<p>Ak server nemá program ffmpeg (napr. bežný hosting), náhľad videa vyrobí tvoj prehliadač – stačí mať zložku s videom chvíľu otvorenú, náhľady sa doplnia samé
+(potrebuješ právo upravovať). Ak sa video v prehliadači nedá prehrať (nezvyčajný formát), náhľad nevznikne.</p>
 <h3>Niečo som omylom zmazal</h3>
 <p>Pozri do <b>Koša</b>. Ak tam nie je, skús na nadradenej zložke <b>Vrátiť do stavu k…</b> alebo staršiu <b>verziu</b> súboru.</p>
 <h3>Nepríde mi e-mail</h3>

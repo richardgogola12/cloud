@@ -167,6 +167,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($act === 'user_verify') {
             q("UPDATE $U SET email_verified = 1 WHERE id = ?", [(int)$_POST['id']]);
             flash('success', 'E-mail bol označený ako overený.');
+        } elseif ($act === 'user_tfa_off') { // používateľ stratil telefón aj záložné kódy
+            $id = (int)$_POST['id'];
+            q("UPDATE $U SET totp_secret = NULL, totp_backup = NULL, totp_last = 0 WHERE id = ?", [$id]);
+            notify($id, 'device', 'Dvojstupňové overenie vypol administrátor', 'Na prihlásenie teraz stačí heslo. Zapni si ho znova v Môj účet.', 'profile.php#tfa');
+            log_action($me, 'admin_tfa_off', (string)$id);
+            flash('success', 'Dvojstupňové overenie bolo vypnuté.');
         } elseif ($act === 'user_logout') {
             $id = (int)$_POST['id'];
             q('UPDATE ' . P . 'sessions SET revoked = 1 WHERE user_id = ?' . ($id === $me ? ' AND id <> ' . (int)($_SESSION['sid_row'] ?? 0) : ''), [$id]);
@@ -238,6 +244,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (version_compare($rel['version'], APP_VERSION, '<=')) throw new RuntimeException('Táto verzia už je nainštalovaná.');
             $changed = updater_install($rel);
             flash('success', 'Aktualizované na verziu ' . $rel['version'] . ' (' . count($changed) . ' súborov). Databáza sa upraví automaticky.');
+        } elseif ($act === 'backup_settings') {
+            setting_set('backup_enabled', !empty($_POST['backup_enabled']) ? '1' : '0');
+            setting_set('backup_hour', (string)max(0, min(23, (int)($_POST['backup_hour'] ?? 3))));
+            setting_set('backup_keep', (string)max(1, min(60, (int)($_POST['backup_keep'] ?? 7))));
+            setting_set('backup_target', ($_POST['backup_target'] ?? '') === 'webdav' ? 'webdav' : 'local');
+            setting_set('backup_files', !empty($_POST['backup_files']) ? '1' : '0');
+            $bu = trim((string)($_POST['backup_url'] ?? ''));
+            if ($bu !== '' && !preg_match('#^https?://#i', $bu)) throw new RuntimeException('Adresa vzdialeného disku musí začínať https:// (alebo http://).');
+            setting_set('backup_url', $bu);
+            setting_set('backup_user', trim((string)($_POST['backup_user'] ?? '')));
+            if (($_POST['backup_pass'] ?? '') !== '') bk_secret_set('backup_pass', (string)$_POST['backup_pass']);
+            $k1 = (string)($_POST['backup_key'] ?? ''); $k2 = (string)($_POST['backup_key2'] ?? '');
+            if ($k1 !== '') {
+                if (strlen($k1) < 10) throw new RuntimeException('Heslo zálohy musí mať aspoň 10 znakov.');
+                if ($k1 !== $k2) throw new RuntimeException('Heslá zálohy sa nezhodujú.');
+                bk_secret_set('backup_key', $k1);
+            }
+            if (setting('backup_enabled') === '1' && setting('backup_key', '') === '') { setting_set('backup_enabled', '0'); throw new RuntimeException('Na zapnutie záloh treba nastaviť heslo zálohy.'); }
+            if (setting('backup_enabled') === '1' && setting('backup_target') === 'webdav' && setting('backup_url', '') === '') { setting_set('backup_enabled', '0'); throw new RuntimeException('Vyplň adresu vzdialeného disku.'); }
+            log_action($me, 'admin_backup', 'nastavenia');
+            flash('success', 'Nastavenia záloh boli uložené.');
+        } elseif ($act === 'admin_report_now') {
+            $n = send_admin_report(true);
+            $n ? flash('success', 'Report bol odoslaný (' . $n . ' administrátorom).') : flash('danger', 'Report sa nepodarilo odoslať – skontroluj nastavenie e-mailu (SMTP).');
+        } elseif ($act === 'backup_test') {
+            flash('success', bk_test());
+        } elseif ($act === 'backup_now') {
+            if (setting('backup_key', '') === '') throw new RuntimeException('Najprv nastav heslo zálohy.');
+            setting_set('backup_running', '0');
+            defer_task(function () { backup_tick(true); });
+            flash('success', 'Záloha sa spustila na pozadí. O chvíľu obnov stránku.');
+        } elseif ($act === 'backup_download') {
+            $name = basename((string)($_POST['name'] ?? ''));
+            $f = bk_dir() . '/' . $name;
+            if (!preg_match('/^cloud-db-[\d-]+\.sql\.gz\.enc$/', $name) || !is_file($f)) throw new RuntimeException('Záloha na tomto serveri nie je (je iba na vzdialenom disku).');
+            $pw = (string)($_POST['password'] ?? '');
+            log_action($me, 'admin_backup', 'stiahnutie ' . $name);
+            if ($pw === '') { // zašifrovaná, ako je
+                header('Content-Type: application/octet-stream'); header('Content-Disposition: attachment; filename="' . $name . '"'); header('Content-Length: ' . filesize($f));
+                readfile($f); exit;
+            }
+            $tmp = tmp_file(); $out = fopen($tmp, 'wb');
+            try { bk_decrypt_file($f, $pw, function ($c) use ($out) { fwrite($out, $c); }); } finally { fclose($out); }
+            header('Content-Type: application/gzip'); header('Content-Disposition: attachment; filename="' . substr($name, 0, -4) . '"'); header('Content-Length: ' . filesize($tmp));
+            readfile($tmp); @unlink($tmp); exit;
         } elseif ($act === 'settings') {
             setting_set('registration', in_array($_POST['registration'], ['open', 'approval', 'closed'], true) ? $_POST['registration'] : 'open');
             setting_set('default_quota', (string)quota_from_post());
@@ -247,6 +298,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setting_set('notify_new_device', !empty($_POST['notify_new_device']) ? '1' : '0');
             setting_set('trash_days', (string)max(0, min(3650, (int)($_POST['trash_days'] ?? 30))));
             setting_set('max_versions', (string)max(0, min(100, (int)($_POST['max_versions'] ?? 10))));
+            setting_set('require_2fa_admin', !empty($_POST['require_2fa_admin']) ? '1' : '0');
+            setting_set('hosting_limit_gb', (string)max(0, min(100000, round((float)str_replace(',', '.', (string)($_POST['hosting_limit_gb'] ?? '0')), 1))));
+            setting_set('admin_report', !empty($_POST['admin_report']) ? '1' : '0');
             $pu = rtrim(trim((string)($_POST['public_url'] ?? '')), '/');
             if ($pu !== '' && !preg_match('#^https?://[^\s/]+(/[^\s]*)?$#i', $pu)) throw new RuntimeException('Verejná adresa musí začínať http:// alebo https://');
             setting_set('public_url', $pu);
@@ -340,7 +394,7 @@ $scripts = ['assets/js/admin.js'];
 if ($tab === 'dashboard' && count($hist) >= 2) $scripts[] = 'assets/js/admin-chart.js';
 if ($tab === 'maintenance') $scripts[] = 'assets/js/admin-maint.js';
 require __DIR__ . '/inc/views/layout_start.php';
-$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'maintenance' => ['bi-shield-check', 'Údržba'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
+$tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people', 'Používatelia'], 'settings' => ['bi-sliders', 'Nastavenia'], 'smtp' => ['bi-envelope', 'E-mail (SMTP)'], 'log' => ['bi-journal-text', 'Záznamy'], 'maintenance' => ['bi-shield-check', 'Údržba'], 'backup' => ['bi-cloud-upload', 'Zálohy'], 'update' => ['bi-cloud-arrow-down', 'Aktualizácia']];
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <h1 class="h4 fw-bold mb-0 me-auto"><i class="bi bi-shield-lock me-2 text-primary"></i>Administrácia</h1>
@@ -401,6 +455,13 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
     </div>
   <?php endforeach; ?>
   <div class="small text-body-secondary">Cloud = súbory a verzie používateľov (bez miniatúr a dočasných súborov).</div>
+</div></div>
+<?php endif; ?>
+<?php $hu = hosting_usage(); if ($hu['limit'] > 0): $hp = min(100, round($hu['pct'] * 100)); ?>
+<div class="card card-soft mb-3" id="hostingCard"><div class="card-body">
+  <div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-hdd-network fs-5 text-primary"></i><div class="fw-bold me-auto">Limit hostingu</div><span class="fw-semibold <?= $hp >= 95 ? 'text-danger' : ($hp >= 80 ? 'text-warning' : '') ?>"><?= $hp ?> %</span></div>
+  <div class="progress mb-2" style="height:10px"><div class="progress-bar <?= $hp >= 95 ? 'bg-danger' : ($hp >= 80 ? 'bg-warning' : 'bg-primary') ?>" style="width:<?= $hp ?>%"></div></div>
+  <div class="small d-flex flex-wrap gap-3"><span>Súbory <b><?= format_bytes($hu['files']) ?></b></span><span>Verzie <b><?= format_bytes($hu['versions']) ?></b></span><span>Databáza <b><?= format_bytes($hu['db']) ?></b></span><span class="text-body-secondary">Spolu <?= format_bytes($hu['used']) ?> z <?= format_bytes($hu['limit']) ?></span></div>
 </div></div>
 <?php endif; ?>
 <?php $hh = server_health(); $pi = platform_info();
@@ -587,6 +648,10 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
             <?php endif; ?>
             <li><form method="post" data-confirm="Odhlásiť <?= e($u['email']) ?> zo všetkých zariadení?"><?= csrf_field() ?><input type="hidden" name="act" value="user_logout"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
               <button class="dropdown-item"><i class="bi bi-box-arrow-right me-2"></i>Odhlásiť zo všetkých zariadení</button></form></li>
+            <?php if (!empty($u['totp_secret'])): ?>
+            <li><form method="post" data-confirm="Vypnúť dvojstupňové overenie pre <?= e($u['email']) ?>? Na prihlásenie potom bude stačiť heslo."><?= csrf_field() ?><input type="hidden" name="act" value="user_tfa_off"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+              <button class="dropdown-item"><i class="bi bi-shield-x me-2"></i>Vypnúť dvojstupňové overenie</button></form></li>
+            <?php endif; ?>
             <li><a class="dropdown-item" href="?tab=log&lu=<?= (int)$u['id'] ?>"><i class="bi bi-journal-text me-2"></i>Aktivita</a></li>
             <?php if ((int)$u['id'] !== $me): ?>
             <li><hr class="dropdown-divider"></li>
@@ -650,9 +715,99 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
       <input type="number" min="0" max="100" class="form-control" name="max_versions" value="<?= e(setting('max_versions', '10')) ?>">
       <div class="form-text">0 = verzie sa neuchovávajú. Verzie sa rátajú do kvóty.</div></div>
   </div>
+  <h3 class="h6 fw-bold mt-2">Bezpečnosť a prehľad</h3>
+  <div class="form-check form-switch mb-2">
+    <input class="form-check-input" type="checkbox" role="switch" name="require_2fa_admin" id="r2fa" value="1" <?= setting('require_2fa_admin', '0') === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="r2fa">Vyžadovať od administrátorov dvojstupňové overenie</label>
+    <div class="form-text">Administrátor bez neho uvidí pri každom otvorení výzvu, aby si ho zapol v Môj účet.</div>
+  </div>
+  <div class="form-check form-switch mb-3">
+    <input class="form-check-input" type="checkbox" role="switch" name="admin_report" id="arep" value="1" <?= setting('admin_report', '1') === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="arep">Posielať administrátorom mesačný report e-mailom (1. deň v mesiaci)</label>
+  </div>
+  <div class="mb-4" style="max-width:360px"><label class="form-label fw-semibold">Limit úložiska hostingu</label>
+    <div class="input-group"><input type="text" inputmode="decimal" class="form-control" name="hosting_limit_gb" value="<?= e(setting('hosting_limit_gb', '0')) ?>"><span class="input-group-text">GB</span></div>
+    <div class="form-text">Koľko miesta ti dáva hosting (súbory, verzie aj databáza spolu). Pri 80 % a 95 % prídu administrátorom upozornenia. 0 = nesledovať.</div></div>
   <button class="btn btn-primary rounded-pill px-4">Uložiť nastavenia</button>
 </form>
+<form method="post" class="mt-3"><?= csrf_field() ?><input type="hidden" name="act" value="admin_report_now"><input type="hidden" name="tab" value="settings">
+  <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="bi bi-envelope-paper me-1"></i>Poslať mesačný report teraz (za minulý mesiac)</button></form>
 </div></div>
+
+<?php elseif ($tab === 'backup'):
+  $bc = bk_cfg(); $bs = bk_status(); $bl = bk_list(); ?>
+<div class="row g-4">
+<div class="col-xl-7">
+<div class="card card-soft"><div class="card-body p-4">
+<h2 class="h6 fw-bold mb-1"><i class="bi bi-cloud-upload me-2"></i>Automatická záloha</h2>
+<p class="small text-body-secondary">Každú noc sa uloží <b>databáza</b> (zašifrovaná heslom zálohy) a postupne aj <b>súbory</b> – iba nové, takže ďalšie zálohy sú rýchle.
+Najlepšie na iný počítač cez <b>WebDAV</b>: napr. Cloud na Raspberry Pi (adresa <code>…/dav.php/</code> a heslo pre sieťový disk z Môj účet), Nextcloud alebo NAS.
+Netreba <code>mysqldump</code> ani spúšťanie programov – funguje aj na bežnom hostingu.</p>
+<form method="post" autocomplete="off">
+  <?= csrf_field() ?><input type="hidden" name="act" value="backup_settings"><input type="hidden" name="tab" value="backup">
+  <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" name="backup_enabled" id="bken" value="1" <?= $bc['enabled'] ? 'checked' : '' ?>><label class="form-check-label fw-semibold" for="bken">Zálohovať automaticky každú noc</label></div>
+  <div class="row g-3 mb-3">
+    <div class="col-sm-6"><label class="form-label">Od koľkej</label><select class="form-select" name="backup_hour"><?php for ($h = 0; $h < 24; $h++): ?><option value="<?= $h ?>" <?= $bc['hour'] === $h ? 'selected' : '' ?>><?= $h ?>:00</option><?php endfor; ?></select>
+      <div class="form-text">Spustí sa pri prvej návšteve webu po tomto čase.</div></div>
+    <div class="col-sm-6"><label class="form-label">Uchovať záloh databázy</label><input type="number" min="1" max="60" class="form-control" name="backup_keep" value="<?= $bc['keep'] ?>"></div>
+  </div>
+  <label class="form-label fw-semibold">Kam</label>
+  <div class="mb-2">
+    <div class="form-check"><input class="form-check-input" type="radio" name="backup_target" id="bkt1" value="webdav" <?= $bc['target'] === 'webdav' ? 'checked' : '' ?>><label class="form-check-label" for="bkt1"><b>Vzdialený disk (WebDAV)</b> – odporúčané, záloha prežije aj pád servera</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="backup_target" id="bkt2" value="local" <?= $bc['target'] === 'local' ? 'checked' : '' ?>><label class="form-check-label" for="bkt2">Iba na tomto serveri (<code>storage/backups/db</code>) – len databáza, stiahni si ju občas ručne</label></div>
+  </div>
+  <div class="row g-3 mb-3">
+    <div class="col-12"><label class="form-label">Adresa vzdialeného disku</label><input class="form-control" name="backup_url" value="<?= e(setting('backup_url', '')) ?>" placeholder="https://pi.tvoja-siet.ts.net/cloud/dav.php/Zálohy"></div>
+    <div class="col-sm-6"><label class="form-label">Používateľ</label><input class="form-control" name="backup_user" value="<?= e($bc['user']) ?>" autocomplete="off"></div>
+    <div class="col-sm-6"><label class="form-label">Heslo</label><input type="password" class="form-control" name="backup_pass" placeholder="<?= $bc['has_pass'] ? '•••••••• (nezmenené)' : '' ?>" autocomplete="new-password"></div>
+  </div>
+  <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" name="backup_files" id="bkf" value="1" <?= $bc['files'] ? 'checked' : '' ?>><label class="form-check-label" for="bkf">Zálohovať aj súbory (nielen databázu)</label>
+    <div class="form-text">Súbory sa kopírujú tak, ako sú uložené na disku – ak je zapnuté šifrovanie súborov, ostanú zašifrované. Na obnovu potom treba aj <b>kľúč šifrovania</b> (Údržba → Stiahnuť kľúč).</div></div>
+  <label class="form-label fw-semibold">Heslo zálohy <?= $bc['has_key'] ? '<span class="badge text-bg-success">nastavené</span>' : '<span class="badge text-bg-warning">chýba</span>' ?></label>
+  <div class="row g-2 mb-1">
+    <div class="col-sm-6"><input type="password" class="form-control" name="backup_key" placeholder="<?= $bc['has_key'] ? 'nové heslo (inak nezmenené)' : 'heslo (aspoň 10 znakov)' ?>" autocomplete="new-password"></div>
+    <div class="col-sm-6"><input type="password" class="form-control" name="backup_key2" placeholder="heslo znova" autocomplete="new-password"></div>
+  </div>
+  <div class="form-text mb-3">Databáza sa ním zašifruje. <b>Ulož si ho mimo servera</b> – bez neho sa záloha nedá obnoviť.</div>
+  <button class="btn btn-primary rounded-pill px-4">Uložiť</button>
+</form>
+</div></div>
+</div>
+<div class="col-xl-5">
+<div class="card card-soft mb-4"><div class="card-body p-4">
+  <h2 class="h6 fw-bold mb-3"><i class="bi bi-activity me-2"></i>Stav</h2>
+  <ul class="list-unstyled small mb-3">
+    <li class="mb-1"><b>Posledná záloha:</b> <?= !empty($bs['last_ok']) ? e(date('j. n. Y G:i', strtotime($bs['last_ok']))) : '<span class="text-body-secondary">zatiaľ žiadna</span>' ?></li>
+    <?php if (!empty($bs['error'])): ?><li class="mb-1 text-danger"><b>Chyba</b> (<?= e(date('j. n. G:i', strtotime((string)$bs['error_at']))) ?>): <?= e($bs['error']) ?></li><?php endif; ?>
+    <?php if ($bc['target'] === 'webdav' && $bc['files']): ?><li class="mb-1"><b>Súbory čakajúce na zálohu:</b> <?= isset($bs['files_left']) ? (int)$bs['files_left'] : '–' ?><?= !empty($bs['files_at']) ? ' <span class="text-body-secondary">(' . e(date('j. n. G:i', strtotime($bs['files_at']))) . ')</span>' : '' ?></li><?php endif; ?>
+    <li><b>Ďalšia:</b> <?= $bc['enabled'] ? 'dnes alebo zajtra od ' . $bc['hour'] . ':00' : '<span class="text-body-secondary">automatická záloha je vypnutá</span>' ?></li>
+  </ul>
+  <div class="d-flex flex-wrap gap-2">
+    <form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="backup_now"><input type="hidden" name="tab" value="backup"><button class="btn btn-primary btn-sm rounded-pill px-3"><i class="bi bi-play-fill me-1"></i>Zálohovať teraz</button></form>
+    <?php if ($bc['target'] === 'webdav'): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="backup_test"><input type="hidden" name="tab" value="backup"><button class="btn btn-outline-secondary btn-sm rounded-pill px-3"><i class="bi bi-plug me-1"></i>Otestovať pripojenie</button></form><?php endif; ?>
+  </div>
+</div></div>
+<div class="card card-soft"><div class="card-body p-4">
+  <h2 class="h6 fw-bold mb-3"><i class="bi bi-database me-2"></i>Zálohy databázy</h2>
+  <?php if (!$bl): ?><div class="small text-body-secondary">Zatiaľ žiadne.</div><?php endif; ?>
+  <ul class="list-group list-group-flush">
+  <?php foreach ($bl as $b): $here = is_file(bk_dir() . '/' . basename($b['name'])); ?>
+    <li class="list-group-item px-0">
+      <div class="d-flex align-items-center gap-2"><i class="bi bi-file-earmark-lock text-primary"></i>
+        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold text-truncate"><?= e(date('j. n. Y G:i', strtotime($b['time']))) ?> · <?= e(format_bytes((int)$b['size'])) ?></div>
+          <div class="small text-body-secondary"><?= ($b['target'] ?? '') === 'webdav' ? 'na vzdialenom disku' : 'na tomto serveri' ?><?= $here && ($b['target'] ?? '') === 'webdav' ? ' aj tu' : '' ?> · <?= (int)($b['tables'] ?? 0) ?> tabuliek, <?= (int)($b['rows'] ?? 0) ?> riadkov</div></div></div>
+      <?php if ($here): ?>
+      <form method="post" class="d-flex gap-2 mt-2"><?= csrf_field() ?><input type="hidden" name="act" value="backup_download"><input type="hidden" name="tab" value="backup"><input type="hidden" name="name" value="<?= e($b['name']) ?>">
+        <input type="password" class="form-control form-control-sm" name="password" placeholder="heslo zálohy (inak zašifrovaná)" autocomplete="off">
+        <button class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-download me-1"></i>Stiahnuť</button></form>
+      <?php endif; ?>
+    </li>
+  <?php endforeach; ?>
+  </ul>
+  <div class="form-text mt-3">S heslom stiahneš rozšifrovaný súbor <code>.sql.gz</code> – ten obnovíš napr. cez phpMyAdmin (Import). Postup obnovy je v Pomoc → Vývojárska príručka → Zálohy a obnova.</div>
+</div></div>
+</div>
+</div>
 
 <?php elseif ($tab === 'smtp'): ?>
 <div class="card card-soft" style="max-width:720px"><div class="card-body p-4">

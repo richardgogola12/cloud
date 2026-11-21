@@ -114,6 +114,7 @@ require __DIR__ . '/head.php';
         <ul class="dropdown-menu shadow">
           <li><a class="dropdown-item" href="#" data-action="new-folder"><i class="bi bi-folder-plus me-2"></i>Nová zložka</a></li>
           <li><a class="dropdown-item" href="#" data-action="new-text"><i class="bi bi-file-earmark-text me-2"></i>Nový textový súbor</a></li>
+          <li><a class="dropdown-item" href="#" data-action="new-doc"><i class="bi bi-file-earmark-text me-2 ic-doc"></i>Nový dokument</a></li>
           <li><a class="dropdown-item" href="#" data-action="new-sheet"><i class="bi bi-file-earmark-spreadsheet me-2 ic-sheet"></i>Nová tabuľka</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" data-action="upload-files"><i class="bi bi-file-earmark-arrow-up me-2"></i>Nahrať súbory</a></li>
@@ -141,6 +142,14 @@ require __DIR__ . '/head.php';
           <?php if ($collapsible): ?></div><?php endif; ?>
         <?php endforeach; ?>
       </nav>
+      <?php $pins = user_pins($user); ?>
+      <div class="side-pins mt-3<?= $pins ? '' : ' d-none' ?>">
+        <div class="px-3 mb-1 small fw-semibold text-body-secondary">Pripnuté</div>
+        <nav class="nav flex-column side-nav" id="sidePins"><?php foreach ($pins as $pn): ?>
+          <a class="nav-link" href="<?= e(url('index.php')) ?>#folder/<?= (int)$pn['id'] ?>" data-pin="<?= (int)$pn['id'] ?>" title="<?= e($pn['path'] ?: $pn['name']) ?>"><i class="bi bi-pin-angle-fill"<?= $pn['color'] ? ' style="color:' . e($pn['color']) . '"' : '' ?>></i><span class="text-truncate"><?= e($pn['name']) ?></span></a>
+        <?php endforeach; ?></nav>
+      </div>
+      <script>window.CLOUD_PINS = <?= json_encode($pins, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;</script>
       <?php if (($active ?? '') === 'drive'): ?>
       <div class="side-tags mt-3">
         <div class="d-flex align-items-center px-3 mb-1">
@@ -164,3 +173,8 @@ require __DIR__ . '/head.php';
   </aside>
   <main class="app-main">
     <?= flashes() ?>
+    <?php if (totp_required($user) && ($active ?? '') !== 'profile'): ?>
+    <div class="alert alert-warning d-flex align-items-center gap-3 rounded-4 border-0" id="tfaNag"><i class="bi bi-shield-exclamation fs-3"></i>
+      <div class="flex-grow-1 small"><b>Zapni si dvojstupňové overenie.</b> Ako administrátor ho máš povinné – ochráni server, aj keby niekto zistil tvoje heslo.</div>
+      <a class="btn btn-warning btn-sm rounded-pill" href="<?= e(url('profile.php#tfa')) ?>">Zapnúť</a></div>
+    <?php endif; ?>

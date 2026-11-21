@@ -110,6 +110,30 @@ for (const [name, opts] of sizes) {
     const listed = await page.locator('#items [data-key]', { hasText: 'Test tabuľka.xlsx' }).count();
     if (!listed) { console.log('CHYBA: nová tabuľka nie je v zozname'); process.exitCode = 1; }
   }
+  // editor dokumentov: Nový → Nový dokument, písanie, nadpis, uloženie
+  if (name === 'pc') {
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(800);
+    await page.click('.btn-new'); await page.waitForTimeout(300);
+    await page.click('.dropdown-menu.show [data-action="new-doc"]'); await page.waitForTimeout(500);
+    await page.fill('.modal.show input', 'Test dokument'); await page.click('.modal.show .btn-primary');
+    await page.waitForSelector('#sheetModal.show iframe', { timeout: 20000 }).catch(() => {});
+    let df = null;
+    for (let i = 0; i < 60 && !df; i++) { df = page.frames().find(f => f.url().includes('doc.php')); if (!df) await page.waitForTimeout(250); }
+    await df.waitForFunction(() => window.CloudDocEditor && CloudDocEditor.ready, null, { timeout: 30000 });
+    const F = page.frameLocator('#sheetModal iframe');
+    await F.locator('#gdPage').click(); await page.keyboard.type('Zápisnica zo stretnutia');
+    await F.locator('#gdBlock').selectOption('h1');
+    await page.keyboard.press('End'); await page.keyboard.press('Enter'); await page.keyboard.type('Prítomní: Jana, Peter. ');
+    await page.keyboard.press('Control+b'); await page.keyboard.type('Dôležité'); await page.keyboard.press('Control+b');
+    await page.keyboard.press('Control+s'); await page.waitForTimeout(3000);
+    const dv = await df.evaluate(() => ({ h1: document.querySelector('#gdPage h1')?.textContent, b: !!document.querySelector('#gdPage b, #gdPage strong, #gdPage [style*="bold"], #gdPage [style*="700"]'), st: document.getElementById('gsStatus').textContent, ls: Object.keys(localStorage).length }));
+    await page.screenshot({ path: `screens/${name}-24-dokument.png` });
+    console.log(`[${name}] dokument: ${JSON.stringify(dv)}`);
+    if (dv.h1 !== 'Zápisnica zo stretnutia' || !dv.b || !/uložené/.test(dv.st)) { console.log('CHYBA: editor dokumentov'); process.exitCode = 1; }
+    await F.locator('.gs-head > [data-gs="close"]').click(); await page.waitForTimeout(1500);
+    const listed = await page.locator('#items [data-key]', { hasText: 'Test dokument.docx' }).count();
+    if (!listed || await page.locator('#sheetModal.show').count()) { console.log('CHYBA: dokument sa nezavrel alebo nie je v zozname'); process.exitCode = 1; }
+  }
   // výber v mriežke nesmie posunúť položky (panel výberu prekryje riadok s cestou)
   {
     await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(900);

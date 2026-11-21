@@ -30,7 +30,7 @@ function content_index_live(): bool {
 /** Rozloží text hľadania na slová a operátory. */
 function search_parse(string $q): array {
     $out = ['words' => [], 'type' => null, 'owner' => null, 'in' => null, 'starred' => false, 'after' => null, 'before' => null,
-            'size_min' => null, 'size_max' => null, 'tag' => null];
+            'size_min' => null, 'size_max' => null, 'tag' => null, 'taken_y' => null, 'taken_m' => null, 'taken_past' => false];
     preg_match_all('/(-?)(\w+)(:|>=|<=|>|<)("[^"]*"|\S+)|"([^"]+)"|(\S+)/u', $q, $m, PREG_SET_ORDER);
     foreach ($m as $t) {
         if (!empty($t[2]) && isset($t[3]) && $t[3] !== '') {
@@ -41,6 +41,11 @@ function search_parse(string $q): array {
             if ($op === 'is' && $sep === ':' && in_array($lv, ['starred', 'hviezdicka'], true)) { $out['starred'] = true; continue; }
             if (in_array($op, ['after', 'before', 'po', 'pred'], true) && $sep === ':' && ($d = search_date($val))) { $out[in_array($op, ['after', 'po'], true) ? 'after' : 'before'] = $d; continue; }
             if ($op === 'tag' && $sep === ':') { $out['tag'] = $val; continue; }
+            if (in_array($op, ['odfotene', 'odfotené', 'taken', 'rok'], true) && $sep === ':') { // odfotene:2024 alebo odfotene:7.2024
+                if (preg_match('/^(\d{1,2})[.\/-](\d{4})$/', $val, $mm)) { $out['taken_m'] = max(1, min(12, (int)$mm[1])); $out['taken_y'] = (int)$mm[2]; continue; }
+                if (preg_match('/^(\d{4})(?:-(\d{1,2}))?$/', $val, $mm)) { $out['taken_y'] = (int)$mm[1]; if (!empty($mm[2])) $out['taken_m'] = max(1, min(12, (int)$mm[2])); continue; }
+            }
+            if (in_array($op, ['mesiac', 'month'], true) && $sep === ':' && ctype_digit($val) && (int)$val >= 1 && (int)$val <= 12) { $out['taken_m'] = (int)$val; continue; }
             if ($op === 'size' && $sep !== ':' && ($b = parse_size_str($val)) !== null) { $out[$sep[0] === '>' ? 'size_min' : 'size_max'] = $b; continue; }
         }
         $w = $t[5] ?? '';
@@ -113,6 +118,13 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
     if ($mod === 'lastyear' && !$before) $before = (date('Y') - 1) . '-12-31';
     $smin = $P['size_min'] ?? (isset($f['size_min']) && $f['size_min'] !== '' ? (int)$f['size_min'] : null);
     $smax = $P['size_max'] ?? (isset($f['size_max']) && $f['size_max'] !== '' ? (int)$f['size_max'] : null);
+    // dátum odfotenia (alebo nahratia): rok, mesiac, „tento mesiac v minulých rokoch“
+    $tkY = $P['taken_y']; $tkM = $P['taken_m']; $tkPast = false;
+    $tk = (string)($f['taken'] ?? '');
+    if ($tk === 'past') { $tkM = (int)date('n'); $tkPast = true; }
+    elseif (preg_match('/^m(\d{1,2})$/', $tk, $mm)) $tkM = max(1, min(12, (int)$mm[1]));
+    elseif (preg_match('/^y(\d{4})$/', $tk, $mm)) $tkY = (int)$mm[1];
+    $taken = $tkY || $tkM;
     $words = $P['words'];
     $useContent = content_index_on() && ($f['content'] ?? '1') !== '0';
 
@@ -121,7 +133,7 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
     if (!empty($f['tag'])) $tagIds = [(int)$f['tag']];
     if ($P['tag'] !== null) $tagIds = array_map('intval', q('SELECT id FROM ' . P . 'tags WHERE user_id = ? AND name LIKE ?', [$uid, like_esc($P['tag'])])->fetchAll(PDO::FETCH_COLUMN)) ?: [0];
 
-    $hasFilter = $words || $type || $owner !== 'any' || $where !== 'any' || $starred || $after || $before || $smin !== null || $smax !== null || $tagIds;
+    $hasFilter = $words || $type || $owner !== 'any' || $where !== 'any' || $starred || $after || $before || $smin !== null || $smax !== null || $tagIds || $taken;
     if (!$hasFilter) return [[], [], []];
 
     $extra = [];
@@ -184,7 +196,7 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
     };
 
     $folders = []; $files = [];
-    $wantFolders = (!$type || $type === 'folder') && $smin === null && $smax === null;
+    $wantFolders = (!$type || $type === 'folder') && $smin === null && $smax === null && !$taken;
     $wantFiles = $type !== 'folder';
 
     if ($wantFolders) {
@@ -196,7 +208,7 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
         $folders = q('SELECT d.* FROM ' . P . 'folders d WHERE ' . implode(' AND ', $w) . " ORDER BY d.$orderD LIMIT 100", $p)->fetchAll();
     }
     if ($wantFiles) {
-        $run = function (bool $content) use ($common, $scopeSql, $wordSql, $trash, $type, $smin, $smax, $orderF, $vcnt, $limit) {
+        $run = function (bool $content) use ($common, $scopeSql, $wordSql, $trash, $type, $smin, $smax, $orderF, $vcnt, $limit, $tkY, $tkM, $tkPast) {
             $p = [];
             $w = $common('f', true, $p);
             $w[] = $scopeSql('f', true, $p);
@@ -204,6 +216,9 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
             if ($type) $w[] = search_type_sql($type, 'f', $p);
             if ($smin !== null) { $w[] = 'f.size >= ?'; $p[] = $smin; }
             if ($smax !== null) { $w[] = 'f.size <= ?'; $p[] = $smax; }
+            if ($tkY) { $w[] = 'YEAR(COALESCE(f.taken_at, f.created_at)) = ?'; $p[] = $tkY; }
+            if ($tkM) { $w[] = 'MONTH(COALESCE(f.taken_at, f.created_at)) = ?'; $p[] = $tkM; }
+            if ($tkPast) { $w[] = 'YEAR(COALESCE(f.taken_at, f.created_at)) < ?'; $p[] = (int)date('Y'); }
             if (($ws = $wordSql('f', true, $p, $content)) !== null) $w[] = $ws;
             return q("SELECT f.*, $vcnt FROM " . P . 'files f WHERE ' . implode(' AND ', $w) . " ORDER BY f.$orderF LIMIT " . (int)$limit, $p)->fetchAll();
         };
@@ -246,6 +261,18 @@ function text_indexable(array $row): bool {
     $ext = strtolower(pathinfo((string)$row['name'], PATHINFO_EXTENSION));
     if (in_array($ext, ['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'pdf'], true)) return true;
     return str_starts_with((string)$row['mime'], 'text/') || in_array($ext, SEARCH_TYPES['text']['ext'], true) || $ext === 'csv';
+}
+/** PDF, ktorého text treba vytiahnuť v prehliadači (na serveri nie je pdftotext). */
+function pdf_text_client(array $f): bool {
+    return ($f['mime'] ?? '') === 'application/pdf' && ffmpeg_bin('pdftotext') === null && (int)$f['size'] <= TEXT_INDEX_MAX;
+}
+/** PDF súbory používateľa, ktoré ešte nemajú text (prehliadač ich spracuje na pozadí). */
+function pdf_text_needed(int $uid, int $limit = 20): array {
+    if (!content_index_on() || ffmpeg_bin('pdftotext') !== null) return [];
+    return array_map('intval', q('SELECT f.id FROM ' . P . 'files f LEFT JOIN ' . P . "file_text ft ON ft.file_id = f.id
+        WHERE f.user_id = ? AND f.deleted_at IS NULL AND f.mime = 'application/pdf' AND f.size > 0 AND f.size <= " . TEXT_INDEX_MAX . "
+          AND (ft.file_id IS NULL OR ft.body = '' OR ft.indexed_at < f.updated_at)
+        ORDER BY f.id DESC LIMIT " . (int)$limit, [$uid])->fetchAll(PDO::FETCH_COLUMN));
 }
 /** Vytiahne čistý text zo súboru (txt, docx/xlsx/pptx, odt/ods/odp, pdf cez pdftotext). */
 function extract_text(string $path, string $name): ?string {

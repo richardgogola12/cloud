@@ -519,7 +519,7 @@ ok(str_contains($r['body'], 'data-protect="success"'), 'úložisko je chránené
 ok(($h['h']['platform'] ?? '') === $expOs && ($h['h']['cores'] ?? 0) > 0 && ($h['h']['uptime'] ?? 0) > 0, 'stav servera má jadrá a čas behu aj na tejto platforme', json_encode([$h['h']['platform'] ?? null, $h['h']['cores'] ?? null, $h['h']['uptime'] ?? null, $h['h']['cpu'] ?? null]));
 
 section('Administrácia');
-foreach (['dashboard', 'users', 'settings', 'smtp', 'log', 'maintenance', 'update'] as $tab) {
+foreach (['dashboard', 'users', 'settings', 'smtp', 'log', 'maintenance', 'backup', 'update'] as $tab) {
     $r = $web->get("admin.php?tab=$tab");
     ok($r['code'] === 200, "admin: karta $tab", "HTTP {$r['code']}");
     no_php_errors($r['body'], "admin $tab");
@@ -1067,6 +1067,152 @@ ok(count($nl) === 1 && str_contains($nl[0]['body'], 'Rozpočet test') && str_con
 $web->api('prefs_save', ['key' => 'version_days', 'value' => '3']);
 ok(count(array_filter($web->api('notifications')['items'] ?? [], fn($n) => $n['type'] === 'version')) === 1, 'upozornenie sa neopakuje');
 $web->api('prefs_save', ['key' => 'version_days', 'value' => '0']);
+
+section('Editor dokumentov (Word)');
+$j = $web->api('mkfile', ['parent' => '', 'name' => 'Zápisnica test.docx']);
+ok(!empty($j['ok']), 'nový dokument (.docx)', json_encode($j));
+$docId = (int)($j['id'] ?? 0);
+$r = $web->get("doc.php?id=$docId&embed=1");
+ok($r['code'] === 200 && str_contains($r['body'], 'id="gdPage"') && str_contains($r['body'], 'assets/js/ldoc.js') && str_contains($r['body'], 'docx/docx.js'), 'editor dokumentov sa otvorí (doc.php)');
+no_php_errors($r['body'], 'doc.php');
+foreach (['Súbor', 'Úpravy', 'Vložiť', 'Formát', 'Nástroje', 'Nadpis 1', 'Počet slov', 'Nájsť a nahradiť', 'Zlom strany'] as $w) ok(str_contains($r['body'], $w), "ponuka dokumentu: $w");
+ok(!preg_match('#https?://(cdn|unpkg)#', $r['body']), 'editor dokumentov nenačítava nič z cudzích serverov');
+ok(str_contains($web->get("doc.php?id=$sheetId")['body'], 'gs-err'), 'iný súbor ako .docx → hláška');
+ok(str_contains($web->get('index.php')['body'], 'data-action="new-doc"'), 'Nový → Nový dokument');
+$tmpD = tempnam(sys_get_temp_dir(), 'd'); file_put_contents($tmpD, 'PK test');
+$j = json_decode($web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['parent' => '', 'name' => 'Ponuka.docx', 'data' => new CURLFile($tmpD, 'application/octet-stream', 'a.docx')]])['body'], true) ?: [];
+ok(($j['name'] ?? '') === 'Ponuka.docx', 'uloženie nového .docx si ponechá príponu', json_encode($j));
+
+section('Dvojstupňové overenie');
+$pdoS->exec('DELETE FROM cloud_login_attempts'); // predchádzajúce testy zámerne skúšali zlé heslá
+function totp_t(string $b32, int $step): string {
+    $alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; $bits = ''; $key = '';
+    foreach (str_split(preg_replace('/[^A-Z2-7]/', '', strtoupper($b32))) as $c) $bits .= str_pad(decbin(strpos($alpha, $c)), 5, '0', STR_PAD_LEFT);
+    foreach (str_split($bits, 8) as $b) if (strlen($b) === 8) $key .= chr(bindec($b));
+    $h = hash_hmac('sha1', pack('N2', 0, $step), $key, true); $o = ord($h[19]) & 15;
+    return str_pad((string)((((ord($h[$o]) & 127) << 24) | (ord($h[$o + 1]) << 16) | (ord($h[$o + 2]) << 8) | ord($h[$o + 3])) % 1000000), 6, '0', STR_PAD_LEFT);
+}
+$tf = new Client(); $tf->loadCsrf($tf->get('login.php')['body']);
+$tf->post('login.php', ['_csrf' => $tf->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234']);
+$tf->loadCsrf($tf->get('profile.php')['body']);
+ok(str_contains($tf->last['body'], 'id="tfa"'), 'Môj účet: dvojstupňové overenie');
+$j = $tf->api('tfa_setup');
+$sec = str_replace(' ', '', $j['secret'] ?? '');
+ok(strlen($sec) === 32 && str_starts_with($j['uri'] ?? '', 'otpauth://totp/'), 'nový kľúč a QR adresa', json_encode($j));
+ok(empty($tf->api('tfa_enable', ['code' => '000000'])['ok']), 'zlý kód nezapne overenie');
+$step = intdiv(time(), 30);
+$j = $tf->api('tfa_enable', ['code' => totp_t($sec, $step)]);
+ok(!empty($j['ok']) && count($j['codes'] ?? []) === 10, 'zapnutie kódom z aplikácie + 10 záložných kódov', json_encode($j));
+$backup = $j['codes'] ?? [];
+$t2 = new Client(); $t2->loadCsrf($t2->get('login.php')['body']);
+$r = $t2->post('login.php', ['_csrf' => $t2->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234']);
+$r = $t2->get('login.php');
+ok(str_contains($r['body'], 'Overovací kód') && $t2->get('index.php')['code'] === 302, 'po hesle sa pýta kód, bez neho sa neprihlási');
+$t2->loadCsrf($r['body']);
+$r = $t2->post('login.php', ['_csrf' => $t2->csrf, 'code' => '123456']);
+ok(str_contains($t2->get('login.php')['body'], 'Nesprávny kód'), 'zlý kód → chyba');
+$t2->loadCsrf($t2->last['body']);
+$r = $t2->post('login.php', ['_csrf' => $t2->csrf, 'code' => totp_t($sec, $step + 1)]);
+ok($r['code'] === 302 && str_contains($r['headers'], 'index.php') && $t2->get('index.php')['code'] === 200, 'prihlásenie heslom + kódom');
+$t3 = new Client(); $t3->loadCsrf($t3->get('login.php')['body']);
+$t3->post('login.php', ['_csrf' => $t3->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234']);
+$t3->loadCsrf($t3->get('login.php')['body']);
+$r = $t3->post('login.php', ['_csrf' => $t3->csrf, 'code' => totp_t($sec, $step + 1)]);
+ok(!str_contains($r['headers'], 'index.php'), 'ten istý kód sa nedá použiť dvakrát');
+$t3->loadCsrf($t3->get('login.php')['body']);
+$r = $t3->post('login.php', ['_csrf' => $t3->csrf, 'code' => $backup[0] ?? 'x']);
+ok(str_contains($r['headers'], 'index.php'), 'prihlásenie záložným kódom');
+$t4 = new Client(); $t4->loadCsrf($t4->get('login.php')['body']);
+$t4->post('login.php', ['_csrf' => $t4->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234']);
+$t4->loadCsrf($t4->get('login.php')['body']);
+ok(!str_contains($t4->post('login.php', ['_csrf' => $t4->csrf, 'code' => $backup[0] ?? 'x'])['headers'], 'index.php'), 'záložný kód platí iba raz');
+$a = new Client();
+$r = $a->req('POST', 'app.php?action=login', ['json' => ['email' => 'beata@test.sk', 'password' => 'Heslo1234'], 'app' => true]);
+ok($r['code'] === 428 && !empty($r['json']['need_code']), 'aplikácia: po hesle chce kód (HTTP 428)', $r['body']);
+$r = $a->req('POST', 'app.php?action=login', ['json' => ['email' => 'beata@test.sk', 'password' => 'Heslo1234', 'code' => $backup[1] ?? ''], 'app' => true]);
+ok(!empty($r['json']['token']), 'aplikácia: prihlásenie s kódom', $r['body']);
+ok(empty($tf->api('tfa_disable', ['password' => 'zle'])['ok']) && !empty($tf->api('tfa_disable', ['password' => 'Heslo1234'])['ok']), 'vypnutie iba so správnym heslom');
+$t5 = new Client(); $t5->loadCsrf($t5->get('login.php')['body']);
+ok(str_contains($t5->post('login.php', ['_csrf' => $t5->csrf, 'email' => 'beata@test.sk', 'password' => 'Heslo1234'])['headers'], 'index.php'), 'po vypnutí stačí heslo');
+
+section('Pripnuté zložky, kôš, hľadanie podľa dátumu fotenia');
+$pdoS->exec('DELETE FROM cloud_login_attempts');
+$fid = (int)($web->api('mkdir', ['parent' => 0, 'name' => 'Pripnutá zložka'])['id'] ?? 0);
+$j = $web->api('pin', ['id' => $fid, 'on' => '1']);
+ok(!empty($j['ok']) && ($j['pins'][0]['name'] ?? '') === 'Pripnutá zložka', 'pripnutie zložky do menu', json_encode($j));
+ok(str_contains($web->get('index.php')['body'], 'data-pin="' . $fid . '"'), 'pripnutá zložka je v menu vľavo');
+ok(empty($web->api('pin', ['id' => $fid, 'on' => '0'])['pins'] ?? [1]), 'odopnutie');
+$j = $web->api('prefs_save', ['key' => 'trash_days', 'value' => '5']);
+ok(($j['effective'] ?? 0) === 5 && ($web->api('list', ['view' => 'trash'])['trash_days'] ?? 0) === 5, 'vlastná doba koša (5 dní)', json_encode($j));
+ok(($web->api('prefs_save', ['key' => 'trash_days', 'value' => '0'])['effective'] ?? 0) === 30, 'späť podľa servera');
+ok(str_contains($web->get('profile.php')['body'], 'id="trDays"'), 'nastavenie koša v Môj účet');
+$pdoS->exec("UPDATE cloud_files SET taken_at = NOW() - INTERVAL 2 YEAR WHERE id = " . (int)$p2);
+$j = $web->api('list', ['view' => 'search', 'q' => '', 'taken' => 'past']);
+ok(in_array((int)$p2, array_column($j['items'] ?? [], 'id'), true), 'hľadanie: fotky z tohto mesiaca v minulých rokoch', json_encode(array_slice($j['items'] ?? [], 0, 3)));
+$y = (int)date('Y') - 2;
+ok(in_array((int)$p2, array_column($web->api('list', ['view' => 'search', 'q' => 'odfotene:' . $y])['items'] ?? [], 'id'), true), "hľadanie: odfotene:$y");
+ok(!in_array((int)$p2, array_column($web->api('list', ['view' => 'search', 'q' => 'odfotene:1999'])['items'] ?? [], 'id'), true), 'hľadanie: iný rok nič nenájde');
+
+section('Náhľady videí a text PDF v prehliadači');
+ok(!empty($web->api('text_needed')['ok']), 'zoznam PDF bez textu');
+$vid = upload($web, 0, 'klip.mp4', str_repeat("\0", 2000));
+$vl = array_values(array_filter($web->api('list', ['view' => 'folder', 'folder' => 0])['items'] ?? [], fn($i) => $i['name'] === 'klip.mp4'))[0] ?? [];
+if (!empty($vl['vthumb'])) {
+    $img = tempnam(sys_get_temp_dir(), 'i'); file_put_contents($img, jpeg(64, 36, 5));
+    $j = json_decode($web->req('POST', 'api.php?action=thumb_put', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$vl['id'], 'image' => new CURLFile($img, 'image/jpeg', 't.jpg')]])['body'], true) ?: [];
+    ok(!empty($j['ok']) && $web->get('api.php?action=thumb&id=' . $vl['id'])['code'] === 200, 'náhľad videa z prehliadača sa uloží a zobrazí', json_encode($j));
+    $vl2 = array_values(array_filter($web->api('list', ['view' => 'folder', 'folder' => 0])['items'] ?? [], fn($i) => $i['name'] === 'klip.mp4'))[0] ?? [];
+    ok(!empty($vl2['thumb']) && empty($vl2['vthumb']), 'video má náhľad, prehliadač ho už nerobí');
+} else ok(isset($vl['thumb']), 'server má ffmpeg – náhľady videí robí sám');
+
+section('Zálohy, limit hostingu, report');
+$r = $web->get('admin.php?tab=backup');
+ok($r['code'] === 200 && str_contains($r['body'], 'Automatická záloha') && str_contains($r['body'], 'Heslo zálohy'), 'admin: karta Zálohy');
+no_php_errors($r['body'], 'admin backup');
+$web->loadCsrf($r['body']);
+$web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_settings', 'tab' => 'backup', 'backup_enabled' => '1', 'backup_hour' => '3', 'backup_keep' => '3', 'backup_target' => 'local', 'backup_key' => 'kratke', 'backup_key2' => 'kratke']);
+ok(str_contains($web->get('admin.php?tab=backup')['body'], 'aspoň 10 znakov'), 'krátke heslo zálohy sa neprijme');
+$web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_settings', 'tab' => 'backup', 'backup_enabled' => '1', 'backup_hour' => '3', 'backup_keep' => '3', 'backup_target' => 'local', 'backup_key' => 'TajneHeslo123', 'backup_key2' => 'TajneHeslo123']);
+$web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_now', 'tab' => 'backup']);
+sleep(2);
+$r = $web->get('admin.php?tab=backup');
+ok(str_contains($r['body'], 'tabuliek') && preg_match('/name="name" value="(cloud-db-[\d-]+\.sql\.gz\.enc)"/', $r['body'], $bm), 'záloha databázy vznikla', substr(strip_tags($r['body']), 0, 0));
+$bname = $bm[1] ?? '';
+$web->loadCsrf($r['body']);
+$d = $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_download', 'tab' => 'backup', 'name' => $bname, 'password' => 'TajneHeslo123']);
+$sql = @gzdecode($d['body']);
+ok($sql !== false && str_contains($sql, 'CREATE TABLE `cloud_users`') && str_contains($sql, 'INSERT INTO `cloud_files`'), 'rozšifrovaná záloha obsahuje celú databázu', substr($d['body'], 0, 100));
+$d = $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_download', 'tab' => 'backup', 'name' => $bname, 'password' => '']);
+ok(str_starts_with($d['body'], 'CLOUDBK1'), 'bez hesla sa stiahne zašifrovaná');
+$enc = tempnam(sys_get_temp_dir(), 'b'); file_put_contents($enc, $d['body']);
+$out = shell_exec('echo TajneHeslo123 | ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/../tools/backup-decrypt.php') . ' ' . escapeshellarg($enc) . ' ' . escapeshellarg($enc . '.gz') . ' 2>&1');
+ok(is_file($enc . '.gz') && str_contains((string)@gzdecode(file_get_contents($enc . '.gz')), 'CREATE TABLE'), 'nástroj backup-decrypt.php rozšifruje zálohu', (string)$out);
+$d = $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_download', 'tab' => 'backup', 'name' => $bname, 'password' => 'zle-heslo']);
+ok(!str_starts_with($d['body'], "\x1f\x8b"), 'zlé heslo zálohu nerozšifruje');
+if (PHP_OS_FAMILY !== 'Windows') { // WebDAV cieľ = tento istý Cloud (zabudovaný server na Windows nevie viac požiadaviek naraz)
+    $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_settings', 'tab' => 'backup', 'backup_enabled' => '1', 'backup_hour' => '3', 'backup_keep' => '3', 'backup_target' => 'webdav', 'backup_files' => '0',
+        'backup_url' => BASE . 'dav.php/Zálohy', 'backup_user' => 'admin@test.sk', 'backup_pass' => $davPw]);
+    dav('MKCOL', '/Z%C3%A1lohy');
+    $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_test', 'tab' => 'backup']);
+    ok(str_contains($web->get('admin.php?tab=backup')['body'], 'Pripojenie funguje'), 'záloha na vzdialený disk: test pripojenia (WebDAV)');
+    $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_settings', 'tab' => 'backup', 'backup_enabled' => '0', 'backup_target' => 'webdav', 'backup_files' => '0',
+        'backup_url' => BASE . 'dav.php/Zálohy', 'backup_user' => 'admin@test.sk']);
+    $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_now', 'tab' => 'backup']);
+    sleep(3);
+    $pr = dav('PROPFIND', '/Z%C3%A1lohy/cloud-zaloha/databaza/', ['headers' => ['Depth: 1']]);
+    ok(str_contains($pr['body'], 'cloud-db-'), 'záloha databázy je na vzdialenom disku', substr($pr['body'], 0, 300));
+}
+$web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_settings', 'tab' => 'backup', 'backup_target' => 'local']);
+$r = $web->get('admin.php?tab=settings'); $web->loadCsrf($r['body']);
+ok(str_contains($r['body'], 'name="hosting_limit_gb"') && str_contains($r['body'], 'name="require_2fa_admin"') && str_contains($r['body'], 'name="admin_report"'), 'nastavenia: limit hostingu, povinné 2FA, mesačný report');
+$pdoS->exec("INSERT INTO cloud_settings (k, v) VALUES ('hosting_limit_gb', '0.001'), ('require_2fa_admin', '1') ON DUPLICATE KEY UPDATE v = VALUES(v)");
+$r = $web->get('admin.php?tab=dashboard');
+ok(str_contains($r['body'], 'id="hostingCard"') && str_contains($r['body'], 'Limit hostingu'), 'prehľad: limit hostingu');
+ok(str_contains($r['body'], 'id="tfaNag"'), 'administrátor bez 2FA vidí výzvu, keď je povinné');
+$pdoS->exec("UPDATE cloud_settings SET v = '0' WHERE k IN ('hosting_limit_gb', 'require_2fa_admin')");
+ok(!str_contains($web->get('admin.php?tab=dashboard')['body'], 'id="tfaNag"'), 'výzva zmizne po vypnutí');
+$web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'admin_report_now', 'tab' => 'settings']);
+ok(str_contains($web->get('admin.php?tab=settings')['body'], 'eport'), 'mesačný report sa dá poslať hneď');
 
 section('Editor obrázkov');
 $imgF = tempnam(sys_get_temp_dir(), 'i'); $gd = imagecreatetruecolor(40, 30); imagejpeg($gd, $imgF, 85);

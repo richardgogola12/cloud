@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 21;
+const SCHEMA_VERSION = 22;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -41,6 +41,7 @@ function migrate(): void {
         if ($v < 19) migrate_v19();
         if ($v < 20) migrate_v20();
         if ($v < 21) migrate_v21();
+        if ($v < 22) migrate_v22();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -456,4 +457,18 @@ function migrate_v20(): void {
 /* v21: kedy bol vlastník upozornený, že sa verzia čoskoro zmaže */
 function migrate_v21(): void {
     add_col(P . 'file_versions', 'warned_at', 'DATETIME NULL');
+}
+
+/* v22: dvojstupňové overenie (TOTP), zálohy, pripnuté zložky */
+function migrate_v22(): void {
+    $p = P;
+    add_col("{$p}users", 'totp_secret', 'VARCHAR(255) NULL');
+    add_col("{$p}users", 'totp_backup', 'TEXT NULL');
+    add_col("{$p}users", 'totp_last', 'BIGINT NOT NULL DEFAULT 0');
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}backup_files (
+        stored_name VARCHAR(100) NOT NULL PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }

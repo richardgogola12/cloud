@@ -3,6 +3,25 @@ require __DIR__ . '/inc/core.php';
 if (current_user()) redirect('index.php');
 
 $email = '';
+/* druhý krok: kód z aplikácie (dvojstupňové overenie) */
+$tfa = $_SESSION['tfa'] ?? null;
+if ($tfa && (time() - (int)$tfa['t']) > 300) { unset($_SESSION['tfa']); $tfa = null; flash('warning', 'Čas na zadanie kódu vypršal, prihlás sa znova.'); }
+if ($tfa && isset($_GET['cancel'])) { unset($_SESSION['tfa']); redirect('login.php'); }
+if ($tfa && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['code'])) {
+    csrf_check();
+    $u = q('SELECT * FROM ' . P . 'users WHERE id = ?', [(int)$tfa['uid']])->fetch();
+    if (too_many_attempts()) flash('danger', 'Príliš veľa neúspešných pokusov. Skús to o 15 minút.');
+    elseif ($u && totp_check($u, (string)$_POST['code'])) {
+        unset($_SESSION['tfa']);
+        login_user($u, !empty($tfa['remember']), 'heslo + kód');
+        log_action((int)$u['id'], 'login', 'heslo + kód');
+        redirect('index.php');
+    } else {
+        record_failed_attempt($u['email'] ?? '');
+        flash('danger', 'Nesprávny kód. Skús znova – kód sa mení každých 30 sekúnd.');
+    }
+    redirect('login.php');
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $email = trim((string)($_POST['email'] ?? ''));
@@ -21,6 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (password_needs_rehash($u['password'], PASSWORD_DEFAULT)) {
                     q('UPDATE ' . P . 'users SET password = ? WHERE id = ?', [password_hash($pass, PASSWORD_DEFAULT), $u['id']]);
                 }
+                if (totp_enabled($u)) { // heslo sedí, ešte kód z aplikácie
+                    $_SESSION['tfa'] = ['uid' => (int)$u['id'], 'remember' => !empty($_POST['remember']), 't' => time()];
+                    redirect('login.php');
+                }
                 login_user($u, !empty($_POST['remember']), 'heslo');
                 $hasKey = (int)q('SELECT COUNT(*) FROM ' . P . 'webauthn WHERE user_id = ?', [$u['id']])->fetchColumn();
                 if (!$hasKey) $_SESSION['offer_passkey'] = true;
@@ -35,6 +58,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('login.php?e=' . urlencode($email));
 }
 $email = (string)($_GET['e'] ?? '');
+
+if ($tfa) {
+    $heading = 'Dvojstupňové overenie';
+    $subheading = 'Zadaj 6-miestny kód z overovacej aplikácie';
+    $title = 'Overovací kód';
+    require __DIR__ . '/inc/views/auth_start.php';
+    ?>
+<form method="post" novalidate id="tfaForm">
+  <?= csrf_field() ?>
+  <div class="text-center mb-3"><i class="bi bi-shield-lock text-primary" style="font-size:3rem"></i></div>
+  <div class="form-floating mb-3">
+    <input type="text" class="form-control text-center fs-4 tfa-code" id="code" name="code" placeholder="123 456" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus>
+    <label for="code">Overovací kód</label>
+  </div>
+  <button class="btn btn-primary btn-lg w-100 rounded-pill">Overiť</button>
+  <p class="small text-body-secondary mt-3 mb-1">Nemáš pri sebe telefón? Zadaj jeden zo <b>záložných kódov</b> (napr. <code>4f7a-92c1</code>), ktoré si si uložil pri zapnutí.</p>
+  <p class="text-center mb-0"><a href="<?= e(url('login.php?cancel=1')) ?>" class="small">Späť na prihlásenie</a></p>
+</form>
+<script>document.getElementById('code').addEventListener('input', (e) => { const v = e.target.value.replace(/\s/g, ''); if (/^\d{6}$/.test(v)) document.getElementById('tfaForm').submit(); });</script>
+<?php
+    require __DIR__ . '/inc/views/auth_end.php';
+    exit;
+}
 
 $heading = 'Prihlásenie';
 $subheading = 'Vitaj späť v ' . cfg('app_name');

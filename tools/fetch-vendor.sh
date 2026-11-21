@@ -34,6 +34,10 @@ get element-ui@2.13.2/lib/theme-chalk/fonts/element-icons.woff luckysheet-deps/f
 get element-ui@2.13.2/lib/theme-chalk/fonts/element-icons.ttf  luckysheet-deps/fonts/element-icons.ttf
 get echarts@4.8.0/dist/echarts.min.js                          luckysheet-deps/echarts.min.js
 get jszip@3.10.1/dist/jszip.min.js                             jszip/jszip.min.js
+get qrcode-generator@1.4.4/qrcode.js                          qrcode/qrcode.js
+get docx@9.8.1/dist/index.iife.js                             docx/docx.js
+get pdfjs-dist@3.11.174/legacy/build/pdf.min.js               pdfjs/pdf.min.js
+get pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js        pdfjs/pdf.worker.min.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
 echo "Hotovo: $D"

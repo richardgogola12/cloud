@@ -65,9 +65,10 @@ class Api(private val prefs: Prefs) {
     }
 
     /** Prihlásenie e-mailom a heslom → vráti token. */
-    fun login(server: String, email: String, password: String): JSONObject {
+    fun login(server: String, email: String, password: String, code: String = ""): JSONObject {
         val body = JSONObject()
             .put("email", email).put("password", password)
+            .put("code", code)
             .put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
         val req = Request.Builder().url(url("app.php?action=login", server))
             .header("User-Agent", USER_AGENT)

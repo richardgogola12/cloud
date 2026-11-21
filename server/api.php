@@ -201,7 +201,7 @@ try {
                 $items[] = $it;
             }
             json_out(['ok' => true, 'folder' => null, 'crumbs' => [], 'perm' => 'owner', 'root' => 'drive', 'items' => $items, 'total' => count($items), 'offset' => 0,
-                      'more' => count($ev) === 200 ? (int)end($ev)['id'] : 0, 'quota' => quota_info($user), 'trash_days' => (int)setting('trash_days', '30'), 'nohash' => 0, 'no_cache' => true]);
+                      'more' => count($ev) === 200 ? (int)end($ev)['id'] : 0, 'quota' => quota_info($user), 'trash_days' => user_trash_days($user), 'nohash' => 0, 'no_cache' => true]);
         } elseif ($view === 'album') {
             $al = album_get($uid, (int)($_POST['album'] ?? 0));
             $files = q("SELECT f.*, 0 vcnt FROM $F f JOIN " . P . "album_items ai ON ai.file_id = f.id WHERE ai.album_id = ? AND f.deleted_at IS NULL
@@ -324,7 +324,7 @@ try {
         }
         json_out(['ok' => true, 'folder' => $folderId, 'crumbs' => $crumbs, 'perm' => $perm, 'root' => $root,
                   'items' => rows_out($uid, $folders, $files, $extra), 'total' => $total, 'offset' => $offset, 'quota' => quota_info($user),
-                  'trash_days' => (int)setting('trash_days', '30'), 'nohash' => $extra['nohash'] ?? 0, 'no_cache' => $noCache, 'lock_here' => $lockHere]);
+                  'trash_days' => user_trash_days($user), 'nohash' => $extra['nohash'] ?? 0, 'no_cache' => $noCache, 'lock_here' => $lockHere]);
     }
 
     case 'folder_lock': { // nastavenie / zmena / zrušenie hesla zložky (iba vlastník)
@@ -710,6 +710,75 @@ try {
         q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
         json_out(['ok' => true]);
     }
+    case 'pin': { // pripnúť / odopnúť zložku v menu vľavo
+        $id = (int)($_POST['id'] ?? 0);
+        folder_access($uid, $id);
+        $prefs = user_prefs($user);
+        $pins = array_values(array_filter(array_map('intval', $prefs['pins'] ?? []), fn($x) => $x !== $id));
+        if (($_POST['on'] ?? '1') === '1') { if (count($pins) >= 20) throw new RuntimeException('Pripnúť môžeš najviac 20 zložiek.'); $pins[] = $id; }
+        $prefs['pins'] = $pins;
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+        $user['prefs'] = json_encode($prefs);
+        json_out(['ok' => true, 'pins' => user_pins($user)]);
+    }
+    /* náhľad videa vyrobený v prehliadači (server nemá ffmpeg / nesmie spúšťať programy) */
+    case 'thumb_put': {
+        $a = need(file_access($uid, (int)($_POST['id'] ?? 0)), 'edit'); $f = $a['row'];
+        if (video_thumb_missing($f) === null) throw new RuntimeException('Tento súbor náhľad od prehliadača nepotrebuje.');
+        $up = $_FILES['image'] ?? null;
+        if (!$up || ($up['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($up['tmp_name']) || filesize($up['tmp_name']) > 2 * 1024 * 1024) throw new RuntimeException('Náhľad sa nepodarilo odoslať.');
+        $info = @getimagesize($up['tmp_name']);
+        if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) throw new RuntimeException('Náhľad nie je obrázok.');
+        thumb_store_client($f, $up['tmp_name']);
+        json_out(['ok' => true]);
+    }
+    case 'text_needed': json_out(['ok' => true, 'ids' => pdf_text_needed($uid)]);
+    /* text z PDF vytiahnutý v prehliadači (server nemá pdftotext) – pre hľadanie v obsahu */
+    case 'text_put': {
+        $a = need(file_access($uid, (int)($_POST['id'] ?? 0)), 'edit'); $f = $a['row'];
+        if (!content_index_on() || !pdf_text_client($f)) throw new RuntimeException('Text tohto súboru nie je potrebný.');
+        $txt = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['text'] ?? ''))), 0, 500000);
+        if (!mb_check_encoding($txt, 'UTF-8')) throw new RuntimeException('Neplatný text.');
+        if ($txt === '') $txt = ' '; // PDF bez textu (napr. sken) – už ho neskúšať znova
+        q('INSERT INTO ' . P . 'file_text (file_id, user_id, body) VALUES (?,?,?) ON DUPLICATE KEY UPDATE body = VALUES(body), indexed_at = NOW()', [$f['id'], $f['user_id'], $txt]);
+        json_out(['ok' => true, 'chars' => mb_strlen($txt)]);
+    }
+
+    /* dvojstupňové overenie (kód z aplikácie) */
+    case 'tfa_setup': { // nový tajný kľúč (zatiaľ iba v relácii, kým ho používateľ nepotvrdí kódom)
+        $sec = totp_new_secret();
+        $_SESSION['tfa_pending'] = $sec;
+        json_out(['ok' => true, 'secret' => trim(chunk_split($sec, 4, ' ')), 'uri' => totp_uri($user, $sec)]);
+    }
+    case 'tfa_enable': {
+        $sec = (string)($_SESSION['tfa_pending'] ?? '');
+        if ($sec === '') throw new RuntimeException('Začni znova tlačidlom Zapnúť.');
+        $code = preg_replace('/\s+/', '', (string)($_POST['code'] ?? ''));
+        $ok = false; $now = intdiv(time(), TOTP_PERIOD);
+        for ($d = -1; $d <= 1; $d++) if (hash_equals(totp_code($sec, $now + $d), $code)) $ok = true;
+        if (!$ok) throw new RuntimeException('Kód nesedí. Skontroluj, či má telefón správny čas, a zadaj aktuálny kód.');
+        q('UPDATE ' . P . 'users SET totp_secret = ?, totp_last = ? WHERE id = ?', [totp_wrap($sec), $now + 1, $uid]);
+        unset($_SESSION['tfa_pending']);
+        $codes = totp_new_backup_codes($uid);
+        log_action($uid, 'tfa_on', '');
+        notify($uid, 'device', 'Dvojstupňové overenie je zapnuté', 'Pri prihlásení heslom sa odteraz zadáva aj kód z aplikácie.', 'profile.php#tfa');
+        json_out(['ok' => true, 'codes' => $codes]);
+    }
+    case 'tfa_disable': {
+        $fresh = q('SELECT * FROM ' . P . 'users WHERE id = ?', [$uid])->fetch();
+        if (!password_verify((string)($_POST['password'] ?? ''), $fresh['password'])) throw new RuntimeException('Nesprávne heslo.');
+        q('UPDATE ' . P . 'users SET totp_secret = NULL, totp_backup = NULL, totp_last = 0 WHERE id = ?', [$uid]);
+        log_action($uid, 'tfa_off', '');
+        notify($uid, 'device', 'Dvojstupňové overenie je vypnuté', 'Na prihlásenie teraz stačí heslo. Ak si to nebol ty, zmeň si heslo.', 'profile.php#tfa');
+        json_out(['ok' => true]);
+    }
+    case 'tfa_codes': { // nové záložné kódy (staré prestanú platiť)
+        $fresh = q('SELECT * FROM ' . P . 'users WHERE id = ?', [$uid])->fetch();
+        if (!totp_enabled($fresh)) throw new RuntimeException('Dvojstupňové overenie nie je zapnuté.');
+        if (!password_verify((string)($_POST['password'] ?? ''), $fresh['password'])) throw new RuntimeException('Nesprávne heslo.');
+        json_out(['ok' => true, 'codes' => totp_new_backup_codes($uid)]);
+    }
+
     case 'prefs_save': { // osobné nastavenia zobrazenia (napr. stĺpce v zozname) – platia na webe aj v aplikácii
         $key = (string)($_POST['key'] ?? '');
         if ($key === 'digest') { // '0' / '1' alebo {"freq":"weekly","dow":1,"dom":1,"hour":8}
@@ -729,6 +798,14 @@ try {
             $u2 = $user; $u2['prefs'] = json_encode($prefs);
             $c2 = digest_cfg($u2); $nx = digest_next($c2);
             json_out(['ok' => true, 'cfg' => $c2, 'when' => digest_when_text($c2), 'next' => $nx ? date('j. n. Y \o G:i', $nx) : null]);
+        }
+        if ($key === 'trash_days') { // po koľkých dňoch vysypať môj kôš; 0 = podľa servera
+            $prefs = user_prefs($user);
+            $d = (int)($_POST['value'] ?? 0);
+            $prefs['trash_days'] = $d > 0 ? max(1, min(3650, $d)) : 0;
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            $u2 = $user; $u2['prefs'] = json_encode($prefs);
+            json_out(['ok' => true, 'days' => $prefs['trash_days'], 'effective' => user_trash_days($u2)]);
         }
         if ($key === 'version_days') { // ako dlho uchovávať staré verzie (dni od vzniku verzie, najmenej 1); 0 = bez časového limitu
             $prefs = user_prefs($user);
@@ -821,7 +898,7 @@ try {
         $parent = (int)($_POST['parent'] ?? 0) ?: null;
         $acc = need(folder_access($uid, $parent), 'edit');
         $name = clean_name((string)($_POST['name'] ?? 'Tabuľka.xlsx'));
-        if (!preg_match('/\.(xlsx|ods|csv|jpe?g|png|webp)$/i', $name)) $name .= '.xlsx';
+        if (!preg_match('/\.(xlsx|ods|csv|docx|jpe?g|png|webp)$/i', $name)) $name .= '.xlsx';
         $base = preg_replace('/\.[^.]+$/', '', $name); $ext = substr($name, strlen($base));
         for ($i = 2; name_exists($acc['owner'], $parent, $name, 'f'); $i++) $name = $base . ' (' . $i . ')' . $ext;
         check_space($acc['owner'], $size);

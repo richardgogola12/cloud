@@ -61,6 +61,7 @@ window.Cloud = (function () {
       const el = document.getElementById(id);
       el.querySelector('.modal-title').textContent = title;
       const inp = el.querySelector('input'); inp.value = value; inp.placeholder = label;
+      if (label === 'password') { inp.type = 'password'; inp.placeholder = 'Heslo'; inp.autocomplete = 'current-password'; }
       el.querySelector('.btn-primary').textContent = okText;
       const m = new bootstrap.Modal(el); let result = null;
       el.addEventListener('shown.bs.modal', () => { inp.focus(); const dot = value.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : value.length); });

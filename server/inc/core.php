@@ -449,6 +449,7 @@ function too_many_attempts(): bool {
 }
 function record_failed_attempt(string $email = ''): void {
     q('INSERT INTO ' . P . 'login_attempts (ip, email) VALUES (?, ?)', [client_ip(), $email]);
+    if (function_exists('stat_failed_login')) stat_failed_login();
 }
 
 /* ---------- Tokeny (overenie e-mailu, zmena e-mailu) ---------- */
@@ -500,6 +501,9 @@ require_once __DIR__ . '/lock.php';
 require_once __DIR__ . '/activity.php';
 require_once __DIR__ . '/photos.php';
 require_once __DIR__ . '/digest.php';
+require_once __DIR__ . '/totp.php';
+require_once __DIR__ . '/backup.php';
+require_once __DIR__ . '/report.php';
 
 setting('schema_version');
 if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SCHEMA_VERSION) {
@@ -508,7 +512,7 @@ if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SC
 // e-mailové súhrny podľa nastavenia používateľov – kontrola najviac raz za 10 minút
 if (!empty($GLOBALS['_settings_ok']) && PHP_SAPI !== 'cli' && (int)setting('digest_tick', '0') < time() - 600) {
     setting_set('digest_tick', (string)time());
-    defer_task(function () { try { send_due_digests(); } catch (Throwable $e) {} try { expire_versions(); } catch (Throwable $e) {} });
+    defer_task(function () { try { send_due_digests(); } catch (Throwable $e) {} try { expire_versions(); } catch (Throwable $e) {} try { backup_tick(); } catch (Throwable $e) {} try { admin_tick(); } catch (Throwable $e) {} });
 }
 if (!empty($GLOBALS['_settings_ok']) && setting('housekeeping_day') !== date('Y-m-d')) {
     defer_task(function () { housekeeping(); });
