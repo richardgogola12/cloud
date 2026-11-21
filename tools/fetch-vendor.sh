@@ -25,6 +25,19 @@ get jspreadsheet-ce@4.13.4/dist/jspreadsheet.min.css          jspreadsheet/jspre
 get jsuites@4.17.7/dist/jsuites.min.js                        jspreadsheet/jsuites.js
 get jsuites@4.17.7/dist/jsuites.min.css                       jspreadsheet/jsuites.css
 get @formulajs/formulajs@4.4.9/lib/browser/formula.min.js     jspreadsheet/formula.js
+# celé balíky z npm (priečinky s obrázkami a písmami)
+npmget() { local tmp; tmp=$(mktemp -d); (cd "$tmp" && npm pack "$1" --silent >/dev/null && tar xzf ./*.tgz); mkdir -p "$D/$3"; cp -r "$tmp/package/$2/." "$D/$3/"; rm -rf "$tmp"; echo "  $3/ ($1)"; }
+npmget luckysheet@2.1.13 dist luckysheet
+npmget luckyexcel@1.0.1 dist luckyexcel
+# grafy v tabuľkách (Luckysheet ich inak načítava z cudzích serverov)
+get vue@2.6.11/dist/vue.min.js                                 luckysheet-deps/vue.min.js
+get vuex@3.4.0/dist/vuex.min.js                                luckysheet-deps/vuex.min.js
+get element-ui@2.13.2/lib/index.js                             luckysheet-deps/element-ui.js
+get element-ui@2.13.2/lib/theme-chalk/index.css                luckysheet-deps/element-ui.css
+get element-ui@2.13.2/lib/theme-chalk/fonts/element-icons.woff luckysheet-deps/fonts/element-icons.woff
+get element-ui@2.13.2/lib/theme-chalk/fonts/element-icons.ttf  luckysheet-deps/fonts/element-icons.ttf
+get echarts@4.8.0/dist/echarts.min.js                          luckysheet-deps/echarts.min.js
+get jszip@3.10.1/dist/jszip.min.js                             jszip/jszip.min.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
 # Jspreadsheet pri prvom spustení načíta logo z bossanova.uk – Cloud nechodí na cudzie servery
