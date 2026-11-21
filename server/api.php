@@ -694,6 +694,22 @@ try {
         json_out(['ok' => true]);
     }
 
+    /* prehrávač videa: kde si skončil (na serveri, nie v zariadení) – posledných 200 videí */
+    case 'video_pos': {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) json_out(['ok' => false, 'error' => 'Chýba video.']);
+        need(file_access($uid, $id), 'view');
+        $prefs = user_prefs($user);
+        $vp = is_array($prefs['vpos'] ?? null) ? $prefs['vpos'] : [];
+        if (!isset($_POST['pos'])) json_out(['ok' => true, 'pos' => (int)($vp[$id][0] ?? 0)]);
+        $pos = max(0, (int)$_POST['pos']);
+        unset($vp[$id]);
+        if ($pos > 0) $vp[$id] = [$pos, max(0, (int)($_POST['dur'] ?? 0)), time()];
+        if (count($vp) > 200) $vp = array_slice($vp, -200, null, true);
+        $prefs['vpos'] = $vp;
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+        json_out(['ok' => true]);
+    }
     case 'prefs_save': { // osobné nastavenia zobrazenia (napr. stĺpce v zozname) – platia na webe aj v aplikácii
         $key = (string)($_POST['key'] ?? '');
         if ($key === 'digest') { // '0' / '1' alebo {"freq":"weekly","dow":1,"dom":1,"hour":8}

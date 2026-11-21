@@ -1188,7 +1188,9 @@
   /* ---------------- náhľad ---------------- */
   let pvIdx = -1;
   const pvList = () => (typeof pvOverride !== 'undefined' && pvOverride) || state.items.filter(i => i.type === 'f');
+  let pvPlayer = null;
   async function preview(it) {
+    if (pvPlayer) { pvPlayer.destroy(); pvPlayer = null; }
     const files = pvList();
     pvIdx = files.findIndex(f => f.id === it.id);
     const body = $('#previewBody');
@@ -1208,7 +1210,16 @@
       const done = () => box.classList.add('loaded');
       if (full.complete && full.naturalWidth) done(); else { full.onload = done; full.onerror = () => { done(); toast('Fotku sa nepodarilo načítať', 'danger'); }; }
     }
-    else if (m.startsWith('video/')) body.innerHTML = '<video src="' + u + '" controls autoplay playsinline></video>';
+    else if (m.startsWith('video/')) {
+      // titulky: súbor .vtt alebo .srt s rovnakým názvom v tej istej zložke
+      const stem = it.name.replace(/\.[^.]+$/, '').toLowerCase();
+      const subs = state.items.filter(f => f.type === 'f' && f.id !== it.id && /\.(vtt|srt)$/i.test(f.name) && f.name.toLowerCase().replace(/(\.[a-z]{2,3})?\.(vtt|srt)$/i, '') === stem)
+        .map(f => ({ url: fileUrl(f.id, true), srt: /\.srt$/i.test(f.name), label: (f.name.match(/\.([a-z]{2,3})\.(vtt|srt)$/i) || [])[1] || 'Titulky' }));
+      pvPlayer = CloudVideo.mount(body, { src: u, id: it.id, name: it.name, subs,
+        poster: it.thumb ? base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') : '',
+        download: fileUrl(it.id), openApp: IN_APP ? appUrl('open', it) : '',
+        onEnded: () => { if (slideOn) slideNext(); } });
+    }
     else if (m.startsWith('audio/')) body.innerHTML = '<div class="text-center"><i class="bi bi-music-note-beamed display-1 d-block mb-4 text-white-50"></i><audio src="' + u + '" controls autoplay></audio></div>';
     else if (m === 'application/pdf' && (IN_APP || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))) {
       // mobil: prehliadač PDF v stránke nezobrazí → v aplikácii vstavaný prehliadač, inak nová karta
@@ -1272,15 +1283,15 @@
   const pvStep = (d) => { const n = pvList()[pvIdx + d]; if (n) preview(n); };
   $('#previewPrev').onclick = () => pvStep(-1);
   $('#previewNext').onclick = () => pvStep(1);
-  $('#previewModal').addEventListener('hidden.bs.modal', () => { $('#previewBody').innerHTML = ''; });
+  $('#previewModal').addEventListener('hidden.bs.modal', () => { if (pvPlayer) { pvPlayer.destroy(); pvPlayer = null; } $('#previewBody').innerHTML = ''; });
   document.addEventListener('keydown', (e) => {
     if (!$('#previewModal').classList.contains('show')) return;
-    if (e.key === 'ArrowLeft') pvStep(-1); if (e.key === 'ArrowRight') pvStep(1);
+    if (e.key === 'ArrowLeft') pvStep(-1); if (e.key === 'ArrowRight') pvStep(1); // pri videe šípky posúvajú video, súbor sa mení so Shift
   });
   (() => { // swipe na mobile
     let x0 = null;
     $('#previewBody').addEventListener('touchstart', e => x0 = e.touches[0].clientX, { passive: true });
-    $('#previewBody').addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60 && !e.target.closest('.sheet-preview,.doc-preview,.preview-text')) pvStep(dx < 0 ? 1 : -1); x0 = null; });
+    $('#previewBody').addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60 && !e.target.closest('.sheet-preview,.doc-preview,.preview-text,.cv-ctrl,.cv-resume')) pvStep(dx < 0 ? 1 : -1); x0 = null; });
   })();
 
   /* ---------------- kontextové menu ---------------- */
@@ -1761,8 +1772,7 @@
   function scheduleSlide() {
     clearTimeout(slideT);
     if (!slideOn) return;
-    const vid = $('#previewBody video');
-    if (vid) { vid.onended = () => slideOn && slideNext(); return; }
+    if ($('#previewBody video')) return; // video pokračuje na ďalší súbor samo po skončení (onEnded)
     slideT = setTimeout(slideNext, 4000);
   }
   function slideNext() {

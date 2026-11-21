@@ -192,7 +192,7 @@ require __DIR__ . '/inc/views/head.php';
   <h1 class="h4 fw-bold text-break mb-3"><?= e($root['name']) ?> <span class="fs-6 fw-normal text-body-secondary"><?= format_bytes($root['size']) ?></span></h1>
   <div class="share-preview card-soft">
     <?php if (preg_match('#^image/(jpeg|png|gif|webp|bmp)#', $m)): ?><img src="<?= $u ?>" alt="">
-    <?php elseif (str_starts_with($m, 'video/')): ?><video src="<?= $u ?>" controls playsinline></video>
+    <?php elseif (str_starts_with($m, 'video/')): ?><div class="share-video" data-cv-src="<?= $u ?>" data-cv-name="<?= e($root['name']) ?>"><video src="<?= $u ?>" controls playsinline></video></div>
     <?php elseif (str_starts_with($m, 'audio/')): ?><audio src="<?= $u ?>" controls></audio>
     <?php elseif ($m === 'application/pdf'): ?><iframe src="<?= $u ?>" title="PDF"></iframe>
     <?php else: ?>
@@ -229,5 +229,7 @@ require __DIR__ . '/inc/views/head.php';
 <?php endif; ?>
 </main>
 <?php require __DIR__ . '/inc/views/scripts.php'; ?>
+<script src="<?= e(url('assets/js/video.js')) ?>?v=<?= e(APP_VERSION) ?>"></script>
+<script>document.querySelectorAll('[data-cv-src]').forEach(el => CloudVideo.mount(el, { src: el.dataset.cvSrc, name: el.dataset.cvName, autoplay: false, download: el.dataset.cvSrc.replace('&inline=1', '') }));</script>
 </body>
 </html>

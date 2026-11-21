@@ -971,6 +971,16 @@ ok($sent, 'súhrn sa v nastavený čas spracuje automaticky');
 $web->api('prefs_save', ['key' => 'digest', 'value' => '1']);
 ok(preg_match('/<option value="daily" selected/', $web->get('profile.php')['body']) === 1, 'zapnutie súhrnu ponechá zvolenú frekvenciu');
 
+section('Prehrávač videa – pokračovanie od miesta');
+$j = $web->api('video_pos', ['id' => $fileId]);
+ok(!empty($j['ok']) && ($j['pos'] ?? -1) === 0, 'video bez uloženej pozície začne od začiatku', json_encode($j));
+ok(!empty($web->api('video_pos', ['id' => $fileId, 'pos' => 754, 'dur' => 3600])['ok']), 'uloženie pozície videa');
+ok(($web->api('video_pos', ['id' => $fileId])['pos'] ?? 0) === 754, 'pozícia sa pamätá na serveri (12:34)');
+$web->api('video_pos', ['id' => $fileId, 'pos' => 0]);
+ok(($web->api('video_pos', ['id' => $fileId])['pos'] ?? -1) === 0, 'po dopozeraní sa pozícia zabudne');
+$r = $web->get('index.php');
+ok(str_contains($r['body'], 'assets/js/video.js'), 'prehrávač je na stránke');
+
 section('Príručky a rýchly sprievodca');
 $r = $web->get('help.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'id="helpDoc"') && str_contains($r['body'], 'Zamknuté zložky') && str_contains($r['body'], 'Aplikácia pre Android'), 'používateľská príručka');
