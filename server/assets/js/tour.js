@@ -8,9 +8,9 @@
     { icon: 'bi-cloud-arrow-up', title: '1. Nahrávanie súborov', img: 'tour-1',
       text: 'Klikni na <b>+ Nový</b> → <b>Nahrať súbory</b> alebo <b>Nahrať zložku</b>. Ešte rýchlejšie: súbory jednoducho <b>potiahni myšou</b> do okna. Veľké súbory sa nahrávajú po častiach a pri výpadku siete pokračujú tam, kde skončili.' },
     { icon: 'bi-folder-plus', title: '2. Zložky a poriadok', img: 'tour-2',
-      text: 'Vytvor si zložky (<b>+ Nový → Nová zložka</b>) a súbory do nich presúvaj potiahnutím. Zložkám môžeš dať <b>farbu</b> a <b>štítky</b>. Vpravo hore prepínaš <b>zoznam</b> a <b>mriežku</b> – každé miesto si pamätá svoje.' },
+      text: 'Vytvor si zložky (<b>+ Nový → Nová zložka</b>) a súbory do nich presúvaj potiahnutím. Zložkám môžeš dať <b>farbu</b> a <b>štítky</b>. Vpravo hore prepínaš <b>zoznam</b> a <b>mriežku</b> – každé miesto si pamätá svoje. Keď sa vrátiš o úroveň vyššie, zložka, z ktorej ideš, <b>blikne</b>.' },
     { icon: 'bi-three-dots-vertical', title: '3. Ponuka akcií', img: 'tour-3',
-      text: 'Pravým klikom na súbor (v mobile cez <b>⋮</b>) otvoríš všetky akcie: stiahnuť, zdieľať, štítky a farba, premenovať, presunúť, kópia, hviezdička, verzie, informácie, aktivita (história zmien) a presun do koša.' },
+      text: 'Pravým klikom na súbor (v mobile cez <b>⋮</b>) otvoríš všetky akcie: stiahnuť, zdieľať, štítky a farba, premenovať, presunúť, kópia, hviezdička, verzie, informácie, aktivita (história zmien) a presun do koša. Tabuľky (.xlsx) <b>upravíš</b> v editore ako Google Tabuľky a fotky orežeš priamo v Cloude.' },
     { icon: 'bi-share', title: '4. Zdieľanie', img: 'tour-4',
       text: 'Cez <b>Zdieľať</b> pridáš ľudí z Cloudu (iba čítanie alebo aj úpravy), alebo vytvoríš <b>verejný odkaz</b> – s heslom, dátumom platnosti a pri zložke aj s možnosťou, aby ti iní nahrali súbory.' },
     { icon: 'bi-search', title: '5. Vyhľadávanie', img: 'tour-5',
@@ -18,13 +18,13 @@
     { icon: 'bi-images', title: '6. Fotky a albumy', img: 'tour-6',
       text: 'V sekcii <b>Fotky</b> sú všetky obrázky a videá zoradené podľa dátumu. Môžeš si robiť <b>albumy</b>, spustiť <b>prezentáciu</b> a pozrieť si fotky <b>„V tento deň“</b> z minulých rokov.' },
     { icon: 'bi-clock-history', title: '7. Verzie a kôš – nič sa nestratí', img: 'tour-7',
-      text: 'Pri nahratí súboru s rovnakým názvom sa starý uloží ako <b>verzia</b> – kedykoľvek ho obnovíš. Zmazané položky sú v <b>Koši</b>. Celú zložku vieš dokonca <b>vrátiť do stavu z ľubovoľného dňa</b>.' },
+      text: 'Pri úprave alebo nahratí súboru s rovnakým názvom sa starý uloží ako <b>verzia</b> – kedykoľvek ho obnovíš. Ako dlho sa verzie držia, si nastavíš v Môj účet a pred zmazaním ťa Cloud upozorní. Zmazané položky sú v <b>Koši</b>. Celú zložku vieš dokonca <b>vrátiť do stavu z ľubovoľného dňa</b>.' },
     { icon: 'bi-lock-fill', title: '8. Zamknuté zložky', img: 'tour-8',
       text: 'Citlivé veci (doklady, heslá) daj do zložky zamknutej <b>heslom</b> – v aplikácii ju otvoríš aj <b>odtlačkom prsta</b>. Sám si zvolíš, kedy sa má zložka znova zamknúť.' },
     { icon: 'bi-phone', title: '9. Aplikácia v mobile', img: 'tour-9',
       text: 'V <b>Môj účet</b> si stiahneš aplikáciu pre Android: automaticky zálohuje fotky z mobilu, synchronizuje zvolené zložky a súbory doň pošleš cez <b>Zdieľať → Cloud</b>. Menu otvoríš potiahnutím prsta doprava.' },
     { icon: 'bi-person-gear', title: '10. Tvoj účet a pomoc', img: 'tour-10',
-      text: 'V <b>Môj účet</b> zmeníš heslo, nastavíš <b>prihlásenie odtlačkom prsta</b>, e-mailový súhrn (kedy a ako často chodí), stĺpce v zozname a sieťový disk. Kompletný návod nájdeš v menu <b>Pomoc → Príručka</b>. Na počítači stlač <kbd>?</kbd> pre klávesové skratky.' },
+      text: 'V <b>Môj účet</b> zmeníš heslo, nastavíš <b>prihlásenie odtlačkom prsta</b>, e-mailový súhrn (kedy a ako často chodí), bliknutie pri návrate, ako dlho uchovávať verzie, stĺpce v zozname a sieťový disk. Kompletný návod nájdeš v menu <b>Pomoc → Príručka</b>. Na počítači stlač <kbd>?</kbd> pre klávesové skratky.' },
   ];
   let i = 0, modal = null, finished = false;
   function build() {

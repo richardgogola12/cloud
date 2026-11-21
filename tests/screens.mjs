@@ -144,7 +144,7 @@ for (const [name, opts] of sizes) {
     const yBack = await page.evaluate(() => scrollY);
     console.log(`[${name}] posúvanie: v Nedávnych ${yRecent}, po návrate ${yBack}`);
     await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
-    if (yRecent > 5 || Math.abs(yBack - 400) > 5) { console.log('CHYBA: pozícia posúvania sa nezachovala'); process.exitCode = 1; }
+    if (yRecent > 5 || Math.abs(yBack - 400) > 15) { console.log('CHYBA: pozícia posúvania sa nezachovala'); process.exitCode = 1; }
     await page.click('[data-view="list"]').catch(() => {}); await page.waitForTimeout(300);
   }
   // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)

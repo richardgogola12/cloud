@@ -74,7 +74,7 @@ client_max_body_size 520m;   # aspoň veľkosť jednej časti nahrávania</pre>
     <tr><td><code>smtp_*</code></td><td>Odosielanie e-mailov (dá sa nastaviť aj v Administrácii → E-mail)</td></tr>
     <tr><td><code>encryption_key</code></td><td>Voliteľný hlavný kľúč šifrovania; inak sa vytvorí <code>secret.key.php</code></td></tr>
     <tr><td><code>tools_path</code></td><td>Voliteľné priečinky s ffmpeg / pdftotext (oddelené <code>;</code>)</td></tr>
-    <tr><td><code>update_repo</code></td><td>GitHub repozitár s vydaniami (predvolene richardgogola12/cloud)</td></tr>
+    <tr><td><code>update_repo</code></td><td>GitHub repozitár s vydaniami v tvare <code>vlastník/repozitár</code></td></tr>
   </tbody>
 </table>
 <div class="warn"><code>config.php</code> a <code>secret.key.php</code> nikdy nedávaj do verejného repozitára (sú v .gitignore) a zálohuj ich.</div>
@@ -94,6 +94,7 @@ upozornenie na nové zariadenie, počet dní v koši a počet verzií. Hodnoty s
 <?= fig('a-pouzivatelia', 'Správa používateľov.') ?>
 <p>Schvaľovanie registrácií, rola (používateľ / administrátor), aktívny účet, kvóta (aj hromadne), nové heslo (voliteľne poslať e-mailom),
 odhlásenie zo všetkých zariadení, aktivita a zmazanie používateľa so všetkými súbormi.</p>
+<div class="note"><b>Verzie súborov:</b> administrátor v nastaveniach určuje <b>najväčší počet verzií</b> na súbor (<code>max_versions</code>, predvolene 10). Každý používateľ si navyše v Môj účet nastaví, <b>ako dlho</b> sa jeho verzie uchovávajú (<code>prefs.version_days</code>, 0 = bez limitu, inak 1–3650 dní od vzniku verzie). Platí to, čo nastane skôr. Verzie zaberajú miesto v kvóte používateľa.</div>
 <h3>E-mail (SMTP)</h3>
 <?= fig('a-smtp', 'Nastavenie SMTP a testovací e-mail.') ?>
 <h3>Záznamy</h3>
@@ -114,9 +115,10 @@ odhlásenie zo všetkých zariadení, aktivita a zmazanie používateľa so vše
 <?= h2('databaza', 'bi-database', 'Databáza a migrácie') ?>
 <table class="table table-sm">
   <tbody>
-    <tr><td><code>users</code></td><td>účty (rola, kvóta, <code>prefs</code> JSON – stĺpce, súhrn, sprievodca…)</td></tr>
+    <tr><td><code>users</code></td><td>účty (rola, kvóta, <code>prefs</code> JSON – stĺpce, súhrn, sprievodca, <code>flash</code>/<code>flash_time</code> – bliknutie pri návrate, <code>version_days</code> – doba uchovania verzií…)</td></tr>
     <tr><td><code>folders</code>, <code>files</code></td><td>strom zložiek a súbory (<code>stored_name</code>, <code>enc_key</code>, <code>sha256</code>, <code>taken_at</code>, <code>deleted_at</code>, farba, hviezdička, <code>lock_hash</code>/<code>lock_mode</code> pri zložkách)</td></tr>
-    <tr><td><code>file_versions</code></td><td>staršie verzie súborov</td></tr>
+    <tr><td><code>file_versions</code></td><td>staršie verzie súborov (<code>created_at</code> = dátum obsahu, <code>versioned_at</code> = kedy verzia vznikla – od neho sa ráta doba uchovania, <code>warned_at</code> = kedy prišlo upozornenie pred zmazaním)</td></tr>
+    <tr><td><code>sheet_extras</code></td><td>grafy z editora tabuliek, ktoré .xlsx neudrží (platia iba pre verziu súboru, ku ktorej boli uložené)</td></tr>
     <tr><td><code>shares</code>, <code>user_shares</code></td><td>verejné odkazy (token, heslo, platnosť, režim) a zdieľanie s používateľmi</td></tr>
     <tr><td><code>tags</code>, <code>item_tags</code></td><td>štítky</td></tr>
     <tr><td><code>albums</code>, <code>album_items</code></td><td>albumy fotiek</td></tr>
@@ -175,6 +177,9 @@ Podporuje PROPFIND, PROPPATCH, HEAD, GET (Range), PUT, MKCOL, MOVE, COPY, DELETE
   <li><code>drive.js</code> – stav (<code>state</code>: view, folder, items, výber, zoradenie), smerovanie cez <code>location.hash</code> (<code>#folder/ID</code>, <code>#recent</code>, <code>#album/ID</code>…), vykresľovanie zoznamu/mriežky (postupne po 300 položkách), zoradenie v prehliadači pre zobrazenia mimo zložky, kontextová ponuka, dialógy, nahrávanie po častiach, náhľad, fotky, klávesové skratky.</li>
   <li>Cache zoznamov je <b>iba v pamäti</b> (<code>lcMem</code>), prednačítanie zložiek pri prejdení myšou.</li>
   <li>Rozloženie zoznam/mriežka sa pamätá pre každé miesto (<code>cloud-layouts</code> v localStorage); podzložky dedia.</li>
+  <li>Pozícia posúvania sa pamätá pre každé miesto iba v pamäti stránky (<code>scrollMem</code>). Pri návrate o úroveň vyššie sa zložka, z ktorej sa prišlo, posunie do viditeľnej časti a blikne (<code>flashLater()</code> / <code>ensureTarget()</code> – kontroluje po každom vykreslení, posúva bez plynulej animácie). Odkaz <code>#folder/ID?ver=FILE</code> otvorí okno Verzie daného súboru.</li>
+  <li>Panel hromadných akcií (<code>#selBar</code>) prekryje riadok s cestou, takže sa pri výbere nič neposunie.</li>
+  <li><code>sheet.php</code> + <code>lsheet.js</code> + <code>lsheet-io.js</code> – editor tabuliek (Luckysheet) v rámci nad diskom; <code>sheet.js</code> ho otvára a vymieňa si s ním správy (<code>postMessage</code>).</li>
   <li><code>common.js</code> – <code>Cloud.api</code>, toasty, potvrdenia, menu účtov, gesto potiahnutia pre menu v mobile.</li>
   <li><code>tour.js</code> – rýchly sprievodca (10 krokov), <code>window.cloudTour()</code>; „Viac nezobrazovať“ uloží <code>prefs.tour = 'done'</code>.</li>
   <li>Texty sú po slovensky priamo v kóde; dizajn podľa Google Disku (premenné <code>--c-*</code> v <code>app.css</code>, tmavý režim cez <code>data-bs-theme</code>).</li>
@@ -193,6 +198,7 @@ Podporuje PROPFIND, PROPPATCH, HEAD, GET (Range), PUT, MKCOL, MOVE, COPY, DELETE
 <?= h2('procesy', 'bi-gear-wide-connected', 'Úlohy na pozadí') ?>
 <ul>
   <li><b>Denná údržba</b> (<code>housekeeping()</code>, prvá požiadavka dňa): vysypanie koša po N dňoch, upozornenie 3 dni vopred, staré nahrávania a dočasné súbory, štatistika, kontrola nových verzií servera.</li>
+  <li><b>Staré verzie</b> (<code>expire_versions()</code>, najviac raz za 10 minút a pri dennej údržbe): podľa <code>prefs.version_days</code> zmaže verzie staršie ako nastavená doba (od <code>versioned_at</code>). Vopred pošle jedno súhrnné upozornenie (<code>warn_versions()</code>): pri dobe od 7 dní 72 h, pri 2–6 dňoch 24 h, pri 1 dni 6 h vopred; každá verzia sa ohlási iba raz.</li>
   <li><b>E-mailové súhrny</b> (<code>send_due_digests()</code>, najviac raz za 10 minút pri návšteve webu): každý používateľ má v <code>prefs.digest</code> frekvenciu (daily / weekly / biweekly / monthly / off), deň v týždni, deň v mesiaci a hodinu; <code>digest_slot()</code> vypočíta posledný termín, <code>prefs.digest_last</code> zabráni dvojitému odoslaniu.</li>
   <li><b>Úlohy po odpovedi</b> – <code>defer_task()</code> spustí kód až po odoslaní odpovede (miniatúry, index obsahu), aby používateľ nečakal.</li>
 </ul>

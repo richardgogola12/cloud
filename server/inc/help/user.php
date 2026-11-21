@@ -273,7 +273,7 @@ Zložku kedykoľvek hneď zamkneš cez <b>Zamknúť teraz</b> (v ponuke zložky 
 <div class="tip">Zabudol si heslo zložky? V okne <b>Heslo zložky…</b> ho môžeš zmeniť zadaním <b>hesla k svojmu účtu</b>.</div>
 
 <?= h2('ucet', 'bi-person-gear', 'Môj účet') ?>
-<?= fig('u-profil', 'Môj účet – osobné údaje, heslo, zariadenia, odtlačok prsta, stĺpce, e-mailový súhrn, sieťový disk.') ?>
+<?= fig('u-profil', 'Môj účet – osobné údaje, heslo, zariadenia, odtlačok prsta, zobrazenie, verzie súborov, stĺpce, e-mailový súhrn, sieťový disk.') ?>
 <h3>Osobné údaje a profilová fotka</h3>
 <p>Zmeníš meno, e-mail (nový e-mail treba potvrdiť) a profilovú fotku. Fotka je na serveri uložená zašifrovaná.</p>
 <h3>Heslo a prihlásené zariadenia</h3>
@@ -294,6 +294,14 @@ Nastavíš si:</p>
 <p>Pod výberom vidíš, kedy príde najbližší. <b>Poslať ukážku teraz</b> ti ho pošle hneď. Ak sa za obdobie nič nestalo, e-mail nepríde.</p>
 <h3>Stĺpce v zozname</h3>
 <?= fig('u-stlpce', 'Výber stĺpcov pre jednotlivé zobrazenia.') ?>
+<h3>Zobrazenie – bliknutie pri návrate</h3>
+<p>Keď sa vrátiš do nadradenej zložky (šípkou Späť, v telefóne tlačidlom Späť alebo kliknutím v ceste hore), Cloud sa posunie tam, kde si bol, a zložka,
+z ktorej prichádzaš, je vždy vidieť a krátko <b>blikne na modro</b>. To isté spraví súbor po zavretí náhľadu či editora. V časti <b>Zobrazenie</b> bliknutie
+vypneš alebo zvolíš jeho dĺžku (0,5 s až 8 s, predvolene 2 s) – tlačidlo <b>Vyskúšať</b> ukáže, ako bude vyzerať.</p>
+<h3>Verzie súborov</h3>
+<p>Nastavíš, ako dlho sa uchovávajú staré verzie: <b>bez časového limitu</b>, 1 deň až rok, alebo <b>vlastný počet dní</b> (najmenej 1). Čas sa ráta od chvíle, keď verzia vznikla.
+Ak skrátiš dobu, Cloud sa najprv opýta, lebo staršie verzie sa zmažú hneď. Pred zmazaním ti príde <b>upozornenie</b> so zoznamom súborov, ktorých verzie sa čoskoro zmažú –
+kliknutím naň sa otvoria Verzie prvého z nich. Počet verzií na súbor (predvolene 10) určuje administrátor.</p>
 <h3>Sieťový disk (WebDAV)</h3>
 <?= fig('u-webdav', 'Údaje na pripojenie Cloudu ako sieťového disku.') ?>
 <p>Cloud si môžeš pripojiť ako bežný disk vo <b>Windows</b> (Tento počítač → Pripojiť sieťovú jednotku), na <b>Macu</b> (Finder → Pripojiť k serveru)
@@ -304,7 +312,7 @@ heslo sa zobrazí iba raz, tak si ho skopíruj). Tvoje hlavné heslo sa tak v po
 <p>Kliknutím na avatar vpravo hore vidíš uložené účty. <b>Pridať účet</b> ťa prihlási do ďalšieho účtu bez odhlásenia z prvého;
 medzi účtami potom prepínaš jedným klikom. <b>Odhlásiť všetky</b> odhlási všetky účty v tomto prehliadači.</p>
 <h3>Upozornenia</h3>
-<p>Zvonček hore ukazuje nové udalosti: zdieľanie, nahratie cez verejný odkaz, dochádzajúce miesto, kôš pred vysypaním, prihlásenie z nového zariadenia.
+<p>Zvonček hore ukazuje nové udalosti: zdieľanie, nahratie cez verejný odkaz, dochádzajúce miesto, kôš pred vysypaním, staré verzie pred zmazaním, prihlásenie z nového zariadenia.
 Kliknutím na upozornenie sa presunieš na dané miesto.</p>
 <h3>Miesto na disku</h3>
 <p>Dole v menu vidíš obsadené miesto a limit. Pri 80 % ťa Cloud upozorní. Miesto uvoľníš zmazaním súborov, <b>vysypaním koša</b>,
