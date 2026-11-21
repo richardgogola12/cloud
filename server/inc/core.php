@@ -508,7 +508,7 @@ if (!empty($GLOBALS['_settings_ok']) && (int)setting('schema_version', '1') < SC
 // e-mailové súhrny podľa nastavenia používateľov – kontrola najviac raz za 10 minút
 if (!empty($GLOBALS['_settings_ok']) && PHP_SAPI !== 'cli' && (int)setting('digest_tick', '0') < time() - 600) {
     setting_set('digest_tick', (string)time());
-    defer_task(function () { try { send_due_digests(); } catch (Throwable $e) {} });
+    defer_task(function () { try { send_due_digests(); } catch (Throwable $e) {} try { expire_versions(); } catch (Throwable $e) {} });
 }
 if (!empty($GLOBALS['_settings_ok']) && setting('housekeeping_day') !== date('Y-m-d')) {
     defer_task(function () { housekeeping(); });

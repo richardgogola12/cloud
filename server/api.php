@@ -730,6 +730,14 @@ try {
             $c2 = digest_cfg($u2); $nx = digest_next($c2);
             json_out(['ok' => true, 'cfg' => $c2, 'when' => digest_when_text($c2), 'next' => $nx ? date('j. n. Y \o G:i', $nx) : null]);
         }
+        if ($key === 'version_days') { // ako dlho uchovávať staré verzie (dni od vzniku verzie, najmenej 1); 0 = bez časového limitu
+            $prefs = user_prefs($user);
+            $d = (int)($_POST['value'] ?? 0);
+            $prefs['version_days'] = $d > 0 ? max(1, min(3650, $d)) : 0;
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            $gone = $prefs['version_days'] ? expire_versions($uid) : 0;
+            json_out(['ok' => true, 'days' => $prefs['version_days'], 'removed' => $gone, 'quota' => quota_info($user)]);
+        }
         if ($key === 'flash') { // bliknutie položky po návrate (predvolene zapnuté)
             $prefs = user_prefs($user);
             if (isset($_POST['time'])) $prefs['flash_time'] = max(0.5, min(10, round((float)$_POST['time'], 1)));
@@ -845,10 +853,13 @@ try {
     case 'versions': {
         $a = file_access($uid, (int)($_POST['id'] ?? 0)); $f = $a['row'];
         $list = [['id' => 0, 'current' => true, 'size' => (int)$f['size'], 'size_h' => format_bytes($f['size']), 'date' => $f['updated_at']]];
+        $own = q('SELECT id, prefs FROM ' . P . 'users WHERE id = ?', [$a['owner']])->fetch() ?: [];
+        $vd = $own ? version_days($own) : 0;
         foreach (q("SELECT * FROM $V WHERE file_id = ? ORDER BY created_at DESC, id DESC", [$f['id']]) as $v) {
-            $list[] = ['id' => (int)$v['id'], 'current' => false, 'size' => (int)$v['size'], 'size_h' => format_bytes($v['size']), 'date' => $v['created_at']];
+            $list[] = ['id' => (int)$v['id'], 'current' => false, 'size' => (int)$v['size'], 'size_h' => format_bytes($v['size']), 'date' => $v['created_at'],
+                       'expires' => $vd && !empty($v['versioned_at']) ? date('Y-m-d H:i:s', strtotime($v['versioned_at']) + $vd * 86400) : null];
         }
-        json_out(['ok' => true, 'name' => $f['name'], 'versions' => $list, 'can_edit' => PERM_LEVEL[$a['perm']] >= 2, 'max' => (int)setting('max_versions', '10')]);
+        json_out(['ok' => true, 'name' => $f['name'], 'versions' => $list, 'can_edit' => PERM_LEVEL[$a['perm']] >= 2, 'max' => (int)setting('max_versions', '10'), 'days' => $vd]);
     }
 
     case 'version_restore': {

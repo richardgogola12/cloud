@@ -1203,14 +1203,15 @@
     const r = await api('api.php?action=versions', { id: it.id });
     if (!r.ok) return toast(r.error, 'danger');
     $('#verTitle').textContent = 'Verzie „' + r.name + '“';
-    $('#verHint').textContent = 'Pri nahratí súboru s rovnakým názvom sa uloží nová verzia. Uchováva sa ' + r.max + ' posledných verzií.';
+    $('#verHint').textContent = 'Pri úprave alebo nahratí súboru s rovnakým názvom sa uloží nová verzia. Uchováva sa najviac ' + r.max + ' posledných verzií'
+      + (r.days ? ', každá ' + r.days + (r.days === 1 ? ' deň' : r.days < 5 ? ' dni' : ' dní') + ' od vzniku (Môj účet → Verzie súborov).' : '.');
     $('#verUploadBtn').classList.toggle('d-none', !r.can_edit);
     const ul = $('#verList'); ul.innerHTML = '';
     r.versions.forEach((v, i) => {
       const li = document.createElement('li');
       li.className = 'list-group-item px-0 d-flex align-items-center gap-2';
       li.innerHTML = '<i class="bi ' + (v.current ? 'bi-check-circle-fill text-success' : 'bi-clock-history text-body-secondary') + ' fs-5"></i>'
-        + '<div class="flex-grow-1"><div class="fw-semibold">' + esc(fmtFull(v.date)) + (v.current ? ' <span class="badge text-bg-success">aktuálna</span>' : '') + '</div><div class="small text-body-secondary">' + esc(v.size_h) + '</div></div>'
+        + '<div class="flex-grow-1"><div class="fw-semibold">' + esc(fmtFull(v.date)) + (v.current ? ' <span class="badge text-bg-success">aktuálna</span>' : '') + '</div><div class="small text-body-secondary">' + esc(v.size_h) + (v.expires ? ' · zmaže sa ' + esc(fmtFull(v.expires)) : '') + '</div></div>'
         + '<a class="btn btn-icon" title="Stiahnuť" href="' + fileUrl(it.id, false, v.current ? 0 : v.id) + '"><i class="bi bi-download"></i></a>'
         + (!v.current && r.can_edit ? '<button class="btn btn-icon" data-act="restore" title="Obnoviť túto verziu"><i class="bi bi-arrow-counterclockwise"></i></button><button class="btn btn-icon text-danger" data-act="del" title="Zmazať verziu"><i class="bi bi-trash3"></i></button>' : '');
       li.querySelector('[data-act="restore"]')?.addEventListener('click', async () => {

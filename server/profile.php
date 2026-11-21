@@ -248,6 +248,44 @@ $used = used_space($uid);
       Cloud.toast(r.ok ? (e.target.checked ? 'Zvýrazňovanie zapnuté' : 'Zvýrazňovanie vypnuté') : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
     });
     </script>
+    <?php $vdays = version_days($user); $vmax = (int)setting('max_versions', '10'); $vpre = [1, 2, 3, 7, 14, 30, 60, 90, 180, 365]; ?>
+    <div class="card card-soft mb-4" id="versions">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-clock-history me-2"></i>Verzie súborov</h2>
+        <p class="small text-body-secondary mb-2">Keď súbor upravíš alebo nahráš znova, predchádzajúci obsah sa uloží ako verzia. Tu nastavíš, ako dlho sa staré verzie uchovávajú –
+          počíta sa od chvíle, keď verzia vznikla. Navyše sa vždy drží najviac <?= $vmax ?> posledných verzií každého súboru (nastavuje administrátor).</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <label class="small fw-semibold" for="verDays">Uchovávať</label>
+          <select class="form-select form-select-sm w-auto" id="verDays">
+            <option value="0" <?= $vdays === 0 ? 'selected' : '' ?>>bez časového limitu</option>
+            <?php foreach ($vpre as $d): ?><option value="<?= $d ?>" <?= $vdays === $d ? 'selected' : '' ?>><?= $d === 1 ? '1 deň' : ($d < 5 ? $d . ' dni' : $d . ' dní') ?></option><?php endforeach; ?>
+            <option value="custom" <?= $vdays && !in_array($vdays, $vpre, true) ? 'selected' : '' ?>>vlastný počet dní…</option>
+          </select>
+          <input type="number" class="form-control form-control-sm <?= $vdays && !in_array($vdays, $vpre, true) ? '' : 'd-none' ?>" id="verDaysN" min="1" max="3650" step="1" style="width:100px" value="<?= $vdays ?: 30 ?>">
+          <button class="btn btn-sm btn-primary rounded-pill px-3" type="button" id="verDaysSave">Uložiť</button>
+        </div>
+        <div class="small mt-2" id="verDaysInfo"><?= $vdays ? 'Staré verzie sa zmažú <b>' . $vdays . ' ' . ($vdays === 1 ? 'deň' : ($vdays < 5 ? 'dni' : 'dní')) . '</b> po vzniku.' : '<span class="text-body-secondary">Staré verzie sa podľa času nemažú.</span>' ?></div>
+      </div>
+    </div>
+    <script>
+    (() => {
+      const sel = document.getElementById('verDays'), num = document.getElementById('verDaysN'), info = document.getElementById('verDaysInfo');
+      const dn = (d) => d === 1 ? 'deň' : d < 5 ? 'dni' : 'dní';
+      let cur = <?= $vdays ?>;
+      sel.addEventListener('change', () => { num.classList.toggle('d-none', sel.value !== 'custom'); if (sel.value === 'custom') num.focus(); });
+      document.getElementById('verDaysSave').addEventListener('click', async () => {
+        let d = sel.value === 'custom' ? parseInt(num.value, 10) : parseInt(sel.value, 10);
+        if (sel.value === 'custom' && !(d >= 1)) { Cloud.toast('Najmenej 1 deň', 'warning'); num.value = 1; return; }
+        d = Math.min(3650, Math.max(0, d || 0));
+        if (d && (!cur || d < cur) && !await Cloud.confirm('Zmazať staršie verzie?', 'Verzie staršie ako ' + d + ' ' + dn(d) + ' sa zmažú hneď a nedajú sa obnoviť.', 'Uložiť', true)) return;
+        const r = await Cloud.api('api.php?action=prefs_save', { key: 'version_days', value: String(d) });
+        if (!r.ok) return Cloud.toast(r.error || 'Chyba', 'danger');
+        cur = r.days;
+        info.innerHTML = r.days ? 'Staré verzie sa zmažú <b>' + r.days + ' ' + dn(r.days) + '</b> po vzniku.' : '<span class="text-body-secondary">Staré verzie sa podľa času nemažú.</span>';
+        Cloud.toast('Uložené' + (r.removed ? ' · zmazaných starých verzií: ' + r.removed : ''), 'success');
+      });
+    })();
+    </script>
     <div class="card card-soft mb-4" id="columns">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-layout-three-columns me-2"></i>Stĺpce v zozname</h2>

@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 20;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -39,6 +39,7 @@ function migrate(): void {
         if ($v < 17) migrate_v17();
         if ($v < 18) migrate_v18();
         if ($v < 19) migrate_v19();
+        if ($v < 20) migrate_v20();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -442,4 +443,11 @@ function migrate_v19(): void {
         data MEDIUMTEXT NOT NULL,
         CONSTRAINT fk_{$p}sx_file FOREIGN KEY (file_id) REFERENCES {$p}files(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/* v20: kedy vznikla verzia (od toho sa počíta, ako dlho sa uchováva) – staré verzie sa rátajú od aktualizácie */
+function migrate_v20(): void {
+    $p = P;
+    add_col("{$p}file_versions", 'versioned_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    if (!idx_exists("{$p}file_versions", 'idx_versioned_at')) db()->exec("ALTER TABLE {$p}file_versions ADD INDEX idx_versioned_at (versioned_at)");
 }

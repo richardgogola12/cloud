@@ -1046,6 +1046,20 @@ $r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart
 preg_match('#CLOUD_SHEET = (\{.*?\});</script>#', $web->get("sheet.php?id=$sheetId")['body'], $m); $cfgJ = json_decode($m[1] ?? '{}', true) ?: [];
 ok(array_key_exists('extras', $cfgJ) && $cfgJ['extras'] === null, 'súbor zmenený inak (bez editora) → staré grafy sa nepoužijú');
 
+section('Ako dlho sa uchovávajú verzie');
+$v0 = $web->api('versions', ['id' => $sheetId]);
+ok(($v0['days'] ?? null) === 0 && count($v0['versions'] ?? []) >= 3, 'predvolene bez časového limitu', json_encode($v0));
+ok(str_contains($web->get('profile.php')['body'], 'id="verDays"'), 'nastavenie v Môj účet');
+$oldest = end($v0['versions'])['id'];
+$pdoS->exec('UPDATE cloud_file_versions SET versioned_at = NOW() - INTERVAL 2 DAY WHERE id = ' . (int)$oldest);
+$j = $web->api('prefs_save', ['key' => 'version_days', 'value' => '1']);
+ok(($j['days'] ?? 0) === 1 && ($j['removed'] ?? 0) === 1, 'nastavenie 1 deň zmaže verziu staršiu ako deň (počíta sa od vzniku verzie)', json_encode($j));
+$v1 = $web->api('versions', ['id' => $sheetId]);
+ok(count($v1['versions']) === count($v0['versions']) - 1 && !in_array($oldest, array_column($v1['versions'], 'id')) && !empty($v1['versions'][1]['expires']), 'stará verzia je preč, ostatné ukazujú dátum zmazania', json_encode($v1));
+ok(($web->api('prefs_save', ['key' => 'version_days', 'value' => '-3'])['days'] ?? null) === 0, 'neplatná hodnota → bez časového limitu');
+ok(($web->api('prefs_save', ['key' => 'version_days', 'value' => '99999'])['days'] ?? null) === 3650, 'najviac 10 rokov');
+$web->api('prefs_save', ['key' => 'version_days', 'value' => '0']);
+
 section('Editor obrázkov');
 $imgF = tempnam(sys_get_temp_dir(), 'i'); $gd = imagecreatetruecolor(40, 30); imagejpeg($gd, $imgF, 85);
 $r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['parent' => '', 'name' => 'Fotka (upravené).jpg', 'data' => new CURLFile($imgF, 'image/jpeg', 'a.jpg')]]);

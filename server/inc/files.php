@@ -384,6 +384,26 @@ function store_file_inner(int $owner, ?int $folder, string $name, string $src, b
     if ($folder) q('UPDATE ' . P . 'folders SET updated_at = NOW() WHERE id = ?', [$folder]);
     return ['id' => $id, 'name' => $name, 'versioned' => $versioned, 'size' => $size];
 }
+/** Ako dlho si používateľ necháva staré verzie (dni od vzniku verzie); 0 = bez časového limitu. */
+function version_days(array $u): int {
+    $d = (int)(user_prefs($u)['version_days'] ?? 0);
+    return $d > 0 ? max(1, min(3650, $d)) : 0;
+}
+/** Zmaže verzie staršie, ako si ich vlastník nastavil uchovávať (počíta sa od vzniku verzie). */
+function expire_versions(?int $onlyUser = null): int {
+    $n = 0;
+    $users = q('SELECT id, prefs FROM ' . P . "users WHERE prefs LIKE '%version_days%'" . ($onlyUser ? ' AND id = ' . (int)$onlyUser : ''))->fetchAll();
+    foreach ($users as $u) {
+        $days = version_days($u); if (!$days) continue;
+        $old = q('SELECT id, stored_name FROM ' . P . 'file_versions WHERE user_id = ? AND versioned_at < (NOW() - INTERVAL ' . $days . ' DAY) LIMIT 2000', [$u['id']])->fetchAll();
+        foreach ($old as $v) {
+            @unlink(storage_dir((int)$u['id']) . '/' . $v['stored_name']);
+            q('DELETE FROM ' . P . 'file_versions WHERE id = ?', [$v['id']]);
+            $n++;
+        }
+    }
+    return $n;
+}
 function prune_versions(int $fileId, int $owner): void {
     $max = max(0, (int)setting('max_versions', '10'));
     $old = q('SELECT id, stored_name FROM ' . P . 'file_versions WHERE file_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000 OFFSET ' . $max, [$fileId])->fetchAll();
@@ -536,6 +556,7 @@ function housekeeping(): void {
     try { backfill_text(120); } catch (Throwable $e) {}
     try { q('DELETE FROM ' . P . 'activity WHERE created_at < NOW() - INTERVAL ' . ACTIVITY_DAYS . ' DAY'); } catch (Throwable $e) {}
     try { send_due_digests(); } catch (Throwable $e) {}
+    try { expire_versions(); } catch (Throwable $e) {}
     $days = (int)setting('trash_days', '30');
     if ($days > 3) { // upozornenie: o 3 dni sa zo koša natrvalo zmažú položky
         $rows = q('SELECT user_id, COUNT(*) c FROM (SELECT user_id FROM ' . P . 'files WHERE trash_root = 1 AND DATE(deleted_at) = CURDATE() - INTERVAL ' . ($days - 3) . ' DAY
