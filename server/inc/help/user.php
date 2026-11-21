@@ -131,6 +131,19 @@ aby si mohol uvoľniť miesto.</p>
 <p><b>Ukladanie:</b> zmeny sa uložia samé pár sekúnd po úprave (alebo <kbd>Ctrl</kbd>+<kbd>S</kbd>). Každé uloženie vytvorí novú verziu – predchádzajúci stav nájdeš vo <b>Verziách</b>.</p>
 <div class="warn">Editor nevie grafy, kontingenčné tabuľky, makrá, obrázky a podmienené formátovanie. Ak ich súbor obsahuje, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili. Starý formát <b>.xls</b> sa uloží ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa.</div>
 
+<?= h2('obrazky', 'bi-magic', 'Úprava fotiek') ?>
+<?= fig('u-obrazok', 'Editor obrázkov: orezanie s pomerom strán 16:9.') ?>
+<p>Fotky a obrázky (<b>JPG, PNG, WebP</b>, aj GIF a BMP) upravíš priamo v Cloude: v náhľade fotky klikni na <b>Upraviť</b> alebo v ponuke súboru vyber <b>Upraviť</b>.</p>
+<ul>
+  <li><b>Orezať</b> – potiahni rohy alebo strany rámčeka, celý rámček posunieš ťahaním. Pomer strán: voľne, pôvodný, 1:1 (štvorec), 4:3, 3:4, 16:9, 9:16, 3:2.</li>
+  <li><b>Otočiť</b> doľava / doprava o 90°, <b>zrkadliť</b> vodorovne alebo hore-dole a <b>vyrovnať</b> šikmý horizont posuvníkom (±45°).</li>
+  <li><b>Úpravy</b> – jas, kontrast, sýtosť a teplota farieb. Dvojklik na posuvník ho vráti na 0.</li>
+  <li><b>Filtre</b> – čiernobiely, sépia, teplý, studený, živý, vybledlý, vintage, dráma.</li>
+  <li><b>Veľkosť</b> – zmenšenie na šírku/výšku v pixeloch, na 75 / 50 / 25 %, na Full HD alebo na web; kvalita JPEG.</li>
+</ul>
+<p><b>Uložiť</b> uloží upravený obrázok a pôvodný ostane vo <b>Verziách</b>. Šípka vedľa ponúka <b>Uložiť ako kópiu</b> (vznikne „… (upravené).jpg“) a <b>Stiahnuť upravený</b>. Tlačidlo <b>Pôvodný</b> zruší všetky úpravy. Na počítači: <kbd>Ctrl</kbd>+<kbd>S</kbd> uloží, <kbd>Esc</kbd> zavrie.</p>
+<div class="note">Dátum odfotenia sa pri úprave zachová, takže fotka ostane vo Fotkách na svojom mieste. GIF a BMP sa uložia ako kópia vo formáte PNG (animácia GIF sa stratí).</div>
+
 <?= h2('zdielanie', 'bi-share', 'Zdieľanie') ?>
 <h3>Zdieľanie s ľuďmi v Cloude</h3>
 <?= fig('u-zdielanie', 'Zdieľanie zložky s konkrétnymi ľuďmi a výber oprávnenia.') ?>

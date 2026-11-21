@@ -804,11 +804,14 @@ try {
         $parent = (int)($_POST['parent'] ?? 0) ?: null;
         $acc = need(folder_access($uid, $parent), 'edit');
         $name = clean_name((string)($_POST['name'] ?? 'Tabuľka.xlsx'));
-        if (!preg_match('/\.(xlsx|ods|csv)$/i', $name)) $name .= '.xlsx';
+        if (!preg_match('/\.(xlsx|ods|csv|jpe?g|png|webp)$/i', $name)) $name .= '.xlsx';
         $base = preg_replace('/\.[^.]+$/', '', $name); $ext = substr($name, strlen($base));
         for ($i = 2; name_exists($acc['owner'], $parent, $name, 'f'); $i++) $name = $base . ' (' . $i . ')' . $ext;
         check_space($acc['owner'], $size);
         $r = store_file($acc['owner'], $parent, $name, $up['tmp_name'], true);
+        if (!empty($_POST['from'])) { // kópia upravenej fotky: dátum odfotenia z originálu (úprava v prehliadači ho zo súboru odstráni)
+            try { $src = file_access($uid, (int)$_POST['from'])['row']; if (!empty($src['taken_at'])) q("UPDATE $F SET taken_at = COALESCE(taken_at, ?) WHERE id = ?", [$src['taken_at'], $r['id']]); } catch (Throwable $e) {}
+        }
         json_out(['ok' => true, 'id' => (int)$r['id'], 'name' => $name, 'updated' => q("SELECT updated_at FROM $F WHERE id = ?", [$r['id']])->fetchColumn()]);
     }
 

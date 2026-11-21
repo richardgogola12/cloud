@@ -815,6 +815,10 @@
     CloudSheet.open(it, { url: fileUrl(it.id), folder: it.folder_id || curFolder(), readOnly: !!readOnly,
       onSaved: () => { lcMem.clear?.(); }, onClose: () => load(true) });
   }
+  function editImage(it) {
+    bootstrap.Modal.getInstance($('#previewModal'))?.hide();
+    CloudImageEditor.open(it, { url: fileUrl(it.id, true), folder: it.folder_id || curFolder(), onSaved: () => load(true) });
+  }
   async function newSheet() {
     const name = await Cloud.prompt('Nová tabuľka', 'Tabuľka bez názvu.xlsx', 'Vytvoriť');
     if (!name) return;
@@ -1221,9 +1225,9 @@
     $('#previewNext').style.visibility = pvIdx < files.length - 1 ? 'visible' : 'hidden';
     $('#previewEdit')?.remove();
     const m = it.mime, u = fileUrl(it.id, true);
-    if (isSheetEditable(it) && !(state.perm && PERM[state.perm] < 2)) { // tabuľku možno hneď upravovať
-      $('#previewDownload').insertAdjacentHTML('beforebegin', '<button class="btn btn-sm btn-light rounded-pill px-3" id="previewEdit"><i class="bi bi-pencil-square me-1"></i>Upraviť</button>');
-      $('#previewEdit').onclick = () => editSheet(it);
+    if ((isSheetEditable(it) || CloudImageEditor.canEdit(it)) && !(state.perm && PERM[state.perm] < 2)) { // tabuľku aj fotku možno hneď upravovať
+      $('#previewDownload').insertAdjacentHTML('beforebegin', '<button class="btn btn-sm btn-light rounded-pill px-3" id="previewEdit"><i class="bi bi-' + (isSheetEditable(it) ? 'pencil-square' : 'magic') + ' me-1"></i>Upraviť</button>');
+      $('#previewEdit').onclick = () => isSheetEditable(it) ? editSheet(it) : editImage(it);
     }
     bootstrap.Modal.getOrCreateInstance($('#previewModal')).show();
     if (/^image\/(jpeg|png|gif|webp|bmp)/.test(m)) {
@@ -1336,7 +1340,7 @@
     const trash = state.view === 'trash';
     const minPerm = items.reduce((m, i) => Math.min(m, PERM[i.perm] || 1), 3);
     const vis = {
-      open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && (isText(single) || isSheetEditable(single)) && minPerm >= 2, download: !trash,
+      open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && (isText(single) || isSheetEditable(single) || CloudImageEditor.canEdit(single)) && minPerm >= 2, download: !trash,
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
       info: single && !trash, tags: !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
@@ -1363,7 +1367,7 @@
     const a = e.target.closest('[data-ctx]'); if (!a) return;
     e.preventDefault(); hideCtx();
     const it = ctxItems[0], items = ctxItems;
-    ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => isSheetEditable(it) ? editSheet(it) : editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
+    ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => isSheetEditable(it) ? editSheet(it) : CloudImageEditor.canEdit(it) ? editImage(it) : editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
        info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items),
        albumadd: () => albumAddDialog(items), albumremove: () => albumRemove(items), albumcover: () => albumCover(it),

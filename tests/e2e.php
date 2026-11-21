@@ -1013,6 +1013,14 @@ $r = $web->get('index.php');
 ok(str_contains($r['body'], 'data-action="new-sheet"') && str_contains($r['body'], 'assets/js/sheet.js') && str_contains($r['body'], 'jspreadsheet/jspreadsheet.js'), 'Nový → Nová tabuľka, editor a knižnice zo servera');
 ok(!preg_match('#cdn\.jsdelivr\.net/npm/(xlsx|mammoth|exceljs|jspreadsheet)#', $r['body']), 'knižnice tabuliek sa nenačítavajú z CDN');
 
+section('Editor obrázkov');
+$imgF = tempnam(sys_get_temp_dir(), 'i'); $gd = imagecreatetruecolor(40, 30); imagejpeg($gd, $imgF, 85);
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['parent' => '', 'name' => 'Fotka (upravené).jpg', 'data' => new CURLFile($imgF, 'image/jpeg', 'a.jpg')]]);
+$j = json_decode($r['body'], true) ?: [];
+ok(!empty($j['ok']) && ($j['name'] ?? '') === 'Fotka (upravené).jpg', 'upravená fotka sa uloží ako kópia (.jpg)', $r['body']);
+$r = $web->get('index.php');
+ok(str_contains($r['body'], 'assets/js/imgedit.js'), 'editor obrázkov je na stránke');
+
 section('Príručky a rýchly sprievodca');
 $r = $web->get('help.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'id="helpDoc"') && str_contains($r['body'], 'Zamknuté zložky') && str_contains($r['body'], 'Aplikácia pre Android'), 'používateľská príručka');

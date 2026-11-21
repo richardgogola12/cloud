@@ -52,6 +52,10 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await go(page, '#folder/' + ids.dov); await setLayout(page, 'grid'); await wait(page, 1200);
   await shot(page, 'u-zlozka-fotky');
   await shot(page, 'u-nahlad', async () => { await item(page, 'f:' + ids.photo).dblclick(); await wait(page, 1500); });
+  await shot(page, 'u-obrazok', async () => { await page.evaluate(() => bootstrap.Modal.getInstance(document.getElementById('previewModal'))?.hide()); await wait(page, 400);
+    await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500);
+    await page.click('#imgEditModal [data-ratio="1.7777777777777777"]'); await wait(page, 600); });
+  await page.evaluate(() => { const m = document.getElementById('imgEditModal'); m && bootstrap.Modal.getInstance(m)?.hide(); }); await wait(page, 500);
   await go(page, '#shared');
   await shot(page, 'u-zdielane-so-mnou');
   await go(page, '#byme');

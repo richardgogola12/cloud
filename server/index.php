@@ -3,7 +3,7 @@ require __DIR__ . '/inc/core.php';
 $user = require_login();
 $title = 'Môj disk';
 $active = 'drive';
-$scripts = ['assets/js/passkey.js', 'assets/js/video.js', 'assets/js/sheet.js', 'assets/js/drive.js'];
+$scripts = ['assets/js/passkey.js', 'assets/js/video.js', 'assets/js/sheet.js', 'assets/js/imgedit.js', 'assets/js/drive.js'];
 require __DIR__ . '/inc/views/layout_start.php';
 ?>
 <?php if (!empty($_SESSION['offer_passkey'])): ?>

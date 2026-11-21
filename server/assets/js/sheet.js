@@ -280,13 +280,15 @@
   /* zobrazenie čísla v bunke: desatinná čiarka, percentá podľa formátu, bez dlhých chvostov */
   function display(sh) {
     return function (inst, cell, x, y, val, label, name) {
+      cell.classList.remove('num');
       if (val === '' || val === null || val === undefined) return;
-      const shown = cell.textContent;
-      const own = /text-align/.test(inst.jexcel ? (inst.jexcel.getStyle(name) || '') : (sh.style[name] || ''));
-      if (reDate.test(shown.trim())) { if (!own) cell.style.textAlign = 'right'; return; }
-      if (shown === '' || isNaN(+shown) || /[a-z]/i.test(shown)) return;
+      const shown = cell.textContent.trim();
+      const stl = (inst && inst.jexcel && inst.jexcel.getStyle ? inst.jexcel.getStyle(name) : sh.style[name]) || '';
+      const own = /text-align/.test(stl) && !/text-align:\s*left/.test(stl) || /text-align:\s*(center|right)/.test(stl);
+      const numLike = reDate.test(shown) || (shown !== '' && !isNaN(+shown) && !/[a-z]/i.test(shown));
+      if (numLike && !own) cell.classList.add('num'); // čísla a dátumy doprava ako v Exceli
+      if (!numLike || reDate.test(shown)) return;
       const n = +shown, f = sh.fmt[name];
-      if (!own) cell.style.textAlign = 'right'; // čísla a dátumy doprava ako v Exceli
       if (f && /%/.test(f) && f !== 'date') { const d = (f.split('.')[1] || '').replace(/[^0]/g, '').length; cell.textContent = (n * 100).toFixed(d).replace('.', ',') + ' %'; return; }
       const r = Math.round(n * 1e9) / 1e9;
       cell.textContent = String(r).replace('.', ',');
