@@ -730,6 +730,13 @@ try {
             $c2 = digest_cfg($u2); $nx = digest_next($c2);
             json_out(['ok' => true, 'cfg' => $c2, 'when' => digest_when_text($c2), 'next' => $nx ? date('j. n. Y \o G:i', $nx) : null]);
         }
+        if ($key === 'flash') { // bliknutie položky po návrate (predvolene zapnuté)
+            $prefs = user_prefs($user);
+            if (isset($_POST['time'])) $prefs['flash_time'] = max(0.5, min(10, round((float)$_POST['time'], 1)));
+            else $prefs['flash'] = ($_POST['value'] ?? '1') !== '0';
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            json_out(['ok' => true, 'flash' => $prefs['flash'] ?? true, 'time' => $prefs['flash_time'] ?? 2]);
+        }
         if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
         $val = json_decode((string)($_POST['value'] ?? ''), true);
         $clean = [];

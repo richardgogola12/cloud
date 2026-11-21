@@ -802,8 +802,10 @@
     flashKey = null;
     const r = el.getBoundingClientRect(), top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 60;
     if (r.top < top || r.bottom > innerHeight - 20) el.scrollIntoView({ block: 'center' });
-    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-    clearTimeout(el._flT); el._flT = setTimeout(() => el.classList.remove('flash'), 1900);
+    if (window.CLOUD_FLASH === false) return; // vypnuté v Môj účet → Zobrazenie
+    const ms = Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000);
+    el.classList.remove('flash'); void el.offsetWidth; el.style.animationDuration = ms + 'ms'; el.classList.add('flash');
+    clearTimeout(el._flT); el._flT = setTimeout(() => { el.classList.remove('flash'); el.style.animationDuration = ''; }, ms + 100);
   }
   /* pozícia posúvania pre každé miesto (zložka, sekcia) – keď sa tam vrátiš, ukáže sa to, kde si bol */
   const scrollMem = new Map();

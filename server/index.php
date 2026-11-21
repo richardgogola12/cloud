@@ -325,6 +325,7 @@ require __DIR__ . '/inc/views/layout_start.php';
 <script>
   // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
   window.CLOUD_UID = <?= (int)$user['id'] ?>;
+  window.CLOUD_FLASH = <?= (user_prefs($user)['flash'] ?? true) ? 'true' : 'false' ?>; window.CLOUD_FLASH_TIME = <?= json_encode((float)(user_prefs($user)['flash_time'] ?? 2)) ?>;
   window.CLOUD_LIB = <?= json_encode([
     'mammoth' => lib('mammoth/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'),
     'xlsx' => lib('xlsx/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'),

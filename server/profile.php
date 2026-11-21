@@ -214,6 +214,40 @@ $used = used_space($uid);
         <div class="small text-danger mt-2 d-none" id="pkUnsupported">Toto zariadenie alebo prehliadač nepodporuje biometrické prihlásenie (vyžaduje HTTPS).</div>
       </div>
     </div>
+    <div class="card card-soft mb-4" id="display">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-magic me-2"></i>Zobrazenie</h2>
+        <div class="form-check form-switch mt-2">
+          <input class="form-check-input" type="checkbox" role="switch" id="prefFlash" <?= (user_prefs($user)['flash'] ?? true) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="prefFlash">Zvýrazniť položku pri návrate</label>
+          <div class="small text-body-secondary">Keď sa vrátiš do nadradenej zložky alebo zavrieš náhľad či editor, zložka alebo súbor, z ktorého prichádzaš, krátko blikne na modro. Platí na webe aj v aplikácii.</div>
+        </div>
+        <?php $ft = (float)(user_prefs($user)['flash_time'] ?? 2); ?>
+        <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
+          <label class="small fw-semibold" for="prefFlashTime">Dĺžka bliknutia</label>
+          <select class="form-select form-select-sm w-auto" id="prefFlashTime">
+            <?php foreach ([0.5 => 'veľmi krátko (0,5 s)', 1 => 'krátko (1 s)', 2 => 'normálne (2 s)', 3 => 'dlhšie (3 s)', 5 => 'dlho (5 s)', 8 => 'veľmi dlho (8 s)'] as $sec => $lbl): ?>
+            <option value="<?= e((string)$sec) ?>" <?= abs($ft - $sec) < 0.01 ? 'selected' : '' ?>><?= e($lbl) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-outline-secondary rounded-pill" type="button" id="flashTry"><i class="bi bi-play me-1"></i>Vyskúšať</button>
+          <span class="flash-demo" id="flashDemo"><i class="bi bi-folder-fill text-secondary me-1"></i>Ukážka zložky</span>
+        </div>
+      </div>
+    </div>
+    <script>
+    const flashDemo = () => { const d = document.getElementById('flashDemo'), ms = +document.getElementById('prefFlashTime').value * 1000; d.classList.remove('flash'); void d.offsetWidth; d.style.animationDuration = ms + 'ms'; d.classList.add('flash'); clearTimeout(d._t); d._t = setTimeout(() => d.classList.remove('flash'), ms + 100); };
+    document.getElementById('flashTry').addEventListener('click', flashDemo);
+    document.getElementById('prefFlashTime').addEventListener('change', async (e) => {
+      flashDemo();
+      const r = await Cloud.api('api.php?action=prefs_save', { key: 'flash', time: e.target.value });
+      Cloud.toast(r.ok ? 'Dĺžka bliknutia uložená' : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
+    });
+    document.getElementById('prefFlash').addEventListener('change', async (e) => {
+      const r = await Cloud.api('api.php?action=prefs_save', { key: 'flash', value: e.target.checked ? '1' : '0' });
+      Cloud.toast(r.ok ? (e.target.checked ? 'Zvýrazňovanie zapnuté' : 'Zvýrazňovanie vypnuté') : (r.error || 'Chyba'), r.ok ? 'success' : 'danger');
+    });
+    </script>
     <div class="card card-soft mb-4" id="columns">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-layout-three-columns me-2"></i>Stĺpce v zozname</h2>

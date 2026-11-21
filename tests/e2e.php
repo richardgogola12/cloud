@@ -484,6 +484,14 @@ ok(stripos($gz['headers'], 'Content-Encoding: gzip') !== false && is_array(json_
 $home = $web->get('index.php')['body'];
 ok(!is_dir(__DIR__ . '/../server/assets/vendor/bootstrap') || (str_contains($home, 'assets/vendor/bootstrap/bootstrap.min.css') && !str_contains($home, 'cdn.jsdelivr.net')), 'knižnice sa načítajú z vlastného servera');
 
+section('Zvýraznenie pri návrate');
+ok(str_contains($web->get('index.php')['body'], 'CLOUD_FLASH = true'), 'bliknutie je predvolene zapnuté');
+ok(str_contains($web->get('profile.php')['body'], 'id="prefFlash"'), 'prepínač v Môj účet');
+ok(($web->api('prefs_save', ['key' => 'flash', 'value' => '0'])['flash'] ?? null) === false && str_contains($web->get('index.php')['body'], 'CLOUD_FLASH = false'), 'vypnutie bliknutia');
+ok(($web->api('prefs_save', ['key' => 'flash', 'value' => '1'])['flash'] ?? null) === true, 'zapnutie bliknutia');
+ok(($web->api('prefs_save', ['key' => 'flash', 'time' => '3'])['time'] ?? null) == 3 && str_contains($web->get('index.php')['body'], 'CLOUD_FLASH_TIME = 3'), 'dĺžka bliknutia');
+$web->api('prefs_save', ['key' => 'flash', 'time' => '2']);
+
 section('Stĺpce v zozname');
 $j = $web->api('prefs_save', ['key' => 'columns', 'value' => json_encode(['recent' => ['kind', 'location', 'size', 'nezmysel'], 'zly' => ['size']])]);
 ok(!empty($j['ok']) && ($j['columns']['recent'] ?? null) === ['kind', 'location', 'size'] && !isset($j['columns']['zly']), 'uloženie stĺpcov (neplatné sa zahodia)', json_encode($j));

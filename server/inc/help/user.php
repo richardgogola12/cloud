@@ -114,6 +114,9 @@ kolesa pri nadpise Štítky. <b>Hviezdička</b> označí obľúbené položky �
 aby si mohol uvoľniť miesto.</p>
 <?= fig('u-nedavne', 'Nedávne súbory.') ?>
 
+<div class="tip">Keď sa vrátiš do nadradenej zložky (šípkou Späť alebo cez cestu hore), Cloud ťa posunie tam, kde si bol, a zložka, z ktorej prichádzaš, krátko <b>blikne na modro</b>.
+Rovnako blikne súbor po zavretí náhľadu či editora. Bliknutie vypneš alebo mu nastavíš dĺžku v <b>Môj účet → Zobrazenie</b>.</div>
+
 <?= h2('tabulky', 'bi-file-earmark-spreadsheet', 'Tabuľky (Excel)') ?>
 <?= fig('u-tabulka', 'Editor tabuliek vyzerá a ovláda sa ako Google Tabuľky: ponuky hore, panel s formátovaním, riadok so vzorcom, hárky dole.') ?>
 <p>Tabuľky <b>.xlsx</b> (Excel), <b>.ods</b> (LibreOffice) a <b>.csv</b> upravíš priamo v Cloude – na počítači aj v mobile. Editor vyzerá a funguje
