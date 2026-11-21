@@ -126,11 +126,14 @@ for (const [name, opts] of sizes) {
     // návrat do nadradenej zložky: zložka, z ktorej prichádzam, blikne
     const fk = await page.evaluate(() => document.querySelector('#items .item[data-key^="d:"]')?.dataset.key);
     if (fk) {
+      // zložka je mimo obrazovky (posunuté ďaleko dole) → po návrate sa k nej posunie a blikne
+      await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '4000px'; window.scrollTo(0, 2500); }); await page.waitForTimeout(300);
       await page.evaluate((k) => { location.hash = '#folder/' + k.slice(2); }, fk); await page.waitForTimeout(1000);
-      await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(500);
-      const fl = await page.evaluate((k) => document.querySelector('#items .item[data-key="' + k + '"]')?.classList.contains('flash'), fk);
-      console.log(`[${name}] návrat zo zložky: bliknutie=${fl}`);
-      if (!fl) { console.log('CHYBA: zložka po návrate neblikla'); process.exitCode = 1; }
+      await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(700);
+      const st = await page.evaluate((k) => { const el = document.querySelector('#items .item[data-key="' + k + '"]'); if (!el) return {}; const r = el.getBoundingClientRect(); return { fl: el.classList.contains('flash'), vis: r.top >= 0 && r.bottom <= innerHeight }; }, fk);
+      await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
+      console.log(`[${name}] návrat zo zložky: bliknutie=${st.fl}, viditeľná=${st.vis}`);
+      if (!st.fl || !st.vis) { console.log('CHYBA: zložka po návrate nie je vidieť alebo neblikla'); process.exitCode = 1; }
     }
     // pozícia posúvania sa po návrate zachová
     await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '3000px'; window.scrollTo(0, 400); }); await page.waitForTimeout(300);

@@ -389,12 +389,40 @@ function version_days(array $u): int {
     $d = (int)(user_prefs($u)['version_days'] ?? 0);
     return $d > 0 ? max(1, min(3650, $d)) : 0;
 }
+/** Koľko hodín vopred upozorniť, že sa verzia zmaže (podľa nastavenej doby uchovávania). */
+function version_warn_hours(int $days): int { return $days >= 7 ? 72 : ($days >= 2 ? 24 : 6); }
+/** Upozornenie vlastníkovi: ktoré verzie ktorých súborov sa čoskoro zmažú (každá verzia sa ohlási iba raz). */
+function warn_versions(int $uid, int $days): int {
+    $h = version_warn_hours($days);
+    $rows = q('SELECT v.id, v.file_id, v.versioned_at, f.name, f.folder_id FROM ' . P . 'file_versions v JOIN ' . P . 'files f ON f.id = v.file_id
+               WHERE v.user_id = ? AND v.warned_at IS NULL AND f.deleted_at IS NULL
+                 AND v.versioned_at < (NOW() - INTERVAL ' . ($days * 24 - $h) . ' HOUR) AND v.versioned_at >= (NOW() - INTERVAL ' . $days . ' DAY)
+               ORDER BY v.versioned_at LIMIT 500', [$uid])->fetchAll();
+    if (!$rows) return 0;
+    $files = []; $first = null;
+    foreach ($rows as $r) {
+        $files[$r['file_id']] ??= ['name' => $r['name'], 'n' => 0, 'folder' => $r['folder_id']];
+        $files[$r['file_id']]['n']++;
+        $first ??= $r;
+    }
+    $when = date('j. n. Y \o G:i', strtotime($first['versioned_at']) + $days * 86400);
+    $parts = [];
+    foreach (array_slice($files, 0, 6, true) as $f) $parts[] = $f['name'] . ' (' . $f['n'] . ' ' . ($f['n'] === 1 ? 'verzia' : ($f['n'] < 5 ? 'verzie' : 'verzií')) . ')';
+    if (count($files) > 6) $parts[] = 'a ďalšie súbory (' . (count($files) - 6) . ')';
+    $n = count($rows);
+    notify($uid, 'version', ($n === 1 ? 'Stará verzia sa čoskoro zmaže' : $n . ' starých verzií sa čoskoro zmaže'),
+        implode(', ', $parts) . ' – prvá sa zmaže ' . $when . '. Ak ju chceš ponechať, obnov ju alebo stiahni, prípadne predĺž dobu v Môj účet → Verzie súborov.',
+        'index.php#' . ($first['folder_id'] ? 'folder/' . (int)$first['folder_id'] : '') . '?ver=' . (int)$first['file_id']);
+    q('UPDATE ' . P . 'file_versions SET warned_at = NOW() WHERE id IN (' . implode(',', array_map(fn($r) => (int)$r['id'], $rows)) . ')');
+    return $n;
+}
 /** Zmaže verzie staršie, ako si ich vlastník nastavil uchovávať (počíta sa od vzniku verzie). */
 function expire_versions(?int $onlyUser = null): int {
     $n = 0;
     $users = q('SELECT id, prefs FROM ' . P . "users WHERE prefs LIKE '%version_days%'" . ($onlyUser ? ' AND id = ' . (int)$onlyUser : ''))->fetchAll();
     foreach ($users as $u) {
         $days = version_days($u); if (!$days) continue;
+        try { warn_versions((int)$u['id'], $days); } catch (Throwable $e) { error_log('[cloud] warn_versions: ' . $e->getMessage()); }
         $old = q('SELECT id, stored_name FROM ' . P . 'file_versions WHERE user_id = ? AND versioned_at < (NOW() - INTERVAL ' . $days . ' DAY) LIMIT 2000', [$u['id']])->fetchAll();
         foreach ($old as $v) {
             @unlink(storage_dir((int)$u['id']) . '/' . $v['stored_name']);

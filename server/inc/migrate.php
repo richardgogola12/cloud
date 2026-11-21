@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 20;
+const SCHEMA_VERSION = 21;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -40,6 +40,7 @@ function migrate(): void {
         if ($v < 18) migrate_v18();
         if ($v < 19) migrate_v19();
         if ($v < 20) migrate_v20();
+        if ($v < 21) migrate_v21();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -450,4 +451,9 @@ function migrate_v20(): void {
     $p = P;
     add_col("{$p}file_versions", 'versioned_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
     if (!idx_exists("{$p}file_versions", 'idx_versioned_at')) db()->exec("ALTER TABLE {$p}file_versions ADD INDEX idx_versioned_at (versioned_at)");
+}
+
+/* v21: kedy bol vlastník upozornený, že sa verzia čoskoro zmaže */
+function migrate_v21(): void {
+    add_col(P . 'file_versions', 'warned_at', 'DATETIME NULL');
 }

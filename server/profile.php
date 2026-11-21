@@ -253,7 +253,7 @@ $used = used_space($uid);
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-clock-history me-2"></i>Verzie súborov</h2>
         <p class="small text-body-secondary mb-2">Keď súbor upravíš alebo nahráš znova, predchádzajúci obsah sa uloží ako verzia. Tu nastavíš, ako dlho sa staré verzie uchovávajú –
-          počíta sa od chvíle, keď verzia vznikla. Navyše sa vždy drží najviac <?= $vmax ?> posledných verzií každého súboru (nastavuje administrátor).</p>
+          počíta sa od chvíle, keď verzia vznikla. Pred zmazaním ti príde upozornenie, ktoré verzie ktorých súborov sa čoskoro zmažú. Navyše sa vždy drží najviac <?= $vmax ?> posledných verzií každého súboru (nastavuje administrátor).</p>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <label class="small fw-semibold" for="verDays">Uchovávať</label>
           <select class="form-select form-select-sm w-auto" id="verDays">

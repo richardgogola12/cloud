@@ -445,7 +445,8 @@
     }
     updateSel();
     if (flashOn) applyFlash();
-    if (restoreTo || flashKey) requestAnimationFrame(() => { if (restoreTo) restoreScroll(); if (flashKey) requestAnimationFrame(() => flashKey && flashItem(flashKey)); });
+    if (pendingVer) setTimeout(openPendingVer, 400);
+    if (restoreTo || target) requestAnimationFrame(() => { if (restoreTo) restoreScroll(); requestAnimationFrame(ensureTarget); });
   }
 
   const badges = (it) => (it.locked ? '<i class="bi ' + (it.unlocked ? 'bi-unlock text-success' : 'bi-lock-fill text-body-secondary') + ' small ms-1" title="' + (it.unlocked ? 'Zamknutá heslom – teraz odomknutá' : 'Zamknutá heslom') + '"></i>' : '')
@@ -774,7 +775,18 @@
     else { state.view = 'folder'; state.folder = null; }
     if (state.view !== 'search') { $('#searchInput').value = ''; state.sf = {}; }
     const oc = bootstrap.Offcanvas.getInstance($('#sidebar')); oc && oc.hide();
+    // odkaz z upozornenia „verzie sa čoskoro zmažú“: …?ver=ID otvorí Verzie toho súboru
+    const vm = /[?&]ver=(\d+)/.exec(location.hash);
+    if (vm) { pendingVer = +vm[1]; flashLater('f:' + vm[1]); }
     load();
+  }
+  let pendingVer = 0;
+  function openPendingVer() {
+    if (!pendingVer) return;
+    const it = byKey('f:' + pendingVer); if (!it) { if (!state.partial) pendingVer = 0; return; }
+    pendingVer = 0;
+    try { history.replaceState(history.state, '', location.href.replace(/[?&]ver=\d+/, '')); } catch (e) {}
+    versions(it);
   }
   window.addEventListener('hashchange', () => { flashParentTarget(); scrollEnter(); route(); });
   /* po návrate do nadradenej zložky zvýrazni zložku, z ktorej si prišiel (aj o viac úrovní vyššie) */
@@ -789,23 +801,31 @@
     const next = cr[i + 1];
     if (next) flashLater('d:' + next.id);
   }
-  /* krátke bliknutie položky (návrat zo zložky, zavretie náhľadu či editora); ak nie je vidieť, posunie sa k nej */
-  let flashKey = null;
-  function flashLater(k) { flashKey = k; }
-  function flashItem(k) {
+  /* položka, ku ktorej sa vraciaš (zložka po návrate o úroveň vyššie, súbor po zavretí náhľadu či editora):
+     po každom vykreslení zoznamu (aj keď sa dotiahnu čerstvé údaje) sa uistí, že je viditeľná, a raz blikne */
+  let target = null;
+  function flashLater(k) { target = { k, until: performance.now() + 8000, flashed: false }; }
+  function flashItem(k) { flashLater(k); ensureTarget(); }
+  ['wheel', 'touchmove', 'keydown'].forEach(ev => addEventListener(ev, () => { if (target && target.flashed) target = null; }, { passive: true })); // používateľ sa posúva sám
+  function ensureTarget() {
+    if (!target) return;
+    if (performance.now() > target.until) { target = null; return; }
+    const k = target.k;
     const el = document.querySelector('#items .item[data-key="' + CSS.escape(k) + '"]');
     if (!el) {
       const i = state.items.findIndex(x => key(x) === k);
-      if (i >= 0 && i >= state.limit) { state.limit = i + 60; flashKey = k; render(); return; }
-      flashKey = i < 0 && state.partial ? k : null; // zoznam sa ešte dotiahne
+      if (i >= 0 && i >= state.limit) { state.limit = i + 60; render(); } // položka je ďalej v dlhom zozname
+      else if (i < 0 && !state.partial && !$('#loading:not(.d-none)')) target = null;
       return;
     }
-    flashKey = null;
-    const r = el.getBoundingClientRect(), top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 60;
-    if (r.top < top || r.bottom > innerHeight - 20) el.scrollIntoView({ block: 'center' });
-    if (window.CLOUD_FLASH === false) return; // vypnuté v Môj účet → Zobrazenie
-    flashOn = { k, start: performance.now(), ms: Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000) };
-    applyFlash();
+    const r = el.getBoundingClientRect();
+    const top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 56;
+    const bottom = innerHeight - (innerWidth < 768 ? 96 : 24);
+    if (r.top < top || r.bottom > bottom) { restoreTo = null; el.scrollIntoView({ block: 'center' }); }
+    if (!target.flashed) {
+      target.flashed = true; target.until = Math.min(target.until, performance.now() + 1500); // ešte chvíľu stráži, kým sa zoznam ustáli
+      if (window.CLOUD_FLASH !== false) { flashOn = { k, start: performance.now(), ms: Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000) }; applyFlash(); }
+    }
   }
   /* bliknutie prežije aj prekreslenie zoznamu (napr. keď sa dotiahnu čerstvé údaje zo servera) */
   let flashOn = null;

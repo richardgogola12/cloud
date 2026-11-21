@@ -1058,6 +1058,14 @@ $v1 = $web->api('versions', ['id' => $sheetId]);
 ok(count($v1['versions']) === count($v0['versions']) - 1 && !in_array($oldest, array_column($v1['versions'], 'id')) && !empty($v1['versions'][1]['expires']), 'stará verzia je preč, ostatné ukazujú dátum zmazania', json_encode($v1));
 ok(($web->api('prefs_save', ['key' => 'version_days', 'value' => '-3'])['days'] ?? null) === 0, 'neplatná hodnota → bez časového limitu');
 ok(($web->api('prefs_save', ['key' => 'version_days', 'value' => '99999'])['days'] ?? null) === 3650, 'najviac 10 rokov');
+// upozornenie, že sa verzie čoskoro zmažú (pri 3 dňoch 24 hodín vopred), každá verzia iba raz
+$vw = $web->api('versions', ['id' => $sheetId])['versions'][1]['id'] ?? 0;
+$pdoS->exec('UPDATE cloud_file_versions SET warned_at = NULL, versioned_at = NOW() - INTERVAL 50 HOUR WHERE id = ' . (int)$vw);
+$web->api('prefs_save', ['key' => 'version_days', 'value' => '3']);
+$nl = array_values(array_filter($web->api('notifications')['items'] ?? [], fn($n) => $n['type'] === 'version'));
+ok(count($nl) === 1 && str_contains($nl[0]['body'], 'Rozpočet test') && str_contains((string)$nl[0]['link'], '?ver=' . $sheetId), 'upozornenie: ktoré verzie ktorého súboru sa čoskoro zmažú (odkaz otvorí Verzie)', json_encode($nl));
+$web->api('prefs_save', ['key' => 'version_days', 'value' => '3']);
+ok(count(array_filter($web->api('notifications')['items'] ?? [], fn($n) => $n['type'] === 'version')) === 1, 'upozornenie sa neopakuje');
 $web->api('prefs_save', ['key' => 'version_days', 'value' => '0']);
 
 section('Editor obrázkov');

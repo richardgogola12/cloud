@@ -242,7 +242,7 @@ rozdelené po mesiacoch. Hore sú karty <b>Fotky</b> a <b>Albumy</b>; vpravo pre
 V ponuke <b>Verzie</b> ich vidíš s dátumom a veľkosťou – môžeš ich stiahnuť, <b>obnoviť</b> (aktuálny stav sa pritom tiež uloží ako verzia) alebo zmazať.
 Počet uchovaných verzií nastavuje administrátor (predvolene 10).</p>
 <p><b>Ako dlho sa verzie uchovávajú</b> si nastavíš sám v <b>Môj účet → Verzie súborov</b>: bez časového limitu, alebo 1 deň až 10 rokov (aj vlastný počet dní, najmenej 1).
-Čas sa počíta od chvíle, keď verzia vznikla – teda keď si súbor zmenil. Staršie verzie sa potom zmažú samé a v okne Verzie pri každej uvidíš, kedy sa zmaže.</p>
+Čas sa počíta od chvíle, keď verzia vznikla – teda keď si súbor zmenil. Staršie verzie sa potom zmažú samé a v okne Verzie pri každej uvidíš, kedy sa zmaže. Pred zmazaním ti príde <b>upozornenie</b> (pri dobe od 7 dní 3 dni vopred, pri 2–6 dňoch deň vopred, pri 1 dni 6 hodín vopred) so zoznamom súborov – kliknutím naň sa otvoria Verzie súboru.</p>
 <h3>História zmien a Aktivita</h3>
 <?= fig('u-historia', 'Aktivita jednej položky – história zmien.') ?>
 <p>Položka ponuky <b>Aktivita</b> pri súbore či zložke ukáže, kto ju kedy vytvoril, upravil, premenoval, presunul, zdieľal či zmazal. Sekcia <b>Aktivita</b>
