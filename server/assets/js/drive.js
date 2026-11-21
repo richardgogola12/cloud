@@ -444,6 +444,7 @@
       io.observe(more);
     }
     updateSel();
+    if (restoreTo) requestAnimationFrame(restoreScroll);
   }
 
   const badges = (it) => (it.locked ? '<i class="bi ' + (it.unlocked ? 'bi-unlock text-success' : 'bi-lock-fill text-body-secondary') + ' small ms-1" title="' + (it.unlocked ? 'Zamknutá heslom – teraz odomknutá' : 'Zamknutá heslom') + '"></i>' : '')
@@ -729,7 +730,13 @@
       el.querySelector('.item-check').checked = on;
     });
     const n = state.sel.size, items = selItems();
-    $('#selBar').classList.toggle('d-none', n === 0);
+    const sb = $('#selBar'), dh = $('.drive-head');
+    if (n && sb.classList.contains('d-none') && dh) { // panel prekryje riadok s cestou – položky ani ponuka sa neposunú
+      const cs = getComputedStyle(dh);
+      sb.style.setProperty('--sel-h', (dh.offsetHeight + parseFloat(cs.marginBottom || 0)) + 'px');
+      sb.classList.add('over');
+    }
+    sb.classList.toggle('d-none', n === 0);
     document.body.classList.toggle('has-selection', n > 0);
     $('#selCount').textContent = n + (n === 1 ? ' vybratá' : n < 5 ? ' vybraté' : ' vybratých');
     const minPerm = items.reduce((m, i) => Math.min(m, PERM[i.perm] || 1), 3);
@@ -768,7 +775,23 @@
     const oc = bootstrap.Offcanvas.getInstance($('#sidebar')); oc && oc.hide();
     load();
   }
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', () => { scrollEnter(); route(); });
+  /* pozícia posúvania pre každé miesto (zložka, sekcia) – keď sa tam vrátiš, ukáže sa to, kde si bol */
+  const scrollMem = new Map();
+  let scrollKey = location.hash || '#', restoreTo = null;
+  addEventListener('scroll', () => { if (restoreTo && Date.now() > restoreTo.until) restoreTo = null; if (!restoreTo) scrollMem.set(scrollKey, { y: scrollY, lim: state.limit }); }, { passive: true });
+  function scrollEnter() {
+    scrollKey = location.hash || '#';
+    const m = scrollMem.get(scrollKey);
+    if (m && m.y > 0) { restoreTo = { ...m, until: Date.now() + 4000 }; }
+    else { restoreTo = null; window.scrollTo(0, 0); }
+  }
+  function restoreScroll() {
+    const m = restoreTo; if (!m) return;
+    if (m.lim > state.limit && state.items.length > state.limit) { state.limit = m.lim; render(); return; }
+    window.scrollTo(0, m.y);
+    if (Math.abs(scrollY - m.y) < 4 || Date.now() > m.until) restoreTo = null; // obsah sa ešte môže dotiahnuť
+  }
   document.addEventListener('click', (e) => {
     const y = e.target.closest('[data-year-jump]');
     if (y) {

@@ -110,6 +110,31 @@ for (const [name, opts] of sizes) {
     const listed = await page.locator('#items [data-key]', { hasText: 'Test tabuľka.xlsx' }).count();
     if (!listed) { console.log('CHYBA: nová tabuľka nie je v zozname'); process.exitCode = 1; }
   }
+  // výber v mriežke nesmie posunúť položky (panel výberu prekryje riadok s cestou)
+  {
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(900);
+    await page.click('[data-view="grid"]').catch(() => {}); await page.waitForTimeout(500);
+    const it = page.locator('#items .item[data-key^="f:"]').first();
+    if (await it.count()) {
+      const y0 = (await it.boundingBox()).y;
+      await it.click({ button: 'right' }); await page.waitForTimeout(400);
+      const y1 = (await it.boundingBox()).y, bar = await page.locator('#selBar:not(.d-none)').count();
+      console.log(`[${name}] výber v mriežke: posun ${Math.round(y1 - y0)} px, panel=${bar}`);
+      if (Math.abs(y1 - y0) > 1 || !bar) { console.log('CHYBA: výber posunul položky'); process.exitCode = 1; }
+      await page.keyboard.press('Escape'); await page.click('#selBar [data-sel="clear"]').catch(() => {}); await page.waitForTimeout(300);
+    }
+    // pozícia posúvania sa po návrate zachová
+    await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '3000px'; window.scrollTo(0, 400); }); await page.waitForTimeout(300);
+    await page.evaluate(() => { location.hash = '#recent'; }); await page.waitForTimeout(900);
+    const yRecent = await page.evaluate(() => scrollY);
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(1200);
+    await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = '3000px'; }); await page.waitForTimeout(400);
+    const yBack = await page.evaluate(() => scrollY);
+    console.log(`[${name}] posúvanie: v Nedávnych ${yRecent}, po návrate ${yBack}`);
+    await page.evaluate(() => { document.querySelector('.app-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
+    if (yRecent > 5 || Math.abs(yBack - 400) > 5) { console.log('CHYBA: pozícia posúvania sa nezachovala'); process.exitCode = 1; }
+    await page.click('[data-view="list"]').catch(() => {}); await page.waitForTimeout(300);
+  }
   // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)
   if (name !== 'pc') {
     const swipe = (x1, x2) => page.evaluate(([a, b]) => {

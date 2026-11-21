@@ -133,7 +133,8 @@ body { background: var(--c-bg); -webkit-tap-highlight-color: transparent; }
 .modal-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-main h1 { overflow-wrap: anywhere; }
 
-.selection-bar { position: sticky; top: var(--topbar-h); z-index: 10; display: flex; align-items: center; gap: 2px; background: var(--c-sel); border-radius: 24px; padding: 4px 8px; margin-bottom: 10px; }
+.selection-bar { position: sticky; top: var(--topbar-h); z-index: 10; display: flex; align-items: center; gap: 2px; background: var(--c-sel); border-radius: 24px; padding: 4px 8px; margin-bottom: 8px; box-sizing: border-box; }
+.selection-bar.over { margin-top: calc(-1 * var(--sel-h, 56px)); height: calc(var(--sel-h, 56px) - 8px); box-shadow: 0 0 0 4px var(--c-surface); }
 [data-bs-theme="dark"] .selection-bar { color: #d3e3fd; }
 
 /* ---- zoznam ---- */

@@ -49,15 +49,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   </div>
 </div>
 
-<div class="search-chips d-none" id="searchChips"></div>
-<div class="trash-bar d-none" id="trashBar">
-  <i class="bi bi-info-circle"></i>
-  <span class="flex-grow-1 small" id="trashInfo">Položky v koši sa natrvalo zmažú po 30 dňoch.</span>
-  <button class="btn btn-sm btn-outline-danger rounded-pill" id="emptyTrash"><i class="bi bi-trash3 me-1"></i>Vysypať kôš</button>
-</div>
-<div class="shared-bar d-none small text-body-secondary mb-2" id="sharedBar"><i class="bi bi-people me-1"></i><span></span></div>
-
-<!-- panel pre hromadné akcie -->
+<!-- panel pre hromadné akcie: prekryje riadok s cestou, aby sa obsah neposúval -->
 <div class="selection-bar d-none" id="selBar">
   <button class="btn btn-icon" data-sel="clear" title="Zrušiť výber"><i class="bi bi-x-lg"></i></button>
   <span class="fw-semibold me-auto" id="selCount">0 vybraté</span>
@@ -71,6 +63,16 @@ require __DIR__ . '/inc/views/layout_start.php';
   <button class="btn btn-icon" data-sel="leave" data-in="shared-root" title="Odstrániť zo zdieľaných"><i class="bi bi-person-dash"></i></button>
   <button class="btn btn-icon text-danger" data-sel="delete" data-not="trash" data-perm="edit" title="Do koša"><i class="bi bi-trash3"></i></button>
 </div>
+
+<div class="search-chips d-none" id="searchChips"></div>
+<div class="trash-bar d-none" id="trashBar">
+  <i class="bi bi-info-circle"></i>
+  <span class="flex-grow-1 small" id="trashInfo">Položky v koši sa natrvalo zmažú po 30 dňoch.</span>
+  <button class="btn btn-sm btn-outline-danger rounded-pill" id="emptyTrash"><i class="bi bi-trash3 me-1"></i>Vysypať kôš</button>
+</div>
+<div class="shared-bar d-none small text-body-secondary mb-2" id="sharedBar"><i class="bi bi-people me-1"></i><span></span></div>
+
+
 
 <div class="photo-bar d-none" id="photoBar"></div>
 <div id="listHeader" class="list-header d-none">
