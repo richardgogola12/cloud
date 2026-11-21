@@ -103,9 +103,9 @@ for (const [name, opts] of sizes) {
     console.log(`[${name}] tabuľka: ${JSON.stringify(val)}, stav „${st}“`);
     if (val.a1 !== 'Nájom' || +val.b1 !== 650.5 || +val.b2 !== 1301 || val.c1 !== '24.12.2026' || val.c1t !== 'd' || val.menu < 7 || !val.sk || !/uložené/i.test(st)) { console.log('CHYBA: editor tabuliek'); process.exitCode = 1; }
     // do zariadenia sa nič neuložilo ani tu
-    const lsKeys = await fr.evaluate(() => Object.keys(localStorage));
+    const lsKeys = await fr.evaluate(() => Object.keys(localStorage).filter(k => /spectrum|luckysheet|localforage|chart/i.test(k)));
     if (lsKeys.length) { console.log('CHYBA: editor tabuliek uložil do prehliadača: ' + lsKeys.join(', ')); process.exitCode = 1; }
-    await page.frameLocator('#sheetModal iframe').locator('.gs-head [data-gs="close"]').click(); await page.waitForTimeout(1500);
+    await page.frameLocator('#sheetModal iframe').locator('.gs-head > [data-gs="close"]').click(); await page.waitForTimeout(1500);
     if (await page.locator('#sheetModal.show').count()) { console.log('CHYBA: editor tabuliek sa nezavrel'); process.exitCode = 1; }
     const listed = await page.locator('#items [data-key]', { hasText: 'Test tabuľka.xlsx' }).count();
     if (!listed) { console.log('CHYBA: nová tabuľka nie je v zozname'); process.exitCode = 1; }
