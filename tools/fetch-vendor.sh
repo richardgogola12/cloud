@@ -15,6 +15,15 @@ get jquery@3.7.1/dist/jquery.min.js                          jquery/jquery.min.j
 get select2@4.1.0-rc.0/dist/css/select2.min.css              select2/select2.min.css
 get select2@4.1.0-rc.0/dist/js/select2.min.js                select2/select2.min.js
 get select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css select2/select2-bootstrap-5-theme.min.css
+# náhľad Word/Excel a editor tabuliek
+get mammoth@1.8.0/mammoth.browser.min.js                     mammoth/mammoth.browser.min.js
+get xlsx@0.18.5/dist/xlsx.full.min.js                         xlsx/xlsx.full.min.js
+get exceljs@4.4.0/dist/exceljs.min.js                         exceljs/exceljs.min.js
+get jspreadsheet-ce@4.13.4/dist/index.min.js                  jspreadsheet/jspreadsheet.js
+get jspreadsheet-ce@4.13.4/dist/jspreadsheet.min.css          jspreadsheet/jspreadsheet.css
+get jsuites@4.17.7/dist/jsuites.min.js                        jspreadsheet/jsuites.js
+get jsuites@4.17.7/dist/jsuites.min.css                       jspreadsheet/jsuites.css
+get @formulajs/formulajs@4.4.9/lib/browser/formula.min.js     jspreadsheet/formula.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
 echo "Hotovo: $D"
