@@ -821,7 +821,7 @@
     const r = el.getBoundingClientRect();
     const top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 56;
     const bottom = innerHeight - (innerWidth < 768 ? 96 : 24);
-    if (r.top < top || r.bottom > bottom) { restoreTo = null; el.scrollIntoView({ block: 'center' }); }
+    if (r.top < top || r.bottom > bottom) { restoreTo = null; el.scrollIntoView({ block: 'center', behavior: 'instant' }); }
     if (!target.flashed) {
       target.flashed = true; target.until = Math.min(target.until, performance.now() + 1500); // ešte chvíľu stráži, kým sa zoznam ustáli
       if (window.CLOUD_FLASH !== false) { flashOn = { k, start: performance.now(), ms: Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000) }; applyFlash(); }
@@ -847,12 +847,12 @@
     scrollKey = location.hash || '#';
     const m = scrollMem.get(scrollKey);
     if (m && m.y > 0) { restoreTo = { ...m, until: Date.now() + 4000 }; }
-    else { restoreTo = null; window.scrollTo(0, 0); }
+    else { restoreTo = null; window.scrollTo({ top: 0, behavior: 'instant' }); }
   }
   function restoreScroll() {
     const m = restoreTo; if (!m) return;
     if (m.lim > state.limit && state.items.length > state.limit) { state.limit = m.lim; render(); return; }
-    window.scrollTo(0, m.y);
+    window.scrollTo({ top: m.y, behavior: 'instant' }); // bez plynulého posúvania – inak by sa pozícia merala uprostred animácie
     if (Math.abs(scrollY - m.y) < 4 || Date.now() > m.until) restoreTo = null; // obsah sa ešte môže dotiahnuť
   }
   document.addEventListener('click', (e) => {
