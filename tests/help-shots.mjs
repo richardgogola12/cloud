@@ -95,13 +95,13 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
     await fr.waitForFunction(() => window.CloudSheetEditor && CloudSheetEditor.ready, null, { timeout: 30000 }); await wait(page, 1000);
     await fr.evaluate(() => {
       const fmt = (r, a, v) => { luckysheet.setRangeShow(r); luckysheet.setRangeFormat(a, v); };
-      fmt('A1:D1', 'bl', 1); fmt('A1:D1', 'bg', '#e8f0fe'); fmt('A6:D6', 'bl', 1); fmt('B2:D6', 'ct', { fa: '#,##0.00 €', t: 'n' }); fmt('B2:D5', 'bg', '#ffffff');
+      fmt('A1:D1', 'bl', 1); fmt('A1:D1', 'bg', '#e8f0fe'); fmt('A6:D6', 'bl', 1); fmt('B2:D6', 'ct', { fa: '#,##0.00 €', t: 'n' });
       luckysheet.setHorizontalFrozen(false); luckysheet.setRangeShow('B2:D5'); }); await wait(page, 500);
     const F = page.frameLocator('#sheetModal iframe');
     await F.locator('#gsMenu .gs-mb', { hasText: 'Formát' }).click(); await wait(page, 600);
     await page.screenshot({ path: `${out}/u-tabulka-menu.png` }); console.log('  ✔ u-tabulka-menu');
     await F.locator('#gsMenu .gs-mb', { hasText: 'Formát' }).click(); await wait(page, 300);
-    await fr.evaluate(() => luckysheet.setRangeShow('C7')); await fr.waitForFunction(() => /uložené/.test(document.getElementById('gsStatus').textContent), null, { timeout: 15000 }).catch(() => {}); await wait(page, 500); });
+    await fr.evaluate(() => luckysheet.setRangeShow('C7')); await fr.waitForFunction(() => /Všetky zmeny/.test(document.getElementById('gsStatus').textContent), null, { timeout: 15000 }).catch(() => {}); await wait(page, 500); });
   await page.frameLocator('#sheetModal iframe').locator('body').press('Escape').catch(() => {});
   await page.evaluate(() => { const f = document.querySelector('#sheetModal iframe'); f && f.contentWindow.postMessage({ cloudSheetCmd: 'close' }, location.origin); }); await wait(page, 2500);
   await page.goto(base + 'profile.php'); await wait(page, 1200);
