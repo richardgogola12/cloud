@@ -756,10 +756,10 @@ try {
         $sec = !empty($prefs['tfa_pending']) && time() - (int)($prefs['tfa_pending_t'] ?? 0) < 1800 ? totp_unwrap((string)$prefs['tfa_pending']) : '';
         if ($sec === '') throw new RuntimeException('Začni znova tlačidlom Zapnúť.');
         $code = preg_replace('/\s+/', '', (string)($_POST['code'] ?? ''));
-        $ok = false; $now = intdiv(time(), TOTP_PERIOD);
-        for ($d = -1; $d <= 1; $d++) if (hash_equals(totp_code($sec, $now + $d), $code)) $ok = true;
-        if (!$ok) throw new RuntimeException('Kód nesedí. Skontroluj, či má telefón správny čas, a zadaj aktuálny kód.');
-        q('UPDATE ' . P . 'users SET totp_secret = ?, totp_last = ? WHERE id = ?', [totp_wrap($sec), $now + 1, $uid]);
+        $used = null; $now = intdiv(time(), TOTP_PERIOD);
+        for ($d = -1; $d <= 1; $d++) if (hash_equals(totp_code($sec, $now + $d), $code)) $used = $now + $d;
+        if ($used === null) throw new RuntimeException('Kód nesedí. Skontroluj, či má telefón správny čas, a zadaj aktuálny kód.');
+        q('UPDATE ' . P . 'users SET totp_secret = ?, totp_last = ? WHERE id = ?', [totp_wrap($sec), $used, $uid]); // ten istý kód už neprihlási
         unset($prefs['tfa_pending'], $prefs['tfa_pending_t']);
         q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
         $codes = totp_new_backup_codes($uid);
