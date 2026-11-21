@@ -444,6 +444,7 @@
       io.observe(more);
     }
     updateSel();
+    if (flashOn) applyFlash();
     if (restoreTo || flashKey) requestAnimationFrame(() => { if (restoreTo) restoreScroll(); if (flashKey) requestAnimationFrame(() => flashKey && flashItem(flashKey)); });
   }
 
@@ -803,9 +804,20 @@
     const r = el.getBoundingClientRect(), top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 64) + 60;
     if (r.top < top || r.bottom > innerHeight - 20) el.scrollIntoView({ block: 'center' });
     if (window.CLOUD_FLASH === false) return; // vypnuté v Môj účet → Zobrazenie
-    const ms = Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000);
-    el.classList.remove('flash'); void el.offsetWidth; el.style.animationDuration = ms + 'ms'; el.classList.add('flash');
-    clearTimeout(el._flT); el._flT = setTimeout(() => { el.classList.remove('flash'); el.style.animationDuration = ''; }, ms + 100);
+    flashOn = { k, start: performance.now(), ms: Math.round((+window.CLOUD_FLASH_TIME || 2) * 1000) };
+    applyFlash();
+  }
+  /* bliknutie prežije aj prekreslenie zoznamu (napr. keď sa dotiahnu čerstvé údaje zo servera) */
+  let flashOn = null;
+  function applyFlash() {
+    if (!flashOn) return;
+    const left = flashOn.ms - (performance.now() - flashOn.start);
+    if (left <= 0) { flashOn = null; return; }
+    const el = document.querySelector('#items .item[data-key="' + CSS.escape(flashOn.k) + '"]'); if (!el) return;
+    el.classList.remove('flash'); void el.offsetWidth;
+    el.style.animationDuration = flashOn.ms + 'ms'; el.style.animationDelay = -(flashOn.ms - left) + 'ms';
+    el.classList.add('flash');
+    clearTimeout(el._flT); el._flT = setTimeout(() => { el.classList.remove('flash'); el.style.animationDuration = el.style.animationDelay = ''; }, left + 50);
   }
   /* pozícia posúvania pre každé miesto (zložka, sekcia) – keď sa tam vrátiš, ukáže sa to, kde si bol */
   const scrollMem = new Map();

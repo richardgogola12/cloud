@@ -687,6 +687,6 @@ body:not(:has(#items)) .kbd-menu { display: none !important; }
 @media (max-width: 575px) { .ie-tab { padding: 4px 10px; } .ie-slider { min-width: 140px; } .ie-sub { min-height: 86px; } }
 
 /* bliknutie položky po návrate zo zložky alebo zavretí náhľadu */
-@keyframes itemFlash { 15%, 60% { background-color: var(--c-sel); box-shadow: 0 0 0 3px rgba(26, 115, 232, .55); } 38% { background-color: transparent; box-shadow: 0 0 0 2px rgba(26, 115, 232, .25); } }
-#items .item.flash, .flash-demo.flash { animation: itemFlash 2s ease-out; position: relative; z-index: 1; }
+@keyframes itemFlash { 15%, 60% { background-color: var(--c-sel); } 38% { background-color: color-mix(in srgb, var(--c-sel) 35%, transparent); } }
+#items .item.flash, .flash-demo.flash { animation: itemFlash 2s ease-out; }
 .flash-demo { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 14px; background: var(--c-hover); font-size: .9rem; }
