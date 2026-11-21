@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -38,6 +38,7 @@ function migrate(): void {
         if ($v < 16) migrate_v16();
         if ($v < 17) migrate_v17();
         if ($v < 18) migrate_v18();
+        if ($v < 19) migrate_v19();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -430,4 +431,15 @@ function migrate_v18(): void {
     storage_web_config();
     $sp = rtrim((string)cfg('storage_path'), '/\\');
     if (is_dir($sp) && !is_file($sp . '/.htaccess')) @file_put_contents($sp . '/.htaccess', "Require all denied\nDeny from all\n");
+}
+
+/* v19: grafy a ďalšie časti tabuliek, ktoré sa nedajú uložiť do .xlsx (editor tabuliek) */
+function migrate_v19(): void {
+    $p = P;
+    db()->exec("CREATE TABLE IF NOT EXISTS {$p}sheet_extras (
+        file_id INT UNSIGNED NOT NULL PRIMARY KEY,
+        file_updated DATETIME NOT NULL,
+        data MEDIUMTEXT NOT NULL,
+        CONSTRAINT fk_{$p}sx_file FOREIGN KEY (file_id) REFERENCES {$p}files(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }

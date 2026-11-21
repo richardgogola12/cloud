@@ -84,20 +84,29 @@ for (const [name, opts] of sizes) {
     await page.click('.btn-new'); await page.waitForTimeout(300);
     await page.click('.dropdown-menu.show [data-action="new-sheet"]'); await page.waitForTimeout(500);
     await page.fill('.modal.show input', 'Test tabuľka'); await page.click('.modal.show .btn-primary'); 
-    await page.waitForSelector('#sheetModal.show .jexcel', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('#sheetModal.show iframe', { timeout: 20000 }).catch(() => {});
+    let fr = null;
+    for (let i = 0; i < 60 && !fr; i++) { fr = page.frames().find(f => f.url().includes('sheet.php')); if (!fr) await page.waitForTimeout(250); }
+    await fr.waitForFunction(() => window.CloudSheetEditor && CloudSheetEditor.ready, null, { timeout: 30000 });
     await page.waitForTimeout(800);
-    const cell = (c, r) => page.locator(`#sheetModal .sh-sheet:not([style*="none"]) .jexcel tbody tr:nth-child(${r}) td:nth-child(${c + 1})`);
-    await cell(1, 1).click(); await page.keyboard.type('Nájom'); await page.keyboard.press('Tab');
-    await page.keyboard.type('650'); await page.keyboard.press('Enter');
-    await cell(2, 2).click(); await page.keyboard.type('=B1*2'); await page.keyboard.press('Enter');
-    await page.waitForTimeout(300);
-    const b2 = (await cell(2, 2).innerText()).trim();
-    await page.keyboard.press('Control+s'); await page.waitForTimeout(2500);
-    const st = await page.locator('#sheetModal .sh-status').innerText();
+    const main = await page.frameLocator('#sheetModal iframe').locator('#luckysheet-cell-main').boundingBox();
+    const at = (c, r) => page.mouse.click(main.x + 74 * c + 30, main.y + 20 * r + 10);
+    await at(0, 0); await page.keyboard.type('Nájom'); await page.keyboard.press('Enter');
+    await at(1, 0); await page.keyboard.type('650,5'); await page.keyboard.press('Enter');
+    await at(1, 1); await page.keyboard.type('=B1*2'); await page.keyboard.press('Enter');
+    await at(2, 0); await page.keyboard.type('24.12.2026'); await page.keyboard.press('Enter');
+    await page.waitForTimeout(600);
+    const val = await fr.evaluate(() => ({ a1: luckysheet.getCellValue(0, 0), b1: luckysheet.getCellValue(0, 1), b1m: luckysheet.getCellValue(0, 1, { type: 'm' }), b2: luckysheet.getCellValue(1, 1), c1: luckysheet.getCellValue(0, 2, { type: 'm' }), c1t: (luckysheet.getCellValue(0, 2, { type: 'ct' }) || {}).t, menu: document.querySelectorAll('#gsMenu .gs-mb').length, sk: !!document.querySelector('[data-tips="Zlúčiť bunky"]') }));
+    await page.keyboard.press('Control+s'); await page.waitForTimeout(3000);
+    const st = await fr.locator('#gsStatus').innerText();
     await page.screenshot({ path: `screens/${name}-23-tabulka.png` });
-    console.log(`[${name}] tabuľka: B2=${b2}, stav „${st}“`);
-    if (b2 !== '1300' || !/Uložené/.test(st)) { console.log('CHYBA: editor tabuliek'); process.exitCode = 1; }
-    await page.click('#sheetModal [data-sh="close"]'); await page.waitForTimeout(800);
+    console.log(`[${name}] tabuľka: ${JSON.stringify(val)}, stav „${st}“`);
+    if (val.a1 !== 'Nájom' || +val.b1 !== 650.5 || +val.b2 !== 1301 || val.c1 !== '24.12.2026' || val.c1t !== 'd' || val.menu < 7 || !val.sk || !/uložené/i.test(st)) { console.log('CHYBA: editor tabuliek'); process.exitCode = 1; }
+    // do zariadenia sa nič neuložilo ani tu
+    const lsKeys = await fr.evaluate(() => Object.keys(localStorage));
+    if (lsKeys.length) { console.log('CHYBA: editor tabuliek uložil do prehliadača: ' + lsKeys.join(', ')); process.exitCode = 1; }
+    await page.frameLocator('#sheetModal iframe').locator('.gs-head [data-gs="close"]').click(); await page.waitForTimeout(1500);
+    if (await page.locator('#sheetModal.show').count()) { console.log('CHYBA: editor tabuliek sa nezavrel'); process.exitCode = 1; }
     const listed = await page.locator('#items [data-key]', { hasText: 'Test tabuľka.xlsx' }).count();
     if (!listed) { console.log('CHYBA: nová tabuľka nie je v zozname'); process.exitCode = 1; }
   }

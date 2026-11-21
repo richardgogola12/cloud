@@ -90,12 +90,13 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-tmavy', async () => { await page.click('#themeToggle'); await wait(page, 800); });
   await page.click('#themeToggle').catch(() => {}); await wait(page, 500);
   await go(page, '#');
-  await shot(page, 'u-tabulka', async () => { await item(page, 'f:' + ids.rozpocet).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#sheetModal.show .jexcel', { timeout: 20000 }); await wait(page, 1200);
-    await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(1) td:nth-child(2)').click(); await page.keyboard.down('Shift'); await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(1) td:nth-child(5)').click(); await page.keyboard.up('Shift');
-    await page.click('#sheetModal [data-st="font-weight:bold"]'); await wait(page, 300);
-    await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(6) td:nth-child(3)').click(); await wait(page, 400); });
-  await page.evaluate(() => { const S = document.querySelector('#sheetModal [data-sh="close"]'); S && S.click(); }); await wait(page, 600);
-  await page.evaluate(() => document.querySelector('.modal.show [data-alt]')?.click()); await wait(page, 600);
+  await shot(page, 'u-tabulka', async () => { await item(page, 'f:' + ids.rozpocet).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#sheetModal.show iframe', { timeout: 20000 });
+    let fr = null; for (let i = 0; i < 80 && !fr; i++) { fr = page.frames().find(f => f.url().includes('sheet.php')); if (!fr) await wait(page, 250); }
+    await fr.waitForFunction(() => window.CloudSheetEditor && CloudSheetEditor.ready, null, { timeout: 30000 }); await wait(page, 1000);
+    await fr.evaluate(() => { luckysheet.setRangeShow('B2:B5'); luckysheet.setRangeFormat('bg', '#e6f4ea'); luckysheet.setRangeShow('C7'); }); await wait(page, 700); });
+  await shot(page, 'u-tabulka-menu', async () => { await page.frameLocator('#sheetModal iframe').locator('#gsMenu .gs-mb', { hasText: 'Formát' }).click(); await wait(page, 600); });
+  await page.frameLocator('#sheetModal iframe').locator('body').press('Escape').catch(() => {});
+  await page.evaluate(() => { const f = document.querySelector('#sheetModal iframe'); f && f.contentWindow.postMessage({ cloudSheetCmd: 'close' }, location.origin); }); await wait(page, 2500);
   await page.goto(base + 'profile.php'); await wait(page, 1200);
   await shot(page, 'u-profil');
   await shot(page, 'u-suhrn', async () => { await page.locator('#digest').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });

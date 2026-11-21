@@ -1010,8 +1010,33 @@ ok(str_contains((string)$r['body'], 'PK') && strlen($r['body']) === filesize($x2
 $r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$sheetId, 'updated' => $upd, 'data' => new CURLFile($x1, 'application/octet-stream', 'a.xlsx')]]);
 ok(empty(json_decode($r['body'], true)['ok']) && str_contains($r['body'], 'medzitým zmenil'), 'súbor zmenený inde → upozornenie namiesto prepísania');
 $r = $web->get('index.php');
-ok(str_contains($r['body'], 'data-action="new-sheet"') && str_contains($r['body'], 'assets/js/sheet.js') && str_contains($r['body'], 'jspreadsheet/jspreadsheet.js'), 'Nový → Nová tabuľka, editor a knižnice zo servera');
+ok(str_contains($r['body'], 'data-action="new-sheet"') && str_contains($r['body'], 'assets/js/sheet.js') && str_contains($r['body'], 'exceljs/exceljs.min.js'), 'Nový → Nová tabuľka, editor a knižnice zo servera');
 ok(!preg_match('#cdn\.jsdelivr\.net/npm/(xlsx|mammoth|exceljs|jspreadsheet)#', $r['body']), 'knižnice tabuliek sa nenačítavajú z CDN');
+// editor v štýle Google Tabuliek (sheet.php + Luckysheet)
+$r = $web->get("sheet.php?id=$sheetId&embed=1");
+ok($r['code'] === 200 && str_contains($r['body'], 'luckysheet.umd.js') && str_contains($r['body'], 'assets/js/lsheet.js') && str_contains($r['body'], 'id="gsMenu"'), 'editor tabuliek sa otvorí (sheet.php)');
+no_php_errors($r['body'], 'sheet.php');
+foreach (['Súbor', 'Úpravy', 'Zobraziť', 'Vložiť', 'Formát', 'Údaje', 'Podmienené formátovanie', 'Vytvoriť filter', 'Graf', 'Ukotviť'] as $w) ok(str_contains($r['body'], $w), "ponuka editora: $w");
+ok(!preg_match('#https?://(cdn|unpkg|at\.alicdn)#', $r['body']), 'editor nenačítava nič z cudzích serverov');
+preg_match('#CLOUD_SHEET = (\{.*?\});</script>#', $r['body'], $m); $cfgJ = json_decode($m[1] ?? '{}', true) ?: [];
+ok(($cfgJ['id'] ?? 0) === $sheetId && !empty($cfgJ['canEdit']) && array_key_exists('extras', $cfgJ) && $cfgJ['extras'] === null, 'nastavenia editora (id, úpravy povolené, bez grafov)', $m[1] ?? '');
+ok(empty(json_decode(preg_match('#CLOUD_SHEET = (\{.*?\});</script>#', $web->get("sheet.php?id=$sheetId&ro=1")['body'], $m2) ? $m2[1] : '{}', true)['canEdit']), 'iba na čítanie (?ro=1)');
+$r = $web->get('sheet.php?id=999999');
+ok($r['code'] === 200 && str_contains($r['body'], 'gs-err') && !str_contains($r['body'], 'lsheet.js'), 'neexistujúca tabuľka → hláška, nie editor');
+$ls = file_get_contents(__DIR__ . '/../server/assets/vendor/luckysheet/luckysheet.umd.js');
+ok(str_contains($ls, 'cloud-sk-patched') && str_contains($ls, 'Zoradiť A → Z') && !preg_match('#cdn\.jsdelivr|unpkg\.com|bootcdn|alicdn#', $ls), 'Luckysheet je po slovensky a bez cudzích serverov');
+// grafy a ďalšie časti, ktoré .xlsx neudrží, sa ukladajú k verzii súboru
+sleep(1);
+$chart = json_encode(['v' => 1, 'sheets' => ['Hárok1' => ['chart' => [['chart_id' => 'chart_t1', 'width' => 400, 'height' => 250, 'left' => 10, 'top' => 20, 'chartOptions' => ['chartType' => 'column']]]]]]);
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$sheetId, 'data' => new CURLFile($x2, 'application/octet-stream', 'a.xlsx'), 'extras' => $chart]]);
+$j = json_decode($r['body'], true) ?: [];
+ok(!empty($j['ok']), 'uloženie tabuľky s grafom', $r['body']);
+preg_match('#CLOUD_SHEET = (\{.*?\});</script>#', $web->get("sheet.php?id=$sheetId")['body'], $m); $cfgJ = json_decode($m[1] ?? '{}', true) ?: [];
+ok(($cfgJ['extras']['sheets']['Hárok1']['chart'][0]['chart_id'] ?? '') === 'chart_t1', 'graf sa načíta späť do editora', $m[1] ?? '');
+sleep(1);
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$sheetId, 'data' => new CURLFile($x1, 'application/octet-stream', 'a.xlsx')]]);
+preg_match('#CLOUD_SHEET = (\{.*?\});</script>#', $web->get("sheet.php?id=$sheetId")['body'], $m); $cfgJ = json_decode($m[1] ?? '{}', true) ?: [];
+ok(array_key_exists('extras', $cfgJ) && $cfgJ['extras'] === null, 'súbor zmenený inak (bez editora) → staré grafy sa nepoužijú');
 
 section('Editor obrázkov');
 $imgF = tempnam(sys_get_temp_dir(), 'i'); $gd = imagecreatetruecolor(40, 30); imagejpeg($gd, $imgF, 85);

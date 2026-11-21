@@ -799,7 +799,9 @@ try {
             check_space($a['owner'], $size);
             store_file($a['owner'], $f['folder_id'] ? (int)$f['folder_id'] : null, $f['name'], $up['tmp_name'], true);
             log_action($uid, 'edit', $f['name']);
-            json_out(['ok' => true, 'id' => (int)$f['id'], 'name' => $f['name'], 'updated' => q("SELECT updated_at FROM $F WHERE id = ?", [$f['id']])->fetchColumn()]);
+            $upd = q("SELECT updated_at FROM $F WHERE id = ?", [$f['id']])->fetchColumn();
+            sheet_extras_save((int)$f['id'], (string)$upd, $_POST['extras'] ?? null);
+            json_out(['ok' => true, 'id' => (int)$f['id'], 'name' => $f['name'], 'updated' => $upd]);
         }
         $parent = (int)($_POST['parent'] ?? 0) ?: null;
         $acc = need(folder_access($uid, $parent), 'edit');
@@ -812,7 +814,9 @@ try {
         if (!empty($_POST['from'])) { // kópia upravenej fotky: dátum odfotenia z originálu (úprava v prehliadači ho zo súboru odstráni)
             try { $src = file_access($uid, (int)$_POST['from'])['row']; if (!empty($src['taken_at'])) q("UPDATE $F SET taken_at = COALESCE(taken_at, ?) WHERE id = ?", [$src['taken_at'], $r['id']]); } catch (Throwable $e) {}
         }
-        json_out(['ok' => true, 'id' => (int)$r['id'], 'name' => $name, 'updated' => q("SELECT updated_at FROM $F WHERE id = ?", [$r['id']])->fetchColumn()]);
+        $upd = q("SELECT updated_at FROM $F WHERE id = ?", [$r['id']])->fetchColumn();
+        sheet_extras_save((int)$r['id'], (string)$upd, $_POST['extras'] ?? null);
+        json_out(['ok' => true, 'id' => (int)$r['id'], 'name' => $name, 'updated' => $upd]);
     }
 
     case 'save_text': {

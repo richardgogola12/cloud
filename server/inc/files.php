@@ -760,3 +760,23 @@ function send_zip(array $folders, array $files, string $zipName): never {
     register_shutdown_function(fn() => @unlink($tmp));
     send_file($tmp, $zipName . '.zip', 'application/zip', false);
 }
+
+/* ================== Editor tabuliek: grafy a časti, ktoré .xlsx neudrží ================== */
+/** Uloží doplnky tabuľky (JSON z editora) k danej verzii súboru; prázdne = zmaže. */
+function sheet_extras_save(int $fileId, string $updated, $json): void {
+    if ($json === null) return;
+    $json = (string)$json;
+    try {
+        if ($json === '' || $json === '{}' || strlen($json) > 8000000 || !is_array(json_decode($json, true))) { q('DELETE FROM ' . P . 'sheet_extras WHERE file_id = ?', [$fileId]); return; }
+        q('INSERT INTO ' . P . 'sheet_extras (file_id, file_updated, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE file_updated = VALUES(file_updated), data = VALUES(data)', [$fileId, $updated, $json]);
+    } catch (Throwable $e) { error_log('sheet_extras: ' . $e->getMessage()); }
+}
+/** Doplnky tabuľky – iba ak patria k aktuálnej verzii súboru (inak by nesedeli k obsahu). */
+function sheet_extras_get(int $fileId, string $updated): ?array {
+    try {
+        $r = q('SELECT file_updated, data FROM ' . P . 'sheet_extras WHERE file_id = ?', [$fileId])->fetch();
+        if (!$r || $r['file_updated'] !== $updated) return null;
+        $d = json_decode($r['data'], true);
+        return is_array($d) ? $d : null;
+    } catch (Throwable $e) { return null; }
+}

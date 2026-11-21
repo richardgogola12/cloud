@@ -327,11 +327,6 @@ require __DIR__ . '/inc/views/layout_start.php';
     'mammoth' => lib('mammoth/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'),
     'xlsx' => lib('xlsx/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'),
     'exceljs' => lib('exceljs/exceljs.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'),
-    'jsuites' => lib('jspreadsheet/jsuites.js', 'https://cdn.jsdelivr.net/npm/jsuites@4.17.7/dist/jsuites.min.js'),
-    'jsuites_css' => lib('jspreadsheet/jsuites.css', 'https://cdn.jsdelivr.net/npm/jsuites@4.17.7/dist/jsuites.min.css'),
-    'jss' => lib('jspreadsheet/jspreadsheet.js', 'https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.4/dist/index.min.js'),
-    'jss_css' => lib('jspreadsheet/jspreadsheet.css', 'https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.4/dist/jspreadsheet.min.css'),
-    'formula' => lib('jspreadsheet/formula.js', 'https://cdn.jsdelivr.net/npm/@formulajs/formulajs@4.4.9/lib/browser/formula.min.js'),
   ], JSON_UNESCAPED_SLASHES) ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>

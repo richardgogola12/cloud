@@ -20,16 +20,12 @@ get chart.js@4.4.1/dist/chart.umd.min.js                       chartjs/chart.umd
 get mammoth@1.8.0/mammoth.browser.min.js                     mammoth/mammoth.browser.min.js
 get xlsx@0.18.5/dist/xlsx.full.min.js                         xlsx/xlsx.full.min.js
 get exceljs@4.4.0/dist/exceljs.min.js                         exceljs/exceljs.min.js
-get jspreadsheet-ce@4.13.4/dist/index.min.js                  jspreadsheet/jspreadsheet.js
-get jspreadsheet-ce@4.13.4/dist/jspreadsheet.min.css          jspreadsheet/jspreadsheet.css
-get jsuites@4.17.7/dist/jsuites.min.js                        jspreadsheet/jsuites.js
-get jsuites@4.17.7/dist/jsuites.min.css                       jspreadsheet/jsuites.css
-get @formulajs/formulajs@4.4.9/lib/browser/formula.min.js     jspreadsheet/formula.js
 # celé balíky z npm (priečinky s obrázkami a písmami)
 npmget() { local tmp; tmp=$(mktemp -d); (cd "$tmp" && npm pack "$1" --silent >/dev/null && tar xzf ./*.tgz); mkdir -p "$D/$3"; cp -r "$tmp/package/$2/." "$D/$3/"; rm -rf "$tmp"; echo "  $3/ ($1)"; }
 npmget luckysheet@2.1.13 dist luckysheet
-npmget luckyexcel@1.0.1 dist luckyexcel
-# grafy v tabuľkách (Luckysheet ich inak načítava z cudzích serverov)
+# Luckysheet: bez zdrojových máp, ukážkových dát a ESM verzie; slovenčina, závislosti grafov a písmo zo servera (nie z cudzích CDN)
+rm -rf "$D/luckysheet/demoData" "$D/luckysheet/index.html" "$D/luckysheet/"*.map "$D/luckysheet/luckysheet.esm.js" "$D/luckysheet/assets/iconfont/demo"*
+python3 "$(dirname "$0")/patch-luckysheet.py" "$D/luckysheet" || exit 1
 get vue@2.6.11/dist/vue.min.js                                 luckysheet-deps/vue.min.js
 get vuex@3.4.0/dist/vuex.min.js                                luckysheet-deps/vuex.min.js
 get element-ui@2.13.2/lib/index.js                             luckysheet-deps/element-ui.js
@@ -40,7 +36,4 @@ get echarts@4.8.0/dist/echarts.min.js                          luckysheet-deps/e
 get jszip@3.10.1/dist/jszip.min.js                             jszip/jszip.min.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
-# Jspreadsheet pri prvom spustení načíta logo z bossanova.uk – Cloud nechodí na cudzie servery
-sed -i 's#!sessionStorage.getItem("jexcel")#!1#' "$D/jspreadsheet/jspreadsheet.js"
-grep -q 'sessionStorage&&!1' "$D/jspreadsheet/jspreadsheet.js" || { echo "POZOR: logo Jspreadsheet sa nepodarilo vypnúť"; exit 1; }
 echo "Hotovo: $D"

@@ -115,21 +115,38 @@ aby si mohol uvoľniť miesto.</p>
 <?= fig('u-nedavne', 'Nedávne súbory.') ?>
 
 <?= h2('tabulky', 'bi-file-earmark-spreadsheet', 'Tabuľky (Excel)') ?>
-<?= fig('u-tabulka', 'Editor tabuliek: panel s formátovaním, riadok so vzorcom, hárky dole.') ?>
-<p>Tabuľky <b>.xlsx</b> (Excel), <b>.ods</b> (LibreOffice) a <b>.csv</b> upravíš priamo v Cloude – na počítači aj v mobile. Všetko beží v prehliadači.</p>
+<?= fig('u-tabulka', 'Editor tabuliek vyzerá a ovláda sa ako Google Tabuľky: ponuky hore, panel s formátovaním, riadok so vzorcom, hárky dole.') ?>
+<p>Tabuľky <b>.xlsx</b> (Excel), <b>.ods</b> (LibreOffice) a <b>.csv</b> upravíš priamo v Cloude – na počítači aj v mobile. Editor vyzerá a funguje
+ako Google Tabuľky, je celý po slovensky a beží v tvojom prehliadači (nič sa neposiela na cudzie servery).</p>
 <ul>
   <li><b>Nová tabuľka:</b> <b>+ Nový → Nová tabuľka</b>, zadaj názov.</li>
-  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>.</li>
-  <li><b>Písanie:</b> klikni do bunky a píš, <kbd>Enter</kbd> = bunka nižšie, <kbd>Tab</kbd> = vedľa. Desatinnú čiarku môžeš písať ako v Exceli (<code>85,5</code>).</li>
-  <li><b>Vzorce:</b> začínajú <code>=</code>, napr. <code>=SUM(B2:B5)</code>, <code>=AVERAGE(…)</code>, <code>=IF(B2&gt;100;"veľa";"málo")</code>, <code>=VLOOKUP(…)</code>, <code>=COUNTIF(…)</code>, <code>=ROUND(…)</code>, <code>=TODAY()</code> – stovky funkcií Excelu. Oddeľovať môžeš bodkočiarkou aj čiarkou. Tlačidlo <b>Σ</b> vloží súčet pod označené bunky.</li>
-  <li><b>Formát:</b> tučné, kurzíva, podčiarknuté, farba písma a výplne, zarovnanie, zalamovanie, zlúčenie buniek, šírka stĺpca (potiahni okraj v hlavičke).</li>
-  <li><b>Riadky a stĺpce:</b> vložiť, zmazať, zoradiť – tlačidlami alebo pravým klikom.</li>
-  <li><b>Hárky:</b> dole <b>+</b> pridá hárok, dvojklik premenuje, kôš zmaže.</li>
-  <li><b>Kopírovanie:</b> <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> funguje aj medzi Cloudom a Excelom či Google Tabuľkami.</li>
-  <li><b>Súčet výberu:</b> keď označíš viac buniek, vpravo dole uvidíš súčet, priemer a počet.</li>
+  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>. Šípka vľavo hore (alebo tlačidlo Späť v telefóne) editor zavrie.</li>
+  <li><b>Písanie:</b> klikni do bunky a píš, <kbd>Enter</kbd> = potvrdiť, <kbd>Tab</kbd> = bunka vedľa, <kbd>F2</kbd> alebo dvojklik = upraviť obsah.
+    Čísla píš po slovensky: <code>85,5</code>, <code>1 200</code>, <code>15 %</code>, <code>120 €</code>, dátum <code>24.12.2026</code> – Cloud ich rozpozná a správne naformátuje.</li>
+  <li><b>Vzorce:</b> začínajú <code>=</code>, napr. <code>=SUM(B2:B5)</code>, <code>=AVERAGE(…)</code>, <code>=IF(B2&gt;100;"veľa";"málo")</code>, <code>=VLOOKUP(…)</code>, <code>=COUNTIF(…)</code>, <code>=ROUND(…)</code>, <code>=TODAY()</code> – stovky funkcií Excelu.
+    Pri písaní sa ukazuje <b>nápoveda funkcie</b> s popisom argumentov. Oddeľovať môžeš bodkočiarkou aj čiarkou. <b>Vložiť → Súčet</b> spočíta stĺpec nad bunkou.</li>
 </ul>
-<p><b>Ukladanie:</b> zmeny sa uložia samé pár sekúnd po úprave (alebo <kbd>Ctrl</kbd>+<kbd>S</kbd>). Každé uloženie vytvorí novú verziu – predchádzajúci stav nájdeš vo <b>Verziách</b>.</p>
-<div class="warn">Editor nevie grafy, kontingenčné tabuľky, makrá, obrázky a podmienené formátovanie. Ak ich súbor obsahuje, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili. Starý formát <b>.xls</b> sa uloží ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa.</div>
+<?= fig('u-tabulka-menu', 'Ponuka Formát: formáty čísel (mena, percentá, dátum), písmo, zlúčenie a podmienené formátovanie.') ?>
+<h3>Ponuky ako v Google Tabuľkách</h3>
+<table class="table table-sm">
+  <tr><td><b>Súbor</b></td><td>Uložiť teraz, stiahnuť ako <b>Excel (.xlsx)</b>, <b>OpenDocument (.ods)</b> alebo <b>CSV</b>, zavrieť.</td></tr>
+  <tr><td><b>Úpravy</b></td><td>Späť / znova, <b>Nájsť a nahradiť</b> (aj regulárnym výrazom), vymazať obsah, odstrániť riadky a stĺpce.</td></tr>
+  <tr><td><b>Zobraziť</b></td><td><b>Ukotvenie</b> 1. riadka, 1. stĺpca alebo všetkého po aktuálnu bunku (ostane na mieste pri posúvaní), priblíženie.</td></tr>
+  <tr><td><b>Vložiť</b></td><td>Riadky a stĺpce, <b>graf</b>, obrázok, odkaz, <b>komentár</b>, funkcie (súčet, priemer, ďalšie…), rozbaľovací zoznam, nový hárok.</td></tr>
+  <tr><td><b>Formát</b></td><td>Formát čísla: <b>číslo</b> (1 234,56), <b>mena</b> (1 234,56 €), <b>percentá</b>, <b>dátum</b>, čas, text; tučné, kurzíva, podčiarknuté, prečiarknuté, zalamovanie, zlúčenie buniek,
+    <b>podmienené formátovanie</b> (zvýraznenie hodnôt väčších než…, duplicít, najvyšších hodnôt, farebné škály, dátové pruhy), vymazanie formátovania.</td></tr>
+  <tr><td><b>Údaje</b></td><td>Zoradenie A → Z / Z → A, <b>filter</b> (šípky v hlavičke – podľa hodnôt, podmienky alebo farby), <b>overenie údajov</b> (rozbaľovací zoznam, zaškrtávacie políčko, rozsah čísel či dátumov), rozdelenie textu do stĺpcov.</td></tr>
+</table>
+<p>Pod ponukami je <b>panel nástrojov</b> (písmo, veľkosť, farby, orámovanie, zarovnanie, otočenie textu…) a <b>riadok so vzorcom</b>. Pravým klikom na bunku, riadok, stĺpec alebo hárok
+otvoríš ďalšie možnosti (vložiť, odstrániť, skryť, zoradiť, farba hárka…). <b>Hárky</b> pridáš tlačidlom <b>+</b> vľavo dole. Keď označíš viac buniek, vpravo dole uvidíš <b>súčet, priemer a počet</b>.
+<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> funguje aj medzi Cloudom a Excelom či Google Tabuľkami. Všetky skratky sú v <b>Pomoc → Klávesové skratky</b>.</p>
+<h3>Ukladanie a čo sa zachová</h3>
+<p>Zmeny sa <b>uložia samé</b> pár sekúnd po úprave (alebo hneď cez <kbd>Ctrl</kbd>+<kbd>S</kbd>) – hore pri názve uvidíš „Všetky zmeny sú uložené v Cloude“. Každé uloženie vytvorí novú verziu –
+predchádzajúci stav nájdeš vo <b>Verziách</b>. Do súboru .xlsx sa uloží obsah, vzorce, formáty čísel, písmo a farby, orámovanie, zlúčené bunky, šírky a výšky, ukotvenie, filter,
+podmienené formátovanie, overenie údajov, komentáre, odkazy aj obrázky, takže súbor otvoríš rovnako v Exceli. <b>Grafy</b> vytvorené v Cloude si Cloud pamätá pri súbore a ukáže ich pri ďalšom otvorení v Cloude
+(Excel ich nezobrazí).</p>
+<div class="warn">Grafy a kontingenčné tabuľky vytvorené v Exceli a makrá editor nezobrazí. Ak ich súbor obsahuje, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili.
+Staré formáty <b>.xls</b> a <b>.xlsm</b> sa uložia ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa. CSV obsahuje iba jeden hárok a hodnoty (bez formátovania).</div>
 
 <?= h2('obrazky', 'bi-magic', 'Úprava fotiek') ?>
 <?= fig('u-obrazok', 'Editor obrázkov: orezanie s pomerom strán 16:9.') ?>

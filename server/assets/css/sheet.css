@@ -1,0 +1,53 @@
+/* Editor tabuliek (sheet.php) – vzhľad ako Google Tabuľky */
+html, body.gs { height: 100%; margin: 0; overflow: hidden; background: #f9fbfd; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+.gs-head { position: fixed; left: 0; right: 0; top: 0; height: 64px; display: flex; align-items: center; gap: .35rem; padding: 0 .75rem 0 .35rem; background: #f9fbfd; z-index: 1005; }
+.gs-ib { border: 0; background: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.25rem; color: #444746; flex: none; }
+.gs-ib:hover { background: rgba(68, 71, 70, .08); }
+.gs-logo { font-size: 2rem; color: #0f9d58; flex: none; }
+.gs-tw { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.gs-title { display: flex; align-items: center; gap: .5rem; min-width: 0; line-height: 1.3; }
+.gs-name { font-size: 1.1rem; color: #1f1f1f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 .3rem; }
+.gs-status { font-size: .8rem; color: #5f6368; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-status.ok::before { content: "\F26A"; font-family: bootstrap-icons; margin-right: .3rem; color: #188038; }
+.gs-status.busy::before { content: "\F135"; font-family: bootstrap-icons; margin-right: .3rem; display: inline-block; animation: gs-spin 1s linear infinite; }
+.gs-status.warn { color: #b06000; }
+.gs-status.err { color: #d93025; font-weight: 500; }
+@keyframes gs-spin { to { transform: rotate(360deg); } }
+.gs-menu { display: flex; gap: 0; margin-top: 1px; overflow-x: auto; scrollbar-width: none; }
+.gs-menu::-webkit-scrollbar { display: none; }
+.gs-mb { border: 0; background: none; padding: .12rem .5rem; border-radius: 4px; font-size: .875rem; color: #1f1f1f; white-space: nowrap; }
+.gs-mb:hover, .gs-mb.show { background: rgba(68, 71, 70, .1); }
+body.ro .gs-mb[data-rw], body.ro [data-rw] { opacity: .45; pointer-events: none; }
+.gs-menu .dropdown-menu { font-size: .875rem; min-width: 260px; padding: .4rem 0; box-shadow: 0 2px 6px rgba(60, 64, 67, .15), 0 1px 2px rgba(60, 64, 67, .3); border: 0; max-height: calc(100vh - 80px); overflow-y: auto; }
+.gs-menu .dropdown-item { display: flex; align-items: center; gap: .7rem; padding: .32rem 1rem; }
+.gs-menu .dropdown-item > i { width: 1.1rem; text-align: center; color: #444746; }
+.gs-menu .dropdown-item kbd, .gs-menu .dropdown-item .ex { margin-left: auto; background: none; color: #80868b; font-size: .78rem; padding: 0; font-family: inherit; }
+.gs-menu .dropdown-header { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+.gs-savebtn { flex: none; }
+body.ro .gs-savebtn { display: none; }
+.gs-main { position: fixed; left: 0; right: 0; top: 64px; bottom: 0; }
+#gsSheet { position: absolute; inset: 0; }
+.gs-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; color: #5f6368; z-index: 2000; text-align: center; padding: 1rem; }
+.gs-err { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #5f6368; text-align: center; padding: 1rem; }
+.gs-err > i { font-size: 3rem; color: #d93025; }
+.gs-keys td:first-child { white-space: nowrap; font-family: ui-monospace, monospace; font-size: .85rem; width: 1%; padding-right: 1rem; }
+#gsToasts { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: .4rem; align-items: center; pointer-events: none; }
+.gs-toast { background: #323232; color: #fff; padding: .6rem 1rem; border-radius: 6px; font-size: .9rem; box-shadow: 0 3px 8px rgba(0, 0, 0, .3); transition: opacity .4s; }
+.gs-toast.err { background: #b3261e; }
+.gs-toast.out { opacity: 0; }
+/* Luckysheet: tlačidlo meny ukazuje €, nie ¥ */
+#luckysheet-icon-currency .luckysheet-icon-img-container { font-size: 0 !important; }
+#luckysheet-icon-currency .luckysheet-icon-img-container::before { content: "€"; font-size: 15px; font-weight: 600; color: #444746; font-family: Arial, sans-serif; }
+/* Luckysheet: vzhľad bližší Google Tabuľkám */
+#luckysheet .luckysheet-wa-editor { background: #edf2fa; border-radius: 24px; margin: 4px 8px; border: 0 !important; }
+#luckysheet .luckysheet { border: 0 !important; }
+#luckysheet .luckysheet-sheet-area { background: #f9fbfd; }
+#luckysheet .luckysheet-sheets-item-active { background: #e1e9f7 !important; color: #0b57d0 !important; }
+@media (max-width: 575.98px) {
+  .gs-head { height: 58px; padding-right: .4rem; }
+  .gs-main { top: 58px; }
+  .gs-logo { display: none; }
+  .gs-name { font-size: 1rem; }
+  .gs-status { display: none; }
+  .gs-mb { padding: .1rem .4rem; font-size: .82rem; }
+}
