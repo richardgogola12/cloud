@@ -630,3 +630,49 @@ body:not(:has(#items)) .kbd-menu { display: none !important; }
 }
 .share-video { width: 100%; aspect-ratio: 16 / 9; max-height: 70vh; }
 .cv.ui video::-webkit-media-text-track-container, .cv.paused video::-webkit-media-text-track-container { transform: translateY(-60px); transition: transform .2s; }
+
+/* editor tabuliek */
+.ic-sheet { color: #188038; }
+.sh-wrap { display: flex; flex-direction: column; height: 100%; background: var(--bs-body-bg); }
+.sh-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--c-border); flex: none; }
+.sh-title { min-width: 0; line-height: 1.2; }
+.sh-name { font-weight: 600; font-size: 1.05rem; max-width: 50vw; }
+.sh-status { min-height: 1.1em; }
+.sh-tools { display: flex; align-items: center; gap: 2px; padding: 4px 10px; background: var(--c-surface); border-bottom: 1px solid var(--c-border); overflow-x: auto; flex: none; scrollbar-width: thin; }
+.sh-b { position: relative; display: inline-flex; align-items: center; gap: 3px; height: 34px; min-width: 34px; padding: 0 7px; border: 0; border-radius: 8px; background: none; color: var(--bs-body-color); font-size: 1.05rem; flex: none; cursor: pointer; }
+.sh-b small { font-size: .72rem; }
+.sh-b:hover { background: var(--c-hover, rgba(0,0,0,.06)); }
+.sh-sep { width: 1px; height: 22px; background: var(--c-border); margin: 0 5px; flex: none; }
+.sh-color input { position: absolute; inset: auto 6px 4px 6px; width: calc(100% - 12px); height: 4px; padding: 0; border: 0; opacity: 1; cursor: pointer; }
+.sh-color input::-webkit-color-swatch-wrapper { padding: 0; } .sh-color input::-webkit-color-swatch { border: 0; border-radius: 2px; }
+.sh-color { padding-bottom: 6px; }
+.sh-fbar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--c-border); flex: none; }
+.sh-ref { min-width: 72px; font-size: .85rem; font-weight: 600; color: var(--bs-secondary-color); padding: 3px 8px; border: 1px solid var(--c-border); border-radius: 6px; text-align: center; }
+.sh-fx { font-style: italic; color: var(--bs-secondary-color); font-family: Georgia, serif; }
+.sh-formula { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--bs-body-color); font-size: .95rem; padding: 4px 0; }
+.sh-grid { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+.sh-sheet { height: 100%; }
+.sh-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--bs-secondary-color); }
+.sh-bottom { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-top: 1px solid var(--c-border); background: var(--c-surface); flex: none; min-height: 44px; }
+.sh-tabs { display: flex; gap: 2px; overflow-x: auto; min-width: 0; scrollbar-width: none; }
+.sh-tab { border: 0; background: none; padding: 6px 14px; border-radius: 8px 8px 0 0; color: var(--bs-secondary-color); white-space: nowrap; font-size: .9rem; border-bottom: 3px solid transparent; }
+.sh-tab.active { color: #188038; font-weight: 600; border-bottom-color: #188038; background: var(--bs-body-bg); }
+.sh-info { white-space: nowrap; padding-right: 6px; }
+#sheetModal.readonly .sh-tools, #sheetModal.readonly [data-sh="addsheet"], #sheetModal.readonly [data-sh="delsheet"] { opacity: .4; pointer-events: none; }
+/* mriežka */
+#sheetModal .jexcel_container { width: 100%; height: 100%; padding: 0; }
+#sheetModal .jexcel_content { box-shadow: none; padding: 0; }
+#sheetModal .jexcel { font-size: 13px; border-left: 0; }
+#sheetModal .jexcel > thead > tr > td { background: var(--c-surface); color: var(--bs-secondary-color); font-weight: 500; border-color: var(--c-border); }
+#sheetModal .jexcel > tbody > tr > td:first-child { background: var(--c-surface); color: var(--bs-secondary-color); }
+#sheetModal .jexcel > tbody > tr > td { border-color: var(--c-border); padding: 2px 5px; }
+#sheetModal .jexcel > thead > tr > td.selected, #sheetModal .jexcel > tbody > tr.selected > td:first-child { background: #d3e3fd; color: #0b57d0; }
+#sheetModal .jexcel .highlight { background-color: rgba(26,115,232,.08); }
+#sheetModal .jexcel .highlight-selected { background-color: transparent; }
+#sheetModal .jexcel_corner { background-color: #1a73e8; border-color: #fff; }
+[data-bs-theme="dark"] #sheetModal .jexcel, [data-bs-theme="dark"] #sheetModal .jexcel_content { background: #1f1f1f; color: #e3e3e3; }
+[data-bs-theme="dark"] #sheetModal .jexcel > tbody > tr > td { background-color: #1f1f1f; }
+[data-bs-theme="dark"] #sheetModal .jexcel > tbody > tr > td:first-child, [data-bs-theme="dark"] #sheetModal .jexcel > thead > tr > td { background: #2a2a2a; }
+[data-bs-theme="dark"] #sheetModal .jexcel > tbody > tr > td.readonly { color: #e3e3e3; }
+.jexcel_contextmenu { z-index: 2000; border-radius: 10px; padding: 4px 0; }
+@media (max-width: 575px) { .sh-name { max-width: 45vw; font-size: .95rem; } .sh-b small { display: none; } }

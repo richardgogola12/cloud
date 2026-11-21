@@ -37,16 +37,18 @@ window.Cloud = (function () {
     el.addEventListener('hidden.bs.toast', () => el.remove());
   }
 
-  function confirmBox(title, text, okText = 'Potvrdiť', danger = true) {
+  /** Potvrdenie: true = hlavné tlačidlo, false = zrušiť, 'alt' = druhé tlačidlo (ak je altText). */
+  function confirmBox(title, text, okText = 'Potvrdiť', danger = true, altText = '') {
     return new Promise((resolve) => {
       const id = 'cf' + Date.now();
-      document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header border-0 pb-0"><h5 class="modal-title"></h5></div><div class="modal-body text-body-secondary"></div><div class="modal-footer border-0"><button class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button><button class="btn ${danger ? 'btn-danger' : 'btn-primary'} rounded-pill" data-ok></button></div></div></div></div>`);
+      document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog modal-dialog-centered ${altText ? '' : 'modal-sm'}"><div class="modal-content"><div class="modal-header border-0 pb-0"><h5 class="modal-title"></h5></div><div class="modal-body text-body-secondary"></div><div class="modal-footer border-0"><button class="btn btn-light rounded-pill" data-bs-dismiss="modal">Zrušiť</button>${altText ? '<button class="btn btn-outline-secondary rounded-pill" data-alt></button>' : ''}<button class="btn ${danger ? 'btn-danger' : 'btn-primary'} rounded-pill" data-ok></button></div></div></div></div>`);
       const el = document.getElementById(id);
       el.querySelector('.modal-title').textContent = title;
       el.querySelector('.modal-body').textContent = text;
       el.querySelector('[data-ok]').textContent = okText;
       const m = new bootstrap.Modal(el); let ok = false;
       el.querySelector('[data-ok]').onclick = () => { ok = true; m.hide(); };
+      if (altText) { el.querySelector('[data-alt]').textContent = altText; el.querySelector('[data-alt]').onclick = () => { ok = 'alt'; m.hide(); }; }
       el.addEventListener('hidden.bs.modal', () => { el.remove(); resolve(ok); });
       m.show();
     });

@@ -112,6 +112,7 @@
     || /^(txt|md|csv|json|xml|html|css|js|ts|php|py|sql|sh|ini|conf|log|yml|yaml|env)$/.test(ext(it)));
   const isDocx = (it) => ext(it) === 'docx';
   const isSheet = (it) => /^(xlsx|xls|ods|csv)$/.test(ext(it));
+  const isSheetEditable = (it) => it.type === 'f' && /^(xlsx|xlsm|xls|ods|csv)$/.test(ext(it));
   const fmtDate = (s) => {
     if (!s) return '';
     const d = new Date(s.replace(' ', 'T')), now = new Date();
@@ -808,6 +809,25 @@
     const it = state.items.find(i => i.type === 'f' && i.id === r.id);
     if (it) editText(it);
   }
+  /* ---------------- tabuľky ---------------- */
+  function editSheet(it, readOnly) {
+    bootstrap.Modal.getInstance($('#previewModal'))?.hide();
+    CloudSheet.open(it, { url: fileUrl(it.id), folder: it.folder_id || curFolder(), readOnly: !!readOnly,
+      onSaved: () => { lcMem.clear?.(); }, onClose: () => load(true) });
+  }
+  async function newSheet() {
+    const name = await Cloud.prompt('Nová tabuľka', 'Tabuľka bez názvu.xlsx', 'Vytvoriť');
+    if (!name) return;
+    const fd = new FormData();
+    fd.append('data', await CloudSheet.blankXlsx(), 'nova.xlsx');
+    fd.append('parent', curFolder() || ''); fd.append('name', name);
+    const r = await api('api.php?action=save_binary', fd);
+    if (!r.ok) return toast(r.error, 'danger');
+    if (state.view !== 'folder') go('#');
+    await load();
+    const it = state.items.find(i => i.type === 'f' && i.id === r.id) || { id: r.id, name: r.name, type: 'f', updated: r.updated };
+    editSheet(it);
+  }
   async function rename(it) {
     const name = await Cloud.prompt('Premenovať', it.name, 'Uložiť');
     if (!name || name === it.name) return;
@@ -1201,6 +1221,10 @@
     $('#previewNext').style.visibility = pvIdx < files.length - 1 ? 'visible' : 'hidden';
     $('#previewEdit')?.remove();
     const m = it.mime, u = fileUrl(it.id, true);
+    if (isSheetEditable(it) && !(state.perm && PERM[state.perm] < 2)) { // tabuľku možno hneď upravovať
+      $('#previewDownload').insertAdjacentHTML('beforebegin', '<button class="btn btn-sm btn-light rounded-pill px-3" id="previewEdit"><i class="bi bi-pencil-square me-1"></i>Upraviť</button>');
+      $('#previewEdit').onclick = () => editSheet(it);
+    }
     bootstrap.Modal.getOrCreateInstance($('#previewModal')).show();
     if (/^image\/(jpeg|png|gif|webp|bmp)/.test(m)) {
       // najprv rozmazaná miniatúra + spinner, potom plná fotka
@@ -1237,13 +1261,13 @@
       try {
         const buf = await (await fetch(fileUrl(it.id), { credentials: 'same-origin' })).arrayBuffer();
         if (isDocx(it)) {
-          await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+          await loadScript(window.CLOUD_LIB.mammoth);
           const res = await mammoth.convertToHtml({ arrayBuffer: buf });
           body.innerHTML = '<div class="doc-preview"></div>';
           body.firstChild.innerHTML = res.value || '<p class="text-muted">Dokument je prázdny.</p>';
           body.firstChild.querySelectorAll('script,iframe,object,embed').forEach(x => x.remove());
         } else {
-          await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+          await loadScript(window.CLOUD_LIB.xlsx);
           renderSheet(body, XLSX.read(buf, { type: 'array' }));
         }
       } catch (e) { body.innerHTML = '<div class="text-white text-center">' + esc(e.message || 'Náhľad zlyhal') + '</div>'; }
@@ -1251,13 +1275,13 @@
       body.innerHTML = '<div class="spinner-border text-light"></div>';
       const r = await api('api.php?action=text', { id: it.id });
       if (ext(it) === 'csv' && r.ok) {
-        try { await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); renderSheet(body, XLSX.read(r.text, { type: 'string' })); }
+        try { await loadScript(window.CLOUD_LIB.xlsx); renderSheet(body, XLSX.read(r.text, { type: 'string' })); }
         catch (e) { body.innerHTML = '<pre class="preview-text"></pre>'; body.firstChild.textContent = r.text; }
       } else {
         body.innerHTML = '<pre class="preview-text"></pre>';
         body.firstChild.textContent = r.ok ? r.text + (r.truncated ? '\n\n… (skrátené)' : '') : r.error;
       }
-      if (r.ok && r.editable) {
+      if (r.ok && r.editable && !$('#previewEdit')) {
         $('#previewDownload').insertAdjacentHTML('beforebegin', '<button class="btn btn-sm btn-light rounded-pill px-3" id="previewEdit"><i class="bi bi-pencil-square me-1"></i>Upraviť</button>');
         $('#previewEdit').onclick = () => editText(it);
       }
@@ -1312,7 +1336,7 @@
     const trash = state.view === 'trash';
     const minPerm = items.reduce((m, i) => Math.min(m, PERM[i.perm] || 1), 3);
     const vis = {
-      open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && isText(single) && minPerm >= 2, download: !trash,
+      open: single && !trash, openapp: IN_APP && single && !trash && single.type === 'f', send: IN_APP && single && !trash && single.type === 'f', edit: single && !trash && (isText(single) || isSheetEditable(single)) && minPerm >= 2, download: !trash,
       share: single && !trash && minPerm === 3, rename: single && !trash && minPerm >= 2, move: !trash && minPerm >= 2,
       copy: !trash && !items.some(i => i.type === 'd'), star: !trash && minPerm === 3, versions: single && !trash && single.type === 'f',
       info: single && !trash, tags: !trash, restore: trash, leave: state.view === 'shared', delete: !trash && minPerm >= 2, purge: trash,
@@ -1339,7 +1363,7 @@
     const a = e.target.closest('[data-ctx]'); if (!a) return;
     e.preventDefault(); hideCtx();
     const it = ctxItems[0], items = ctxItems;
-    ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
+    ({ open: () => open(it), openapp: () => { location.href = appUrl('open', it); }, send: () => { location.href = appUrl('send', it); }, edit: () => isSheetEditable(it) ? editSheet(it) : editText(it), download: () => download(items), share: () => share(it), rename: () => rename(it),
        move: () => moveDialog(items, 'move'), copy: () => moveDialog(items, 'copy'), star: () => star(items), versions: () => versions(it),
        info: () => info(it), tags: () => tagsDialog(items), restore: () => restore(items), leave: () => leave(items), delete: () => del(items), purge: () => purge(items),
        albumadd: () => albumAddDialog(items), albumremove: () => albumRemove(items), albumcover: () => albumCover(it),
@@ -2224,7 +2248,7 @@
     e.preventDefault();
     if (!canEditHere()) return toast('Táto zložka je iba na čítanie.', 'warning');
     if (IN_APP && a.dataset.action === 'upload-folder') { location.href = 'cloudapp://upload-folder?folder=' + curFolder(); return; }
-    ({ 'new-folder': newFolder, 'new-text': newText, 'upload-files': () => $('#fileInput').click(), 'upload-folder': () => $('#folderInput').click(), 'upload-camera': () => $('#cameraInput').click() })[a.dataset.action]?.();
+    ({ 'new-folder': newFolder, 'new-text': newText, 'new-sheet': newSheet, 'upload-files': () => $('#fileInput').click(), 'upload-folder': () => $('#folderInput').click(), 'upload-camera': () => $('#cameraInput').click() })[a.dataset.action]?.();
   });
 
   // drag & drop zo systému (aj celé zložky)

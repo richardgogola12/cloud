@@ -1,7 +1,7 @@
 /* Graf využitia úložiska (Chart.js) – jedna séria, bez legendy, tooltip s krížom */
 (function () {
   const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+  s.src = window.CLOUD_CHART_JS || 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'; // knižnica zo servera (assets/vendor)
   s.onload = draw;
   document.head.appendChild(s);
 

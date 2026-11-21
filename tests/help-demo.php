@@ -94,7 +94,12 @@ function office(string $kind, string $text): string { // jednoduchý .docx / .xl
         $z->addFromString('xl/workbook.xml', '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Hárok1" sheetId="1" r:id="rId1"/></sheets></workbook>');
         $z->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>');
         $z->addFromString('xl/sharedStrings.xml', '<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="1" uniqueCount="1"><si><t>' . $t . '</t></si></sst>');
-        $z->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row></sheetData></worksheet>');
+        $rows = $GLOBALS['XLSX_ROWS'] ?? null; $sd = '<row r="1"><c r="A1" t="s"><v>0</v></c></row>';
+        if ($rows) { $sd = ''; foreach ($rows as $ri => $row) { $sd .= '<row r="' . ($ri + 1) . '">'; foreach ($row as $ci => $v) { $ref = chr(65 + $ci) . ($ri + 1);
+            if (is_string($v) && $v !== '' && $v[0] === '=') $sd .= '<c r="' . $ref . '"><f>' . htmlspecialchars(substr($v, 1), ENT_XML1) . '</f></c>';
+            elseif (is_numeric($v)) $sd .= '<c r="' . $ref . '"><v>' . $v . '</v></c>';
+            elseif ($v !== '') $sd .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . htmlspecialchars($v, ENT_XML1) . '</t></is></c>'; } $sd .= '</row>'; } }
+        $z->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="26" customWidth="1"/><col min="2" max="4" width="14" customWidth="1"/></cols><sheetData>' . $sd . '</sheetData></worksheet>');
     }
     $z->close(); $d = file_get_contents($f); unlink($f); return $d;
 }
@@ -119,7 +124,9 @@ $dov = $mk(0, 'Dovolenka Chorvátsko 2026'); $proj = $mk(0, 'Projekty'); $kup = 
 $rod = $mk(0, 'Rodina'); $skola = $mk(0, 'Škola'); $sukr = $mk(0, 'Súkromné');
 $f = [];
 $f['cv'] = $j->up(0, 'Životopis Jana Nováková.docx', office('docx', 'Životopis Jana Nováková – skúsenosti, vzdelanie'));
-$f['rozpocet'] = $j->up(0, 'Rodinný rozpočet 2026.xlsx', office('xlsx', 'Rodinný rozpočet 2026 – príjmy a výdavky'));
+$GLOBALS['XLSX_ROWS'] = [['Položka', 'Január', 'Február', 'Marec'], ['Nájom', 650, 650, 650], ['Elektrina', 85.5, 91.2, 78.4], ['Internet', 20, 20, 20], ['Potraviny', 412, 388, 430], ['Spolu', '=SUM(B2:B5)', '=SUM(C2:C5)', '=SUM(D2:D5)']];
+$f['rozpocet'] = $j->up(0, 'Rodinný rozpočet 2026.xlsx', office('xlsx', 'Rodinný rozpočet 2026'));
+unset($GLOBALS['XLSX_ROWS']);
 $j->up(0, 'Nákupný zoznam.txt', "Mlieko\nChlieb\nJablká\nKáva\nSyr\n");
 $f['najom'] = $j->up($zml, 'Nájomná zmluva – byt.pdf', pdf('Najomna zmluva - byt'));
 $j->up($zml, 'Poistenie domácnosti.pdf', pdf('Poistenie domacnosti'));
@@ -170,5 +177,5 @@ $j->api('folder_relock', ['id' => $sukr]);
 // sprievodca sa na snímkach zobrazí iba tam, kde ho chceme
 $pdo->exec("UPDATE cloud_users SET prefs = JSON_SET(COALESCE(prefs, '{}'), '$.tour', 'done') WHERE id IN ($janaId, $petId)");
 file_put_contents(__DIR__ . '/help-demo.json', json_encode(['jana' => $janaId, 'dov' => $dov, 'dok' => $dok, 'zml' => $zml, 'fak' => $fak, 'kup' => $kup, 'sukr' => $sukr,
-    'najom' => $f['najom'], 'photo' => $photos[0], 'album' => $al, 'peter_folder' => $pv]));
+    'najom' => $f['najom'], 'rozpocet' => $f['rozpocet'], 'photo' => $photos[0], 'album' => $al, 'peter_folder' => $pv]));
 echo "Ukážkové dáta pripravené\n";

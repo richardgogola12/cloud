@@ -114,6 +114,7 @@ require __DIR__ . '/head.php';
         <ul class="dropdown-menu shadow">
           <li><a class="dropdown-item" href="#" data-action="new-folder"><i class="bi bi-folder-plus me-2"></i>Nová zložka</a></li>
           <li><a class="dropdown-item" href="#" data-action="new-text"><i class="bi bi-file-earmark-text me-2"></i>Nový textový súbor</a></li>
+          <li><a class="dropdown-item" href="#" data-action="new-sheet"><i class="bi bi-file-earmark-spreadsheet me-2 ic-sheet"></i>Nová tabuľka</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" data-action="upload-files"><i class="bi bi-file-earmark-arrow-up me-2"></i>Nahrať súbory</a></li>
           <li><a class="dropdown-item" href="#" data-action="upload-folder"><i class="bi bi-folder-symlink me-2"></i>Nahrať zložku</a></li>

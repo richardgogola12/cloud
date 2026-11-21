@@ -492,7 +492,7 @@ $tabs = ['dashboard' => ['bi-speedometer2', 'Prehľad'], 'users' => ['bi-people'
         <table class="table table-sm mt-2 mb-0"><thead><tr><th>Deň</th><th class="text-end">Využité</th></tr></thead><tbody>
         <?php foreach (array_reverse($hist) as $h): ?><tr><td><?= date('d.m.Y', strtotime($h['day'])) ?></td><td class="text-end"><?= format_bytes($h['bytes']) ?></td></tr><?php endforeach; ?>
         </tbody></table></details>
-      <script>window.USAGE = <?= json_encode(array_map(fn($h) => ['d' => $h['day'], 'b' => (int)$h['bytes']], $hist)) ?>;</script>
+      <script>window.USAGE = <?= json_encode(array_map(fn($h) => ['d' => $h['day'], 'b' => (int)$h['bytes']], $hist)) ?>; window.CLOUD_CHART_JS = <?= json_encode(lib('chartjs/chart.umd.min.js', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'), JSON_UNESCAPED_SLASHES) ?>;</script>
     <?php endif; ?>
   </div></div></div>
   <div class="col-lg-4"><div class="card card-soft h-100"><div class="card-body">

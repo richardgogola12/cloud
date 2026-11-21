@@ -114,6 +114,23 @@ kolesa pri nadpise Štítky. <b>Hviezdička</b> označí obľúbené položky �
 aby si mohol uvoľniť miesto.</p>
 <?= fig('u-nedavne', 'Nedávne súbory.') ?>
 
+<?= h2('tabulky', 'bi-file-earmark-spreadsheet', 'Tabuľky (Excel)') ?>
+<?= fig('u-tabulka', 'Editor tabuliek: panel s formátovaním, riadok so vzorcom, hárky dole.') ?>
+<p>Tabuľky <b>.xlsx</b> (Excel), <b>.ods</b> (LibreOffice) a <b>.csv</b> upravíš priamo v Cloude – na počítači aj v mobile. Všetko beží v prehliadači.</p>
+<ul>
+  <li><b>Nová tabuľka:</b> <b>+ Nový → Nová tabuľka</b>, zadaj názov.</li>
+  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>.</li>
+  <li><b>Písanie:</b> klikni do bunky a píš, <kbd>Enter</kbd> = bunka nižšie, <kbd>Tab</kbd> = vedľa. Desatinnú čiarku môžeš písať ako v Exceli (<code>85,5</code>).</li>
+  <li><b>Vzorce:</b> začínajú <code>=</code>, napr. <code>=SUM(B2:B5)</code>, <code>=AVERAGE(…)</code>, <code>=IF(B2&gt;100;"veľa";"málo")</code>, <code>=VLOOKUP(…)</code>, <code>=COUNTIF(…)</code>, <code>=ROUND(…)</code>, <code>=TODAY()</code> – stovky funkcií Excelu. Oddeľovať môžeš bodkočiarkou aj čiarkou. Tlačidlo <b>Σ</b> vloží súčet pod označené bunky.</li>
+  <li><b>Formát:</b> tučné, kurzíva, podčiarknuté, farba písma a výplne, zarovnanie, zalamovanie, zlúčenie buniek, šírka stĺpca (potiahni okraj v hlavičke).</li>
+  <li><b>Riadky a stĺpce:</b> vložiť, zmazať, zoradiť – tlačidlami alebo pravým klikom.</li>
+  <li><b>Hárky:</b> dole <b>+</b> pridá hárok, dvojklik premenuje, kôš zmaže.</li>
+  <li><b>Kopírovanie:</b> <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> funguje aj medzi Cloudom a Excelom či Google Tabuľkami.</li>
+  <li><b>Súčet výberu:</b> keď označíš viac buniek, vpravo dole uvidíš súčet, priemer a počet.</li>
+</ul>
+<p><b>Ukladanie:</b> zmeny sa uložia samé pár sekúnd po úprave (alebo <kbd>Ctrl</kbd>+<kbd>S</kbd>). Každé uloženie vytvorí novú verziu – predchádzajúci stav nájdeš vo <b>Verziách</b>.</p>
+<div class="warn">Editor nevie grafy, kontingenčné tabuľky, makrá, obrázky a podmienené formátovanie. Ak ich súbor obsahuje, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili. Starý formát <b>.xls</b> sa uloží ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa.</div>
+
 <?= h2('zdielanie', 'bi-share', 'Zdieľanie') ?>
 <h3>Zdieľanie s ľuďmi v Cloude</h3>
 <?= fig('u-zdielanie', 'Zdieľanie zložky s konkrétnymi ľuďmi a výber oprávnenia.') ?>

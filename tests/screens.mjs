@@ -78,6 +78,29 @@ for (const [name, opts] of sizes) {
     console.log(`[${name}] sprievodca: ${steps} krokov, „${t0}“ → „${t3}“, zavretý=${closed}`);
     if (steps < 11 || t0 === t3 || !closed) { console.log('CHYBA: sprievodca nefunguje'); process.exitCode = 1; }
   }
+  // editor tabuliek: Nový → Nová tabuľka, písanie, vzorec, uloženie
+  if (name === 'pc') {
+    await page.evaluate(() => { location.hash = '#'; }); await page.waitForTimeout(800);
+    await page.click('.btn-new'); await page.waitForTimeout(300);
+    await page.click('.dropdown-menu.show [data-action="new-sheet"]'); await page.waitForTimeout(500);
+    await page.fill('.modal.show input', 'Test tabuľka'); await page.click('.modal.show .btn-primary'); 
+    await page.waitForSelector('#sheetModal.show .jexcel', { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    const cell = (c, r) => page.locator(`#sheetModal .sh-sheet:not([style*="none"]) .jexcel tbody tr:nth-child(${r}) td:nth-child(${c + 1})`);
+    await cell(1, 1).click(); await page.keyboard.type('Nájom'); await page.keyboard.press('Tab');
+    await page.keyboard.type('650'); await page.keyboard.press('Enter');
+    await cell(2, 2).click(); await page.keyboard.type('=B1*2'); await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    const b2 = (await cell(2, 2).innerText()).trim();
+    await page.keyboard.press('Control+s'); await page.waitForTimeout(2500);
+    const st = await page.locator('#sheetModal .sh-status').innerText();
+    await page.screenshot({ path: `screens/${name}-23-tabulka.png` });
+    console.log(`[${name}] tabuľka: B2=${b2}, stav „${st}“`);
+    if (b2 !== '1300' || !/Uložené/.test(st)) { console.log('CHYBA: editor tabuliek'); process.exitCode = 1; }
+    await page.click('#sheetModal [data-sh="close"]'); await page.waitForTimeout(800);
+    const listed = await page.locator('#items [data-key]', { hasText: 'Test tabuľka.xlsx' }).count();
+    if (!listed) { console.log('CHYBA: nová tabuľka nie je v zozname'); process.exitCode = 1; }
+  }
   // potiahnutie prstom otvorí a zatvorí menu (mobil / aplikácia)
   if (name !== 'pc') {
     const swipe = (x1, x2) => page.evaluate(([a, b]) => {

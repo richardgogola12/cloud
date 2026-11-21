@@ -981,6 +981,38 @@ ok(($web->api('video_pos', ['id' => $fileId])['pos'] ?? -1) === 0, 'po dopozeran
 $r = $web->get('index.php');
 ok(str_contains($r['body'], 'assets/js/video.js'), 'prehrávač je na stránke');
 
+section('Editor tabuliek');
+$xlsxFile = function (string $text): string { // malý platný .xlsx
+    $f = tempnam(sys_get_temp_dir(), 'x'); $z = new ZipArchive(); $z->open($f, ZipArchive::OVERWRITE);
+    $z->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+    $z->addFromString('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    $z->addFromString('xl/workbook.xml', '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="H1" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $z->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+    $z->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>' . htmlspecialchars($text) . '</t></is></c></row></sheetData></worksheet>');
+    $z->close(); return $f;
+};
+$x1 = $xlsxFile('prvá verzia');
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['parent' => '', 'name' => 'Rozpočet test', 'data' => new CURLFile($x1, 'application/octet-stream', 'a.xlsx')]]);
+$j = json_decode($r['body'], true) ?: [];
+ok(!empty($j['ok']) && ($j['name'] ?? '') === 'Rozpočet test.xlsx' && !empty($j['id']), 'nová tabuľka (prípona .xlsx sa doplní)', $r['body']);
+$sheetId = (int)($j['id'] ?? 0); $upd = $j['updated'] ?? '';
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['parent' => '', 'name' => 'Rozpočet test.xlsx', 'data' => new CURLFile($x1, 'application/octet-stream', 'a.xlsx')]]);
+ok((json_decode($r['body'], true)['name'] ?? '') === 'Rozpočet test (2).xlsx', 'rovnaký názov → „(2)“ namiesto prepísania');
+sleep(1);
+$x2 = $xlsxFile('druhá verzia – upravená');
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$sheetId, 'updated' => $upd, 'data' => new CURLFile($x2, 'application/octet-stream', 'a.xlsx')]]);
+$j = json_decode($r['body'], true) ?: [];
+ok(!empty($j['ok']) && ($j['id'] ?? 0) === $sheetId, 'uloženie úprav tabuľky', $r['body']);
+$v = $web->api('versions', ['id' => $sheetId]);
+ok(count($v['versions'] ?? []) === 2, 'predchádzajúci stav je vo verziách', json_encode($v));
+$r = $web->get("api.php?action=download&id=$sheetId");
+ok(str_contains((string)$r['body'], 'PK') && strlen($r['body']) === filesize($x2), 'stiahnutý súbor = uložená tabuľka');
+$r = $web->req('POST', 'api.php?action=save_binary', ['ajax' => true, 'multipart' => true, 'form' => ['id' => (string)$sheetId, 'updated' => $upd, 'data' => new CURLFile($x1, 'application/octet-stream', 'a.xlsx')]]);
+ok(empty(json_decode($r['body'], true)['ok']) && str_contains($r['body'], 'medzitým zmenil'), 'súbor zmenený inde → upozornenie namiesto prepísania');
+$r = $web->get('index.php');
+ok(str_contains($r['body'], 'data-action="new-sheet"') && str_contains($r['body'], 'assets/js/sheet.js') && str_contains($r['body'], 'jspreadsheet/jspreadsheet.js'), 'Nový → Nová tabuľka, editor a knižnice zo servera');
+ok(!preg_match('#cdn\.jsdelivr\.net/npm/(xlsx|mammoth|exceljs|jspreadsheet)#', $r['body']), 'knižnice tabuliek sa nenačítavajú z CDN');
+
 section('Príručky a rýchly sprievodca');
 $r = $web->get('help.php');
 ok($r['code'] === 200 && str_contains($r['body'], 'id="helpDoc"') && str_contains($r['body'], 'Zamknuté zložky') && str_contains($r['body'], 'Aplikácia pre Android'), 'používateľská príručka');

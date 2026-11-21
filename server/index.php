@@ -3,7 +3,7 @@ require __DIR__ . '/inc/core.php';
 $user = require_login();
 $title = 'Môj disk';
 $active = 'drive';
-$scripts = ['assets/js/passkey.js', 'assets/js/video.js', 'assets/js/drive.js'];
+$scripts = ['assets/js/passkey.js', 'assets/js/video.js', 'assets/js/sheet.js', 'assets/js/drive.js'];
 require __DIR__ . '/inc/views/layout_start.php';
 ?>
 <?php if (!empty($_SESSION['offer_passkey'])): ?>
@@ -92,6 +92,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <ul class="dropdown-menu dropdown-menu-end shadow mb-2">
     <li><a class="dropdown-item py-2" href="#" data-action="new-folder"><i class="bi bi-folder-plus me-2"></i>Nová zložka</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="new-text"><i class="bi bi-file-earmark-text me-2"></i>Nový textový súbor</a></li>
+    <li><a class="dropdown-item py-2" href="#" data-action="new-sheet"><i class="bi bi-file-earmark-spreadsheet me-2 ic-sheet"></i>Nová tabuľka</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="upload-files"><i class="bi bi-file-earmark-arrow-up me-2"></i>Nahrať súbory</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="upload-camera"><i class="bi bi-camera me-2"></i>Odfotiť a nahrať</a></li>
     <li><a class="dropdown-item py-2" href="#" data-action="upload-folder"><i class="bi bi-folder-symlink me-2"></i>Nahrať zložku</a></li>
@@ -119,7 +120,7 @@ require __DIR__ . '/inc/views/layout_start.php';
   <li><a class="dropdown-item" href="#" data-ctx="open"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="openapp"><i class="bi bi-box-arrow-up-right me-2"></i>Otvoriť v aplikácii…</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="send"><i class="bi bi-send me-2"></i>Poslať…</a></li>
-  <li><a class="dropdown-item" href="#" data-ctx="edit"><i class="bi bi-pencil-square me-2"></i>Upraviť text</a></li>
+  <li><a class="dropdown-item" href="#" data-ctx="edit"><i class="bi bi-pencil-square me-2"></i>Upraviť</a></li>
   <li><a class="dropdown-item" href="#" data-ctx="download"><i class="bi bi-download me-2"></i>Stiahnuť<span class="kbd-hint d-none d-lg-inline">D</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="share"><i class="bi bi-person-plus me-2"></i>Zdieľať<span class="kbd-hint d-none d-lg-inline">.</span></a></li>
   <li><a class="dropdown-item" href="#" data-ctx="tags"><i class="bi bi-tags me-2"></i>Štítky a farba…</a></li>
@@ -322,6 +323,16 @@ require __DIR__ . '/inc/views/layout_start.php';
 <script>
   // stĺpce v zozname: dostupné stĺpce, predvolené a vlastný výber používateľa
   window.CLOUD_UID = <?= (int)$user['id'] ?>;
+  window.CLOUD_LIB = <?= json_encode([
+    'mammoth' => lib('mammoth/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'),
+    'xlsx' => lib('xlsx/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'),
+    'exceljs' => lib('exceljs/exceljs.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'),
+    'jsuites' => lib('jspreadsheet/jsuites.js', 'https://cdn.jsdelivr.net/npm/jsuites@4.17.7/dist/jsuites.min.js'),
+    'jsuites_css' => lib('jspreadsheet/jsuites.css', 'https://cdn.jsdelivr.net/npm/jsuites@4.17.7/dist/jsuites.min.css'),
+    'jss' => lib('jspreadsheet/jspreadsheet.js', 'https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.4/dist/index.min.js'),
+    'jss_css' => lib('jspreadsheet/jspreadsheet.css', 'https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.13.4/dist/jspreadsheet.min.css'),
+    'formula' => lib('jspreadsheet/formula.js', 'https://cdn.jsdelivr.net/npm/@formulajs/formulajs@4.4.9/lib/browser/formula.min.js'),
+  ], JSON_UNESCAPED_SLASHES) ?>;
   window.CLOUD_COLS = <?= json_encode(['labels' => LIST_COLUMNS, 'views' => LIST_VIEWS, 'defaults' => DEFAULT_COLUMNS, 'mine' => (object)(user_prefs($user)['columns'] ?? [])], JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <?php require __DIR__ . '/inc/views/layout_end.php'; ?>

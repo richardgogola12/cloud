@@ -787,6 +787,31 @@ try {
         json_out(['ok' => true, 'text' => $txt, 'truncated' => $f['size'] > 2000000, 'editable' => PERM_LEVEL[$a['perm']] >= 2 && $f['size'] <= 2000000, 'updated' => $f['updated_at']]);
     }
 
+    /* editor tabuliek: uloženie súboru (nová verzia existujúceho alebo nový súbor) */
+    case 'save_binary': {
+        $up = $_FILES['data'] ?? null;
+        if (!$up || ($up['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($up['tmp_name'])) throw new RuntimeException('Súbor sa nepodarilo odoslať na server (možno je väčší, ako server dovoľuje).');
+        $size = (int)filesize($up['tmp_name']);
+        $GLOBALS['CLOUD_ACT_HINT'] = 'edit';
+        if (!empty($_POST['id'])) {
+            $a = need(file_access($uid, (int)$_POST['id']), 'edit'); $f = $a['row'];
+            if (!empty($_POST['updated']) && $_POST['updated'] !== $f['updated_at']) throw new RuntimeException('Súbor medzitým zmenil niekto iný. Zavri ho a otvor znova – tvoje zmeny si môžeš najprv stiahnuť.');
+            check_space($a['owner'], $size);
+            store_file($a['owner'], $f['folder_id'] ? (int)$f['folder_id'] : null, $f['name'], $up['tmp_name'], true);
+            log_action($uid, 'edit', $f['name']);
+            json_out(['ok' => true, 'id' => (int)$f['id'], 'name' => $f['name'], 'updated' => q("SELECT updated_at FROM $F WHERE id = ?", [$f['id']])->fetchColumn()]);
+        }
+        $parent = (int)($_POST['parent'] ?? 0) ?: null;
+        $acc = need(folder_access($uid, $parent), 'edit');
+        $name = clean_name((string)($_POST['name'] ?? 'Tabuľka.xlsx'));
+        if (!preg_match('/\.(xlsx|ods|csv)$/i', $name)) $name .= '.xlsx';
+        $base = preg_replace('/\.[^.]+$/', '', $name); $ext = substr($name, strlen($base));
+        for ($i = 2; name_exists($acc['owner'], $parent, $name, 'f'); $i++) $name = $base . ' (' . $i . ')' . $ext;
+        check_space($acc['owner'], $size);
+        $r = store_file($acc['owner'], $parent, $name, $up['tmp_name'], true);
+        json_out(['ok' => true, 'id' => (int)$r['id'], 'name' => $name, 'updated' => q("SELECT updated_at FROM $F WHERE id = ?", [$r['id']])->fetchColumn()]);
+    }
+
     case 'save_text': {
         $a = need(file_access($uid, (int)($_POST['id'] ?? 0)), 'edit'); $f = $a['row'];
         if ($f['size'] > 2000000) throw new RuntimeException('Súbor je príliš veľký na úpravu v prehliadači.');

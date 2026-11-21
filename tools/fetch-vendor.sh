@@ -16,6 +16,7 @@ get select2@4.1.0-rc.0/dist/css/select2.min.css              select2/select2.min
 get select2@4.1.0-rc.0/dist/js/select2.min.js                select2/select2.min.js
 get select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css select2/select2-bootstrap-5-theme.min.css
 # náhľad Word/Excel a editor tabuliek
+get chart.js@4.4.1/dist/chart.umd.min.js                       chartjs/chart.umd.min.js
 get mammoth@1.8.0/mammoth.browser.min.js                     mammoth/mammoth.browser.min.js
 get xlsx@0.18.5/dist/xlsx.full.min.js                         xlsx/xlsx.full.min.js
 get exceljs@4.4.0/dist/exceljs.min.js                         exceljs/exceljs.min.js
@@ -26,4 +27,7 @@ get jsuites@4.17.7/dist/jsuites.min.css                       jspreadsheet/jsuit
 get @formulajs/formulajs@4.4.9/lib/browser/formula.min.js     jspreadsheet/formula.js
 # zdrojové mapy nepotrebujeme (prehliadač by ich zbytočne hľadal)
 find "$D" -name '*.css' -o -name '*.js' | xargs sed -i -E 's#/\*\# sourceMappingURL=[^*]*\*/##; s#//\# sourceMappingURL=.*$##'
+# Jspreadsheet pri prvom spustení načíta logo z bossanova.uk – Cloud nechodí na cudzie servery
+sed -i 's#!sessionStorage.getItem("jexcel")#!1#' "$D/jspreadsheet/jspreadsheet.js"
+grep -q 'sessionStorage&&!1' "$D/jspreadsheet/jspreadsheet.js" || { echo "POZOR: logo Jspreadsheet sa nepodarilo vypnúť"; exit 1; }
 echo "Hotovo: $D"

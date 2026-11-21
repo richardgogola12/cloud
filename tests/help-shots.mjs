@@ -85,6 +85,13 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-sprievodca', async () => { await page.evaluate(() => window.cloudTour && window.cloudTour()); await wait(page, 900); });
   await shot(page, 'u-tmavy', async () => { await page.click('#themeToggle'); await wait(page, 800); });
   await page.click('#themeToggle').catch(() => {}); await wait(page, 500);
+  await go(page, '#');
+  await shot(page, 'u-tabulka', async () => { await item(page, 'f:' + ids.rozpocet).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#sheetModal.show .jexcel', { timeout: 20000 }); await wait(page, 1200);
+    await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(1) td:nth-child(2)').click(); await page.keyboard.down('Shift'); await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(1) td:nth-child(5)').click(); await page.keyboard.up('Shift');
+    await page.click('#sheetModal [data-st="font-weight:bold"]'); await wait(page, 300);
+    await page.locator('#sheetModal .sh-sheet .jexcel tbody tr:nth-child(6) td:nth-child(3)').click(); await wait(page, 400); });
+  await page.evaluate(() => { const S = document.querySelector('#sheetModal [data-sh="close"]'); S && S.click(); }); await wait(page, 600);
+  await page.evaluate(() => document.querySelector('.modal.show [data-alt]')?.click()); await wait(page, 600);
   await page.goto(base + 'profile.php'); await wait(page, 1200);
   await shot(page, 'u-profil');
   await shot(page, 'u-suhrn', async () => { await page.locator('#digest').scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -80)); await wait(page, 300); });
