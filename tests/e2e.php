@@ -1146,6 +1146,7 @@ $j = $web->api('prefs_save', ['key' => 'trash_days', 'value' => '5']);
 ok(($j['effective'] ?? 0) === 5 && ($web->api('list', ['view' => 'trash'])['trash_days'] ?? 0) === 5, 'vlastná doba koša (5 dní)', json_encode($j));
 ok(($web->api('prefs_save', ['key' => 'trash_days', 'value' => '0'])['effective'] ?? 0) === 30, 'späť podľa servera');
 ok(str_contains($web->get('profile.php')['body'], 'id="trDays"'), 'nastavenie koša v Môj účet');
+$p2 = (int)(upload($web, 0, 'spomienka.jpg', jpeg(160, 120, 33))['file']['id'] ?? 0);
 $pdoS->exec("UPDATE cloud_files SET taken_at = NOW() - INTERVAL 2 YEAR WHERE id = " . (int)$p2);
 $j = $web->api('list', ['view' => 'search', 'q' => '', 'taken' => 'past']);
 ok(in_array((int)$p2, array_column($j['items'] ?? [], 'id'), true), 'hľadanie: fotky z tohto mesiaca v minulých rokoch', json_encode(array_slice($j['items'] ?? [], 0, 3)));
@@ -1185,7 +1186,7 @@ ok($sql !== false && str_contains($sql, 'CREATE TABLE `cloud_users`') && str_con
 $d = $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_download', 'tab' => 'backup', 'name' => $bname, 'password' => '']);
 ok(str_starts_with($d['body'], 'CLOUDBK1'), 'bez hesla sa stiahne zašifrovaná');
 $enc = tempnam(sys_get_temp_dir(), 'b'); file_put_contents($enc, $d['body']);
-$out = shell_exec('echo TajneHeslo123 | ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/../tools/backup-decrypt.php') . ' ' . escapeshellarg($enc) . ' ' . escapeshellarg($enc . '.gz') . ' 2>&1');
+$out = shell_exec('echo TajneHeslo123| ' . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/../tools/backup-decrypt.php') . ' ' . escapeshellarg($enc) . ' ' . escapeshellarg($enc . '.gz') . ' 2>&1');
 ok(is_file($enc . '.gz') && str_contains((string)@gzdecode(file_get_contents($enc . '.gz')), 'CREATE TABLE'), 'nástroj backup-decrypt.php rozšifruje zálohu', (string)$out);
 $d = $web->post('admin.php', ['_csrf' => $web->csrf, 'act' => 'backup_download', 'tab' => 'backup', 'name' => $bname, 'password' => 'zle-heslo']);
 ok(!str_starts_with($d['body'], "\x1f\x8b"), 'zlé heslo zálohu nerozšifruje');

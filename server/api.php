@@ -747,18 +747,21 @@ try {
     /* dvojstupňové overenie (kód z aplikácie) */
     case 'tfa_setup': { // nový tajný kľúč (zatiaľ iba v relácii, kým ho používateľ nepotvrdí kódom)
         $sec = totp_new_secret();
-        $_SESSION['tfa_pending'] = $sec;
+        $prefs = user_prefs($user); $prefs['tfa_pending'] = totp_wrap($sec); $prefs['tfa_pending_t'] = time(); // relácia je v API už len na čítanie
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
         json_out(['ok' => true, 'secret' => trim(chunk_split($sec, 4, ' ')), 'uri' => totp_uri($user, $sec)]);
     }
     case 'tfa_enable': {
-        $sec = (string)($_SESSION['tfa_pending'] ?? '');
+        $prefs = user_prefs($user);
+        $sec = !empty($prefs['tfa_pending']) && time() - (int)($prefs['tfa_pending_t'] ?? 0) < 1800 ? totp_unwrap((string)$prefs['tfa_pending']) : '';
         if ($sec === '') throw new RuntimeException('Začni znova tlačidlom Zapnúť.');
         $code = preg_replace('/\s+/', '', (string)($_POST['code'] ?? ''));
         $ok = false; $now = intdiv(time(), TOTP_PERIOD);
         for ($d = -1; $d <= 1; $d++) if (hash_equals(totp_code($sec, $now + $d), $code)) $ok = true;
         if (!$ok) throw new RuntimeException('Kód nesedí. Skontroluj, či má telefón správny čas, a zadaj aktuálny kód.');
         q('UPDATE ' . P . 'users SET totp_secret = ?, totp_last = ? WHERE id = ?', [totp_wrap($sec), $now + 1, $uid]);
-        unset($_SESSION['tfa_pending']);
+        unset($prefs['tfa_pending'], $prefs['tfa_pending_t']);
+        q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
         $codes = totp_new_backup_codes($uid);
         log_action($uid, 'tfa_on', '');
         notify($uid, 'device', 'Dvojstupňové overenie je zapnuté', 'Pri prihlásení heslom sa odteraz zadáva aj kód z aplikácie.', 'profile.php#tfa');

@@ -92,8 +92,8 @@ function bk_dav(string $method, string $url, ?string $file = null, array $extra 
     if (!function_exists('curl_init')) throw new RuntimeException('Na serveri chýba PHP rozšírenie curl.');
     $c = curl_init($url);
     $opt = [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_USERPWD => setting('backup_user', '') . ':' . bk_secret_get('backup_pass'),
-            CURLOPT_HTTPAUTH => CURLAUTH_BASIC | CURLAUTH_DIGEST, CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_TIMEOUT => 1800, CURLOPT_USERAGENT => 'Cloud-Backup/' . APP_VERSION,
-            CURLOPT_HTTPHEADER => $extra, CURLOPT_FOLLOWLOCATION => false];
+            CURLOPT_HTTPAUTH => CURLAUTH_BASIC, // hneď s menom a heslom (pri PUT by sa telo po výzve na prihlásenie nedalo poslať znova) CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_TIMEOUT => 1800, CURLOPT_USERAGENT => 'Cloud-Backup/' . APP_VERSION,
+            CURLOPT_HTTPHEADER => array_merge(['Expect:'], $extra), CURLOPT_FOLLOWLOCATION => false];
     if ($file !== null) { $fh = fopen($file, 'rb'); $opt[CURLOPT_UPLOAD] = true; $opt[CURLOPT_INFILE] = $fh; $opt[CURLOPT_INFILESIZE] = filesize($file); }
     curl_setopt_array($c, $opt);
     $body = curl_exec($c); $code = (int)curl_getinfo($c, CURLINFO_RESPONSE_CODE); $err = curl_error($c);
