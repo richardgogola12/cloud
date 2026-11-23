@@ -122,7 +122,7 @@ for (const [name, opts] of sizes) {
     await df.waitForFunction(() => window.CloudDocEditor && CloudDocEditor.ready, null, { timeout: 30000 });
     const F = page.frameLocator('#sheetModal iframe');
     await F.locator('#gdPage').click(); await page.keyboard.type('Zápisnica zo stretnutia');
-    await F.locator('#gdBlock').selectOption('h1');
+    await page.keyboard.press('Control+Alt+1');
     await page.keyboard.press('End'); await page.keyboard.press('Enter'); await page.keyboard.type('Prítomní: Jana, Peter. ');
     await page.keyboard.press('Control+b'); await page.keyboard.type('Dôležité'); await page.keyboard.press('Control+b');
     await page.keyboard.press('Control+s'); await page.waitForTimeout(3000);
