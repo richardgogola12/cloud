@@ -133,7 +133,7 @@ ako Google Tabuľky, je celý po slovensky a beží v tvojom prehliadači (nič 
   <li><b>Vzorce:</b> začínajú <code>=</code>, napr. <code>=SUM(B2:B5)</code>, <code>=AVERAGE(…)</code>, <code>=IF(B2&gt;100;"veľa";"málo")</code>, <code>=VLOOKUP(…)</code>, <code>=COUNTIF(…)</code>, <code>=ROUND(…)</code>, <code>=TODAY()</code> – stovky funkcií Excelu.
     Pri písaní sa ukazuje <b>nápoveda funkcie</b> s popisom argumentov. Oddeľovať môžeš bodkočiarkou aj čiarkou. <b>Vložiť → Súčet</b> spočíta stĺpec nad bunkou.</li>
 </ul>
-<?= fig('u-tabulka-menu', 'Ponuka Formát: formáty čísel (mena, percentá, dátum), písmo, zlúčenie a podmienené formátovanie.') ?>
+<?= fig('u-tabulka-menu', 'Ponuka Formát s podponukami: číslo, text, zarovnanie, zalamovanie, otočenie, veľkosť písma, zlúčenie, podmienené formátovanie a striedavé farby.') ?>
 <h3>Ponuky ako v Google Tabuľkách</h3>
 <p>Ponuky majú podponuky (prejdi myšou alebo klikni na položku so šípkou). Keď nevieš, kde čo je, stlač <kbd>Alt</kbd>+<kbd>/</kbd> (alebo lupu vľavo na paneli nástrojov) a napíš, čo hľadáš – napr. „tlač“, „ukotviť“, „duplikáty“.</p>
 <table class="table table-sm">
