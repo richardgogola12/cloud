@@ -172,8 +172,9 @@ function search_items(int $uid, array $f, string $orderD, string $orderF, string
     $common = function (string $a, bool $isFile, array &$p) use ($trash, $starred, $after, $before, $tagIds, $uid) {
         $w = [$trash ? "$a.deleted_at IS NOT NULL" : "$a.deleted_at IS NULL"];
         if ($starred) $w[] = "$a.starred = 1";
-        if ($after) { $w[] = "$a.updated_at >= ?"; $p[] = $after . ' 00:00:00'; }
-        if ($before) { $w[] = "$a.updated_at <= ?"; $p[] = $before . ' 23:59:59'; }
+        // hranice dňa v čase databázy (NOW() môže byť v inom pásme ako PHP – napr. UTC)
+        if ($after) { $w[] = "$a.updated_at >= ?"; $p[] = db_time($after . ' 00:00:00'); }
+        if ($before) { $w[] = "$a.updated_at <= ?"; $p[] = db_time($before . ' 23:59:59'); }
         if ($tagIds) {
             $w[] = "$a.id IN (SELECT it.item_id FROM " . P . 'item_tags it JOIN ' . P . "tags tg ON tg.id = it.tag_id WHERE tg.user_id = ? AND it.item_type = '" . ($isFile ? 'f' : 'd') . "' AND it.tag_id IN (" . implode(',', $tagIds) . '))';
             $p[] = $uid;
@@ -348,4 +349,12 @@ function content_index_stats(): array {
         return ['files' => (int)q('SELECT COUNT(*) FROM ' . P . "file_text WHERE body <> ''")->fetchColumn(),
                 'bytes' => (int)q('SELECT COALESCE(SUM(LENGTH(body)),0) FROM ' . P . 'file_text')->fetchColumn()];
     } catch (Throwable $e) { return ['files' => 0, 'bytes' => 0]; }
+}
+
+/** Miestny čas PHP → rovnaký okamih v čase databázy (rozdiel medzi NOW() v SQL a časom PHP). */
+function db_time(string $local): string {
+    static $skew = null;
+    if ($skew === null) { try { $now = strtotime((string)q('SELECT NOW()')->fetchColumn()); $skew = $now ? (int)(round(($now - time()) / 900) * 900) : 0; } catch (Throwable $e) { $skew = 0; } }
+    $t = strtotime($local);
+    return $t ? date('Y-m-d H:i:s', $t + $skew) : $local;
 }
