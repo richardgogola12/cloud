@@ -23,7 +23,7 @@ $cfg = $f ? [
     'id' => (int)$f['id'], 'name' => $f['name'], 'updated' => $f['updated_at'], 'folder' => $f['folder_id'] ? (int)$f['folder_id'] : null,
     'size' => (int)$f['size'], 'canEdit' => $canEdit, 'embed' => $embed, 'extras' => $extras,
     'url' => url('api.php?action=download&id=' . (int)$f['id']), 'drive' => url('index.php') . ($f['folder_id'] ? '#folder/' . (int)$f['folder_id'] : ''),
-    'help' => url('help.php#tabulky'), 'own' => $own, 'starred' => !empty($f['starred']), 'user' => (string)($user['name'] ?? ''),
+    'help' => url('help.php#tabulky'), 'own' => $own, 'starred' => !empty($f['starred']), 'user' => (string)($user['name'] ?? ''), 'prefs' => (object)((user_prefs($user)['editor'] ?? [])['sheet'] ?? []),
 ] : null;
 ?><!doctype html>
 <html lang="sk" data-bs-theme="light">

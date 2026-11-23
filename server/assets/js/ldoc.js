@@ -9,7 +9,9 @@
   const inFrame = window.parent && window.parent !== window;
   const page = $('#gdPage');
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const store = { get(k, d) { try { const v = localStorage.getItem('cloud.doc.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('cloud.doc.' + k, JSON.stringify(v)); } catch (e) {} } };
+  // nastavenia editora sa ukladajú na server (Môj účet), nie do zariadenia
+  const P0 = C.prefs && typeof C.prefs === 'object' && !Array.isArray(C.prefs) ? C.prefs : {};
+  const store = { get(k, d) { return Object.prototype.hasOwnProperty.call(P0, k) ? P0[k] : d; }, set(k, v) { if (JSON.stringify(P0[k]) === JSON.stringify(v)) return; P0[k] = v; clearTimeout(store.t); store.t = setTimeout(() => { api('prefs_save', { key: 'editor', ns: 'doc', value: JSON.stringify(P0) }).catch(() => {}); }, 1200); } };
   const PAGE0 = { w: 210, h: 297, landscape: false, mt: 2.54, mb: 2.54, ml: 2.54, mr: 2.54, hd: 1.27, fd: 1.27, color: null, cols: 1, diffFirst: false };
   const S = {
     ro: !C.canEdit, dirty: false, saving: false, again: false, updated: C.updated, id: C.id, name: C.name, ready: false, t: null,

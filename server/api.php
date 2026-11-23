@@ -825,6 +825,17 @@ try {
             q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
             json_out(['ok' => true, 'flash' => $prefs['flash'] ?? true, 'time' => $prefs['flash_time'] ?? 2]);
         }
+        if ($key === 'editor') { // nastavenia editorov dokumentov a tabuliek (zobrazenie, priblíženie, tlač…) – na serveri, nie v zariadení
+            $prefs = user_prefs($user);
+            $ns = ($_POST['ns'] ?? '') === 'sheet' ? 'sheet' : 'doc';
+            $v = json_decode((string)($_POST['value'] ?? ''), true);
+            if (!is_array($v)) throw new RuntimeException('Neplatné nastavenie.');
+            if (strlen(json_encode($v, JSON_UNESCAPED_UNICODE)) > 8000) throw new RuntimeException('Príliš veľa nastavení.');
+            $prefs['editor'] = (array)($prefs['editor'] ?? []);
+            $prefs['editor'][$ns] = $v;
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            json_out(['ok' => true]);
+        }
         if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
         $val = json_decode((string)($_POST['value'] ?? ''), true);
         $clean = [];

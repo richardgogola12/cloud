@@ -10,7 +10,7 @@
   const MARG = { normal: [19.05, 17.78], narrow: [6.35, 6.35], wide: [25.4, 25.4] };
   const FONTS = ['Times New Roman', 'Arial', 'Tahoma', 'Verdana', 'Microsoft Yahei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'NSimSun', 'STXinwei', 'STXingkai', 'STLiti', 'HanaMinA', 'Helvetica', 'Courier New', 'Georgia', 'Calibri'];
   const BSTYLE = { 1: '1px solid', 2: '1px solid', 3: '1px dotted', 4: '1px dashed', 5: '1px dashed', 6: '1px dashed', 7: '3px double', 8: '2px solid', 9: '2px dashed', 10: '2px dashed', 11: '2px dashed', 12: '2px dashed', 13: '3px solid' };
-  const store = { get(k, d) { try { const v = localStorage.getItem('cloud.sheet.print.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('cloud.sheet.print.' + k, JSON.stringify(v)); } catch (e) {} } };
+  const store = { get(k, d) { const p = window.CloudSheetPrefs; const o = p ? p.get('print', {}) : {}; return k in o ? o[k] : d; }, set(k, v) { const p = window.CloudSheetPrefs; if (!p) return; const o = Object.assign({}, p.get('print', {})); o[k] = v; p.set('print', o); } };
   const skNum = (m) => String(m).replace(/[\d,.]+/g, s => /\d/.test(s) ? s.replace(/,/g, ' ').replace(/\./g, ',') : s);
   const colName = (c) => { let s = '', n = c + 1; while (n > 0) { const k = (n - 1) % 26; s = String.fromCharCode(65 + k) + s; n = Math.floor((n - 1) / 26); } return s; };
 

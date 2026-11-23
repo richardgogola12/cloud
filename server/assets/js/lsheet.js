@@ -457,8 +457,12 @@
     markDirty();
   }
   /* --- zobrazenie --- */
-  const V = Object.assign({ fbar: true }, (() => { try { return JSON.parse(localStorage.getItem('cloud.sheet.view') || '{}'); } catch (e) { return {}; } })());
-  function applyV() { document.body.classList.toggle('no-fbar', !V.fbar); try { localStorage.setItem('cloud.sheet.view', JSON.stringify({ fbar: V.fbar })); } catch (e) {} setTimeout(() => { try { luckysheet.resize(); } catch (e) {} }, 50); }
+  // nastavenia editora sa ukladajú na server (Môj účet), nie do zariadenia
+  const P0 = C.prefs && typeof C.prefs === 'object' && !Array.isArray(C.prefs) ? C.prefs : {};
+  const prefs = { get(k, d) { return Object.prototype.hasOwnProperty.call(P0, k) ? P0[k] : d; }, set(k, v) { if (JSON.stringify(P0[k]) === JSON.stringify(v)) return; P0[k] = v; clearTimeout(prefs.t); prefs.t = setTimeout(() => { api('prefs_save', { key: 'editor', ns: 'sheet', value: JSON.stringify(P0) }).catch(() => {}); }, 1200); } };
+  window.CloudSheetPrefs = prefs;
+  const V = { fbar: prefs.get('fbar', true) };
+  function applyV(save) { document.body.classList.toggle('no-fbar', !V.fbar); if (save) prefs.set('fbar', V.fbar); setTimeout(() => { try { luckysheet.resize(); } catch (e) {} }, 50); }
   applyV();
   function gridOn() { const sh = sheetObj(); return !sh || sh.showGridLines === undefined || (sh.showGridLines !== 0 && sh.showGridLines !== '0' && sh.showGridLines !== false); }
   GMenu.onOpen = (menu) => {
@@ -610,7 +614,7 @@
     shuffle, stats, dedupe, trim: trimSpaces, count: selCount, recalc: () => { luckysheet.refreshFormula(); toast('Vzorce sú prepočítané'); },
     date: () => nowCell('date'), time: () => nowCell('time'),
     grid: () => { gridOn() ? luckysheet.hideGridLines() : luckysheet.showGridLines(); markDirty(); },
-    fbar: () => { V.fbar = !V.fbar; applyV(); },
+    fbar: () => { V.fbar = !V.fbar; applyV(true); },
     formulas: () => { S.showF = !S.showF; try { luckysheet.refresh(); } catch (e) {} },
     'hide:rows': () => { const rg = range(); luckysheet.hideRow(rg.row[0], rg.row[1]); markDirty(); }, 'show:rows': () => { const rg = range(); luckysheet.showRow(Math.max(0, rg.row[0] - 1), rg.row[1] + 1); markDirty(); },
     'hide:cols': () => { const rg = range(); luckysheet.hideColumn(rg.column[0], rg.column[1]); markDirty(); }, 'show:cols': () => { const rg = range(); luckysheet.showColumn(Math.max(0, rg.column[0] - 1), rg.column[1] + 1); markDirty(); },
