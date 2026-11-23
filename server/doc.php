@@ -23,16 +23,7 @@ $cfg = $f ? [
     'url' => url('api.php?action=download&id=' . (int)$f['id']), 'drive' => url('index.php') . ($f['folder_id'] ? '#folder/' . (int)$f['folder_id'] : ''),
     'help' => url('help.php#dokumenty'), 'chart' => lib('chartjs/chart.umd.min.js', ''),
 ] : null;
-/** položka ponuky */
-function mi(string $act, string $icon, string $text, string $kbd = '', string $attr = ''): string {
-    return '<li><button class="gm-i" data-gs="' . e($act) . '"' . $attr . '><i class="bi bi-' . $icon . '"></i><span>' . $text . '</span>' . ($kbd ? '<kbd>' . $kbd . '</kbd>' : '') . '</button></li>';
-}
-/** podponuka */
-function sub(string $icon, string $text, string $inner, string $attr = ''): string {
-    return '<li class="gm-sub"' . $attr . '><button class="gm-i"><i class="bi bi-' . $icon . '"></i><span>' . $text . '</span><i class="bi bi-caret-right-fill gm-arr"></i></button><ul class="gm-menu">' . $inner . '</ul></li>';
-}
-const SEP = '<li class="gm-sep"></li>';
-function hd(string $t): string { return '<li class="gm-h">' . $t . '</li>'; }
+require __DIR__ . '/inc/views/gm.php';
 ?><!doctype html>
 <html lang="sk" data-bs-theme="light">
 <head>

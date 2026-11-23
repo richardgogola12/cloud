@@ -977,14 +977,19 @@
     if (it) editText(it);
   }
   /* ---------------- tabuľky ---------------- */
+  /** Ponuka Súbor v editore (Zdieľať, Presunúť, História verzií, Podrobnosti, Aktivita) → okná disku. */
+  const editorAction = (it) => (act) => ({
+    share: () => share(it), move: () => moveDialog([it], 'move'), info: () => info(it), activity: () => activityDialog(it),
+    versions: () => { CloudSheet.close(); setTimeout(() => versions(it), 500); },
+  })[act]?.();
   function editSheet(it, readOnly) {
     bootstrap.Modal.getInstance($('#previewModal'))?.hide();
-    CloudSheet.open(it, { url: fileUrl(it.id), folder: it.folder_id || curFolder(), readOnly: !!readOnly,
+    CloudSheet.open(it, { url: fileUrl(it.id), folder: it.folder_id || curFolder(), readOnly: !!readOnly, onAction: editorAction(it),
       onSaved: () => { lcMem.clear?.(); }, onClose: () => { flashLater(key(it)); load(true); } });
   }
   function editDoc(it, readOnly) {
     bootstrap.Modal.getInstance($('#previewModal'))?.hide();
-    CloudDoc.open(it, { readOnly: !!readOnly, onSaved: () => { lcMem.clear?.(); }, onClose: () => { flashLater(key(it)); load(true); } });
+    CloudDoc.open(it, { readOnly: !!readOnly, onAction: editorAction(it), onSaved: () => { lcMem.clear?.(); }, onClose: () => { flashLater(key(it)); load(true); } });
   }
   async function newDoc() {
     let name = await Cloud.prompt('Nový dokument', 'Dokument bez názvu.docx', 'Vytvoriť');

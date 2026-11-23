@@ -20,6 +20,14 @@
       const d = e.data;
       if (d.cloudSheet === 'saved') cur.o.onSaved && cur.o.onSaved(d);
       if (d.cloudSheet === 'close') finish();
+      if (d.cloudSheet === 'renamed') { cur.it.name = d.name; cur.o.onRenamed && cur.o.onRenamed(d.name); }
+      if (d.cloudSheet === 'action') cur.o.onAction && cur.o.onAction(d.act);
+    });
+    // okná disku (zdieľanie, presun, podrobnosti…) otvorené z editora sa zobrazia nad ním
+    document.addEventListener('show.bs.modal', (e) => {
+      if (!M || e.target === M || !M.classList.contains('show')) return;
+      e.target.style.zIndex = 1070;
+      setTimeout(() => { const b = document.querySelectorAll('.modal-backdrop'); if (b.length) b[b.length - 1].style.zIndex = 1065; }, 0);
     });
     return M;
   }
@@ -44,6 +52,8 @@
     return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
-  window.CloudSheet = { open, blankXlsx };
-  window.CloudDoc = { open: (it, o) => open(it, o, 'doc.php') };
+  /** Zatvorí editor (najprv dokončí ukladanie). */
+  function close() { if (M && cur) try { M.querySelector('iframe').contentWindow.postMessage({ cloudSheetCmd: 'close' }, location.origin); } catch (e) { finish(); } }
+  window.CloudSheet = { open, blankXlsx, close };
+  window.CloudDoc = { open: (it, o) => open(it, o, 'doc.php'), close };
 })();

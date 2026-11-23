@@ -11,12 +11,19 @@ D = sys.argv[1] if len(sys.argv) > 1 else 'server/assets/vendor/luckysheet'
 JS = os.path.join(D, 'luckysheet.umd.js')
 CSS = os.path.join(D, 'plugins/css/pluginsCss.css')
 s = open(JS, encoding='utf-8').read()
-if 'cloud-sk-patched' in s:
-    print('  luckysheet: už upravené'); sys.exit(0)
-
 def must(cond, what):
     if not cond:
         print('POZOR: Luckysheet – nenašiel som: ' + what); sys.exit(1)
+
+# panel nástrojov Cloudu vľavo od panela Luckysheet (hľadanie, tlač, priblíženie) – tlačidlo „Viac“ musí rátať s menšou šírkou
+if 'LS_TB_OFFSET' not in s:
+    m = re.search(r'for\(var (\w)=(\w)\.length-1;\1>=0;\1--\)if\(\2\[\1\]<(\w+)-90\)', s)
+    must(m, 'šírka panela nástrojov')
+    s = s[:m.start()] + m.group(0).replace(m.group(3) + '-90)', m.group(3) + '-90-(window.LS_TB_OFFSET||0))') + s[m.end():]
+    if 'cloud-sk-patched' in s: open(JS, 'w', encoding='utf-8').write(s)
+
+if 'cloud-sk-patched' in s:
+    print('  luckysheet: už upravené'); sys.exit(0)
 
 # ---------- 1. cudzie servery ----------
 for a, b in [('https://cdn.jsdelivr.net/npm/vue@2.6.11', 'assets/vendor/luckysheet-deps/vue.min.js'),

@@ -106,3 +106,23 @@ body.ro .gs-name[data-gs] { pointer-events: none; }
 .gs-share { background: #c2e7ff; color: #001d35; font-weight: 500; flex: none; align-items: center; }
 .gs-share:hover { background: #b3d7ef; }
 .gs-toast button { background: none; border: 0; color: #8ab4f8; font-weight: 600; margin-left: 1rem; }
+/* ---------- tabuľky: panel nástrojov ako v Google, doplnky, tlač ---------- */
+#luckysheet-wa-editor { background: #edf2fa !important; border-radius: 24px; margin: 4px 8px !important; border: 0 !important; }
+.gs-tb { border: 0; background: none; width: 30px; height: 28px; border-radius: 4px; color: #444746; font-size: 1.02rem; display: inline-grid; place-items: center; vertical-align: middle; margin: 0 1px; }
+.gs-tb:hover { background: rgba(68, 71, 70, .1); }
+.gs-zoomdd { vertical-align: middle; margin: 0 2px; display: inline-flex; }
+.gs-zb { border: 0; background: none; font-size: 12px; height: 26px; padding: 0 6px; border-radius: 4px; display: flex; align-items: center; gap: 4px; color: #1f1f1f; }
+.gs-zb:hover, .gs-zb.show { background: rgba(68, 71, 70, .1); }
+.gs-zb .bi { font-size: 8px; color: #444746; }
+body.no-fbar #luckysheet-wa-calculate { display: none !important; }
+.sp-modal .modal-content { background: #f1f3f4; }
+.sp-wrap { display: flex; height: 100%; min-height: 0; }
+.sp-prev { flex: 1; position: relative; display: flex; flex-direction: column; min-width: 0; }
+.sp-prev iframe { flex: 1; width: 100%; border: 0; background: #e8eaed; }
+.sp-info { position: absolute; left: 16px; top: 10px; background: #fff; padding: 3px 12px; border-radius: 12px; font-size: .8rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); z-index: 2; }
+.sp-side { width: 340px; flex: none; background: #fff; padding: 16px 18px 0; overflow: auto; border-left: 1px solid #dadce0; }
+.sp-side .form-label { font-size: .8rem; font-weight: 600; margin-bottom: .25rem; color: #3c4043; }
+.sp-side .form-check { font-size: .88rem; }
+.sp-sec { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #5f6368; margin: 16px 0 6px; font-weight: 600; }
+.sp-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; position: sticky; bottom: 0; background: #fff; padding: 12px 0 16px; border-top: 1px solid #f1f3f4; }
+@media (max-width: 767px) { .sp-wrap { flex-direction: column; } .sp-prev { height: 42vh; flex: none; } .sp-side { width: auto; border-left: 0; } }

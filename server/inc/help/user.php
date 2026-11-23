@@ -135,18 +135,31 @@ ako Google Tabuľky, je celý po slovensky a beží v tvojom prehliadači (nič 
 </ul>
 <?= fig('u-tabulka-menu', 'Ponuka Formát: formáty čísel (mena, percentá, dátum), písmo, zlúčenie a podmienené formátovanie.') ?>
 <h3>Ponuky ako v Google Tabuľkách</h3>
+<p>Ponuky majú podponuky (prejdi myšou alebo klikni na položku so šípkou). Keď nevieš, kde čo je, stlač <kbd>Alt</kbd>+<kbd>/</kbd> (alebo lupu vľavo na paneli nástrojov) a napíš, čo hľadáš – napr. „tlač“, „ukotviť“, „duplikáty“.</p>
 <table class="table table-sm">
-  <tr><td><b>Súbor</b></td><td>Uložiť teraz, stiahnuť ako <b>Excel (.xlsx)</b>, <b>OpenDocument (.ods)</b> alebo <b>CSV</b>, zavrieť.</td></tr>
-  <tr><td><b>Úpravy</b></td><td>Späť / znova, <b>Nájsť a nahradiť</b> (aj regulárnym výrazom), vymazať obsah, odstrániť riadky a stĺpce.</td></tr>
-  <tr><td><b>Zobraziť</b></td><td><b>Ukotvenie</b> 1. riadka, 1. stĺpca alebo všetkého po aktuálnu bunku (ostane na mieste pri posúvaní), priblíženie.</td></tr>
-  <tr><td><b>Vložiť</b></td><td>Riadky a stĺpce, <b>graf</b>, obrázok, odkaz, <b>komentár</b>, funkcie (súčet, priemer, ďalšie…), rozbaľovací zoznam, nový hárok.</td></tr>
-  <tr><td><b>Formát</b></td><td>Formát čísla: <b>číslo</b> (1 234,56), <b>mena</b> (1 234,56 €), <b>percentá</b>, <b>dátum</b>, čas, text; tučné, kurzíva, podčiarknuté, prečiarknuté, zalamovanie, zlúčenie buniek,
-    <b>podmienené formátovanie</b> (zvýraznenie hodnôt väčších než…, duplicít, najvyšších hodnôt, farebné škály, dátové pruhy), vymazanie formátovania.</td></tr>
-  <tr><td><b>Údaje</b></td><td>Zoradenie A → Z / Z → A, <b>filter</b> (šípky v hlavičke – podľa hodnôt, podmienky alebo farby), <b>overenie údajov</b> (rozbaľovací zoznam, zaškrtávacie políčko, rozsah čísel či dátumov), rozdelenie textu do stĺpcov.</td></tr>
+  <tr><td><b>Súbor</b></td><td>Nová tabuľka alebo dokument, <b>import</b> (CSV, Excel, ODS – do nového hárka, namiesto aktuálneho alebo na koniec), vytvoriť kópiu, <b>zdieľať</b>,
+    stiahnuť ako <b>Excel (.xlsx)</b>, <b>OpenDocument (.ods)</b>, <b>PDF</b>, <b>webová stránka</b>, <b>CSV</b> alebo <b>TSV</b>, premenovať, presunúť, do koša, <b>história verzií</b>, aktivita, podrobnosti, <b>tlačiť</b>.</td></tr>
+  <tr><td><b>Úpravy</b></td><td>Späť / znova, vystrihnúť, kopírovať, <b>prilepiť špeciálne</b> (iba hodnoty, iba formát, iba vzorce, transponované), <b>presunúť</b> riadok či stĺpec,
+    odstrániť hodnoty, riadky, stĺpce alebo bunky s posunom, <b>nájsť a nahradiť</b>.</td></tr>
+  <tr><td><b>Zobraziť</b></td><td>Mriežka, riadok vzorcov, <b>zobraziť vzorce</b> (<kbd>Ctrl</kbd>+<kbd>`</kbd>), <b>ukotvenie</b> 1 – 2 riadkov či stĺpcov alebo po aktuálnu bunku,
+    skryť a zobraziť riadky, stĺpce a hárky, priblíženie, celá obrazovka.</td></tr>
+  <tr><td><b>Vložiť</b></td><td>Bunky s posunom, riadky, stĺpce, hárok, <b>graf</b>, <b>kontingenčná tabuľka</b>, obrázok, funkcie (SUM, AVERAGE, COUNT, MAX, MIN a všetky ďalšie), odkaz,
+    <b>zaškrtávacie políčko</b>, <b>rozbaľovací zoznam</b>, komentár, dnešný dátum a aktuálny čas.</td></tr>
+  <tr><td><b>Formát</b></td><td>Formát čísla (automaticky, text, <b>číslo</b>, <b>percentá</b>, vedecký, <b>mena</b>, účtovný, <b>dátum</b>, čas, trvanie, vlastný), text, zarovnanie vodorovné aj zvislé,
+    zalamovanie (pretečenie, zalomiť, orezať), otočenie textu, veľkosť písma, <b>zlúčenie</b> (všetko, vodorovne, zvisle), <b>podmienené formátovanie</b>, <b>striedavé farby</b>, vymazanie formátovania.</td></tr>
+  <tr><td><b>Údaje</b></td><td>Zoradiť hárok alebo rozsah (aj podľa viacerých stĺpcov, s hlavičkou), <b>filter</b>, <b>ochrana hárka</b> heslom, náhodné poradie,
+    <b>štatistiky stĺpca</b> (súčet, priemer, medián, najčastejšie hodnoty), overenie údajov, <b>odstrániť duplikáty</b>, orezať medzery, rozdeliť text do stĺpcov.</td></tr>
+  <tr><td><b>Nástroje</b></td><td>Prepočítať vzorce, podmienené formátovanie, ochrana hárka, súčet a počet označených buniek.</td></tr>
 </table>
-<p>Pod ponukami je <b>panel nástrojov</b> (písmo, veľkosť, farby, orámovanie, zarovnanie, otočenie textu…) a <b>riadok so vzorcom</b>. Pravým klikom na bunku, riadok, stĺpec alebo hárok
-otvoríš ďalšie možnosti (vložiť, odstrániť, skryť, zoradiť, farba hárka…). <b>Hárky</b> pridáš tlačidlom <b>+</b> vľavo dole. Keď označíš viac buniek, vpravo dole uvidíš <b>súčet, priemer a počet</b>.
-<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> funguje aj medzi Cloudom a Excelom či Google Tabuľkami. Všetky skratky sú v <b>Pomoc → Klávesové skratky</b>.</p>
+<p>Pod ponukami je <b>panel nástrojov</b> ako v Google Tabuľkách: hľadanie v ponukách, späť, znova, <b>tlač</b>, kopírovanie formátu, <b>priblíženie</b>, mena, percentá, desatinné miesta, formáty, písmo, veľkosť,
+tučné, kurzíva, farby, orámovanie, zlúčenie, zarovnanie, zalamovanie, otočenie, odkaz, komentár, graf, filter a funkcie. Pod ním je <b>riadok so vzorcom</b>. Pravým klikom na bunku, riadok, stĺpec alebo hárok
+otvoríš ďalšie možnosti (vložiť, odstrániť, skryť, zoradiť, prevrátiť, farba hárka…). <b>Hárky</b> pridáš tlačidlom <b>+</b> vľavo dole. Keď označíš viac buniek, vpravo dole uvidíš <b>súčet, priemer a počet</b>.
+<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> funguje aj medzi Cloudom a Excelom či Google Tabuľkami, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> prilepí iba hodnoty. Všetky skratky sú v <b>Pomoc → Klávesové skratky</b>.</p>
+<h3>Tlač a PDF</h3>
+<p><b>Súbor → Tlačiť</b> (<kbd>Ctrl</kbd>+<kbd>P</kbd> alebo tlačiareň na paneli) otvorí rovnaké nastavenia ako v Google Tabuľkách: vľavo <b>ukážka strán</b>, vpravo čo tlačiť (aktuálny hárok, celý zošit
+alebo vybrané bunky), veľkosť papiera, orientácia, <b>mierka</b> (normálna, prispôsobiť šírke, výške alebo strane, vlastné percentá), okraje, mriežka, poznámky, poradie strán, zarovnanie na strane,
+<b>hlavičky a päty</b> (čísla strán, názov zošita a hárka, dátum, čas) a <b>opakovanie ukotvených riadkov a stĺpcov</b> na každej strane. Tlačidlo <b>Ďalej</b> otvorí okno tlače – tam vyberieš tlačiareň
+alebo <b>Uložiť ako PDF</b>. Grafy a obrázky sa vytlačia tam, kde sú v tabuľke.</p>
 <h3>Ukladanie a čo sa zachová</h3>
 <p>Zmeny sa <b>uložia samé</b> pár sekúnd po úprave (alebo hneď cez <kbd>Ctrl</kbd>+<kbd>S</kbd>) – hore pri názve uvidíš „Všetky zmeny sú uložené v Cloude“. Každé uloženie vytvorí novú verziu –
 predchádzajúci stav nájdeš vo <b>Verziách</b>. Do súboru .xlsx sa uloží obsah, vzorce, formáty čísel, písmo a farby, orámovanie, zlúčené bunky, šírky a výšky, ukotvenie, filter,
@@ -156,25 +169,51 @@ podmienené formátovanie, overenie údajov, komentáre, odkazy aj obrázky, tak
 Staré formáty <b>.xls</b> a <b>.xlsm</b> sa uložia ako nový súbor <b>.xlsx</b>. Ak súbor medzitým zmenil niekto iný, Cloud ho neprepíše a upozorní ťa. CSV obsahuje iba jeden hárok a hodnoty (bez formátovania).</div>
 
 <?= h2('dokumenty', 'bi-file-earmark-text', 'Dokumenty (Word)') ?>
-<?= fig('u-dokument', 'Editor dokumentov vyzerá ako Google Dokumenty: ponuky, panel nástrojov a strana A4.') ?>
-<p>Dokumenty <b>.docx</b> (Word) píšeš a upravuješ priamo v Cloude – na počítači aj v mobile. Editor vyzerá ako Google Dokumenty, je po slovensky
-a všetko beží v tvojom prehliadači.</p>
+<?= fig('u-dokument', 'Editor dokumentov vyzerá ako Google Dokumenty: ponuky, panel nástrojov, pravítko a strany.') ?>
+<p>Dokumenty <b>.docx</b> (Word) píšeš a upravuješ priamo v Cloude – na počítači aj v mobile. Editor vyzerá a ovláda sa ako Google Dokumenty, je po slovensky
+a všetko beží v tvojom prehliadači (nič sa neposiela na cudzie servery).</p>
 <ul>
-  <li><b>Nový dokument:</b> <b>+ Nový → Nový dokument</b>, zadaj názov.</li>
-  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>. Šípka vľavo hore (v telefóne tlačidlo Späť) editor zavrie.</li>
-  <li><b>Panel nástrojov:</b> späť/znova, tlač, priblíženie, štýl odseku (Normálny text, Nadpis 1–4), písmo a veľkosť, tučné, kurzíva, podčiarknuté,
-    farba textu a zvýraznenia, odkaz, obrázok, zarovnanie, číslovaný zoznam a odrážky, odsadenie, vymazanie formátovania.</li>
-  <li><b>Ponuky:</b> <b>Súbor</b> (uložiť, stiahnuť ako Word, HTML alebo text, tlačiť / uložiť ako PDF, orientácia na šírku), <b>Úpravy</b> (späť, nájsť a nahradiť),
-    <b>Vložiť</b> (obrázok, tabuľka, odkaz, zlom strany, dnešný dátum, pomlčka, slovenské úvodzovky), <b>Formát</b> (písmo, nadpisy, zarovnanie, zoznamy),
-    <b>Nástroje</b> (počet slov, prehľad nadpisov).</li>
-  <li><b>Obrázky</b> vložíš aj prilepením (<kbd>Ctrl</kbd>+<kbd>V</kbd>) alebo potiahnutím. Klikni na obrázok a <kbd>Ctrl</kbd>+koliesko myši ho zmenší či zväčší, <kbd>Delete</kbd> ho zmaže.</li>
-  <li><b>Skratky:</b> <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>3</kbd> nadpisy, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>0</kbd> normálny text, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>7</kbd>/<kbd>8</kbd> zoznamy,
-    <kbd>Tab</kbd> v zozname = nižšia úroveň, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zlom strany, <kbd>Ctrl</kbd>+<kbd>K</kbd> odkaz, <kbd>Ctrl</kbd>+<kbd>H</kbd> nájsť a nahradiť.</li>
+  <li><b>Nový dokument:</b> <b>+ Nový → Nový dokument</b>, zadaj názov (alebo v editore <b>Súbor → Nový → Dokument</b>).</li>
+  <li><b>Úprava:</b> v ponuke súboru <b>Upraviť</b> alebo v náhľade tlačidlo <b>Upraviť</b>. Šípka vľavo hore (v telefóne tlačidlo Späť) editor zavrie. Na názov dokumentu klikneš a premenuješ ho.</li>
+  <li><b>Strany:</b> dokument je rozdelený na strany ako vo Worde – text, tabuľky aj dlhé odseky sa samé prelejú na ďalšiu stranu, nadpis ostane s textom pod ním. V <b>Zobraziť → Rozloženie bez strán</b> píšeš na jednu dlhú plochu.</li>
+  <li><b>Hľadať v ponukách:</b> <kbd>Alt</kbd>+<kbd>/</kbd> alebo lupa vľavo na paneli – napíš napr. „riadkovanie“, „obsah“, „poznámka“.</li>
 </ul>
+<h3>Ponuky ako v Google Dokumentoch</h3>
+<table class="table table-sm">
+  <tr><td><b>Súbor</b></td><td>Nový dokument či tabuľka, vytvoriť kópiu, <b>zdieľať</b>, stiahnuť ako <b>Word (.docx)</b>, <b>OpenDocument (.odt)</b>, <b>PDF</b>, <b>RTF</b>, text, webová stránka, <b>EPUB</b> alebo <b>Markdown</b>,
+    premenovať, presunúť, do koša, <b>história verzií</b>, aktivita, podrobnosti, <b>nastavenie strany</b> (veľkosť papiera, orientácia, okraje, farba strany), <b>tlačiť</b>.</td></tr>
+  <tr><td><b>Úpravy</b></td><td>Späť, znova, vystrihnúť, kopírovať, prilepiť, <b>prilepiť bez formátovania</b>, vybrať všetko, <b>nájsť a nahradiť</b> (aj s rozlišovaním veľkých písmen a regulárnymi výrazmi).</td></tr>
+  <tr><td><b>Zobraziť</b></td><td><b>Režim</b> úpravy / navrhovanie / zobrazenie, rozloženie bez strán, pravítko, <b>prehľad dokumentu</b>, netlačiteľné znaky, komentáre, počet slov počas písania, celá obrazovka.</td></tr>
+  <tr><td><b>Vložiť</b></td><td>Obrázok (zo súboru, z webovej adresy, fotoaparát), <b>tabuľka</b> (výber veľkosti myšou), <b>kreslenie</b>, <b>graf</b>, vodorovná čiara, <b>špeciálne znaky a emodži</b>,
+    <b>hlavičky a päty</b>, <b>čísla strán</b>, zlom strany a stĺpca, odkaz, <b>komentár</b>, <b>záložka</b>, <b>obsah</b>, <b>poznámka pod čiarou</b>, dátum, kontrolný zoznam.</td></tr>
+  <tr><td><b>Formát</b></td><td>Text (tučné, kurzíva, podčiarknuté, prečiarknuté, horný a dolný index, veľkosť, VEĽKÉ / malé písmená), <b>štýly odsekov</b> (Normálny text, Názov, Podnadpis, Nadpis 1 – 6, citát, kód),
+    zarovnanie a <b>odsadenie</b> (aj prvého riadka a predsadenie), <b>riadkovanie</b> a medzery pred a za odsekom, <b>stĺpce</b>, odrážky a číslovanie (rôzne typy, kontrolný zoznam),
+    <b>tabuľka</b> (riadky, stĺpce, zlúčenie, farby, okraje, pripnutá hlavička, zoradenie), obrázok (veľkosť, obtekanie textom, alternatívny text), vymazanie formátovania.</td></tr>
+  <tr><td><b>Nástroje</b></td><td>Kontrola pravopisu, <b>počet slov</b>, prezrieť navrhované úpravy, hlasové písanie, predvoľby (automatické veľké písmená, slovenské úvodzovky „…“, odkazy, zoznamy, nahrádzanie (c) → ©).</td></tr>
+</table>
+<p><b>Panel nástrojov</b> je ako v Google Dokumentoch: hľadanie v ponukách, späť, znova, tlač, pravopis, <b>kopírovať formát</b> (štetec – dvojklikom viackrát), priblíženie, štýl odseku, písmo, veľkosť (− / +),
+tučné, kurzíva, podčiarknuté, farba textu a zvýraznenia (paleta farieb), odkaz, komentár, obrázok, zarovnanie, riadkovanie, kontrolný zoznam, odrážky a číslovanie (s výberom typu), odsadenie, vymazanie formátovania a vpravo <b>režim</b>.
+Pod ním je <b>pravítko</b> – ťahaním modrých značiek zmeníš odsadenie odseku, ťahaním šedých okrajov okraje strany. Pravým klikom do textu otvoríš rýchlu ponuku (aj pre tabuľku a obrázok).</p>
+<ul>
+  <li><b>Hlavičky a päty:</b> dvojklik do horného alebo dolného okraja strany (alebo Vložiť → Hlavičky a päty). Môžeš vložiť číslo strany, počet strán a mať inú prvú stranu.</li>
+  <li><b>Poznámky pod čiarou</b> (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>) sa číslujú samé a zobrazia sa dole na strane – tam ich aj píšeš.</li>
+  <li><b>Obsah</b> sa poskladá z nadpisov; ukážeš naň myšou a tlačidlom ↻ ho aktualizuješ. Čísla strán sa dopĺňajú samé.</li>
+  <li><b>Komentáre</b> (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd>): označ text, napíš komentár. Na komentáre sa dá odpovedať, upraviť ich, vyriešiť alebo zmazať – sú v paneli vpravo (ikona bubliny hore).</li>
+  <li><b>Navrhovanie:</b> v režime <b>Navrhovanie</b> sa tvoje úpravy nezapíšu hneď, ale ako návrhy (pridaný text zelený, vymazaný prečiarknutý). Ty alebo ten, s kým dokument zdieľaš, ich potom
+    <b>prijme</b> ✓ alebo <b>odmietne</b> ✗ – jednotlivo alebo všetky naraz. Vo Worde sa zobrazia ako sledované zmeny.</li>
+  <li><b>Obrázky</b> vložíš aj prilepením (<kbd>Ctrl</kbd>+<kbd>V</kbd>) alebo potiahnutím. Klikni na obrázok – rohmi zmeníš veľkosť, nad ním vyberieš obtekanie textom. <b>Kreslenie</b> a <b>grafy</b> dvojklikom znova upravíš.</li>
+  <li><b>Skratky:</b> všetky sú v <b>Pomoc → Klávesové skratky</b> (<kbd>Ctrl</kbd>+<kbd>/</kbd>) – napr. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>6</kbd> nadpisy, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>7</kbd>/<kbd>8</kbd>/<kbd>9</kbd> zoznamy,
+    <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zlom strany, <kbd>Ctrl</kbd>+<kbd>K</kbd> odkaz, <kbd>Ctrl</kbd>+<kbd>H</kbd> nájsť a nahradiť, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> prilepiť bez formátovania.</li>
+</ul>
+<h3>Tlač a PDF</h3>
+<p><b>Súbor → Tlačiť</b> (<kbd>Ctrl</kbd>+<kbd>P</kbd> alebo tlačiareň na paneli) vytlačí dokument presne tak, ako ho vidíš: strany, hlavičky a päty s číslami strán, poznámky pod čiarou a farbu strany.
+V okne tlače vyberieš tlačiareň alebo <b>Uložiť ako PDF</b> (to isté urobí <b>Súbor → Stiahnuť → PDF</b>). Komentáre a vymazané návrhy sa netlačia.</p>
 <p><b>Ukladanie:</b> zmeny sa uložia samé pár sekúnd po úprave (alebo hneď <kbd>Ctrl</kbd>+<kbd>S</kbd>), každé uloženie je nová verzia vo <b>Verziách</b>.
-Zachová sa text, nadpisy, písmo, veľkosť a farby, zvýraznenie, zarovnanie, zoznamy, tabuľky, obrázky, odkazy a zlomy strán – dokument otvoríš rovnako vo Worde.</p>
-<div class="warn">Hlavičky a päty, komentáre, sledované zmeny, poznámky pod čiarou, textové polia, grafy a rovnice z Wordu editor nezobrazí. Ak ich dokument má,
-Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>, aby sa uložením nestratili. Starý formát .doc treba najprv uložiť ako .docx.</div>
+Do súboru Word sa uloží text, štýly, písmo a farby, odsadenie a riadkovanie, zoznamy, tabuľky, obrázky, odkazy, záložky, obsah, hlavičky a päty, čísla strán, poznámky pod čiarou,
+komentáre, návrhy (ako sledované zmeny), nastavenie strany a stĺpce – dokument otvoríš rovnako vo Worde.</p>
+<div class="warn">Textové polia, grafy z Wordu, rovnice a vložené objekty editor nezobrazí – ak ich dokument má, Cloud ťa upozorní a odporučí ho otvoriť <b>iba na čítanie</b>.
+Vyriešené komentáre sa do súboru neukladajú (ostanú v starších verziách). Pri viacerých stĺpcoch editor ukazuje dokument bez zlomov strán, v tlači a vo Worde sú strany správne.
+Starý formát .doc treba najprv uložiť ako .docx. Úpravy v rovnakom čase od viacerých ľudí sa nespájajú – ak súbor medzitým zmenil niekto iný, Cloud ťa upozorní.</div>
 
 <?= h2('obrazky', 'bi-magic', 'Úprava fotiek') ?>
 <?= fig('u-obrazok', 'Editor obrázkov: orezanie s pomerom strán 16:9.') ?>

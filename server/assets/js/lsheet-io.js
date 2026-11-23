@@ -413,6 +413,8 @@
       if (xs || ys) Object.assign(views[0], { state: 'frozen', xSplit: xs, ySplit: ys });
       const ws = wb.addWorksheet(name, { views, properties: sh.color ? { tabColor: argb(sh.color) || undefined } : {} });
       if (sh.hide == 1) ws.state = 'hidden';
+      const au = cfg.authority; // ochrana hárka – heslo platí aj v Exceli
+      if (au && au.sheet) try { await ws.protect(au.password || '', { selectLockedCells: au.selectLockedCells !== 0, selectUnlockedCells: au.selectunLockedCells !== 0, formatCells: !!au.formatCells, formatColumns: !!au.formatColumns, formatRows: !!au.formatRows, insertColumns: !!au.insertColumns, insertRows: !!au.insertRows, insertHyperlinks: !!au.insertHyperlinks, deleteColumns: !!au.deleteColumns, deleteRows: !!au.deleteRows, sort: !!au.sort, autoFilter: !!au.filter, pivotTables: !!au.usePivotTablereports, objects: !!au.editObjects, scenarios: !!au.editScenarios }); } catch (e) {}
       Object.entries(cfg.columnlen || {}).forEach(([c, px]) => { if (+px > 0) ws.getColumn(+c + 1).width = Math.max(1, Math.round((px - 5) / 7 * 100) / 100); });
       Object.keys(cfg.colhidden || {}).forEach(c => { ws.getColumn(+c + 1).hidden = true; });
       Object.entries(cfg.rowlen || {}).forEach(([r, px]) => { if (+px > 0) ws.getRow(+r + 1).height = Math.round(px * 0.75 * 100) / 100; });
