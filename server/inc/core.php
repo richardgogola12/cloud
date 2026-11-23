@@ -118,6 +118,8 @@ function db(): PDO {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
     ]);
+    // databáza počíta čas (NOW(), CURRENT_TIMESTAMP) v rovnakom časovom pásme ako PHP – inak by napr. „dnes“ po polnoci nesedelo
+    try { $pdo->exec("SET time_zone = '" . date('P') . "'"); } catch (Throwable $e) {}
     return $pdo;
 }
 function q(string $sql, array $params = []): PDOStatement {
