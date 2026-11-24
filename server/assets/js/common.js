@@ -315,3 +315,17 @@ window.Cloud = (function () {
     else if (dx < 0 && isOpen()) oc.hide();
   }, { passive: true });
 })();
+
+/* Aplikácia Android: kým je otvorené okno (editor fotky, náhľad, editory, menu), potiahnutie nadol nesmie obnoviť stránku.
+   Hlási to priamo web (nespolieha sa iba na skript, ktorý vkladá aplikácia) a pri dotyku v okne hneď, ešte pred ťahaním. */
+(function () {
+  const A = window.CloudAndroid; if (!A || !A.setRefreshBlocked) return;
+  let last = null;
+  const send = (b) => { if (b === last) return; last = b; try { A.setRefreshBlocked(b); } catch (e) {} };
+  const open = () => document.body.classList.contains('modal-open') || !!document.querySelector('.modal.show, .offcanvas.show, .dropdown-menu.show, .ctx-menu.show, .gm-menu.show');
+  const f = () => send(open());
+  const start = () => { new MutationObserver(f).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] }); f(); };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  document.addEventListener('touchstart', (e) => { if (e.target.closest && e.target.closest('.modal, .offcanvas, .ie-stage, [data-norefresh]')) { last = null; send(true); } }, { capture: true, passive: true });
+  document.addEventListener('touchend', () => setTimeout(f, 50), { capture: true, passive: true });
+})();

@@ -355,6 +355,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 b.progress.visibility = View.VISIBLE
+                refreshBlocked = false; b.swipe.isEnabled = true
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -364,8 +365,9 @@ class MainActivity : AppCompatActivity() {
                     view.evaluateJavascript("window.__cloudBgUpload = ${prefs.bgUpload};", null)
                     view.evaluateJavascript(INJECT_JS, null)
                     view.evaluateJavascript(accountsJs(), null)
-                    view.evaluateJavascript(WATCH_JS, null)
                 }
+                // stráženie okien (potiahnutie nadol neobnoví stránku) – aj keď adresa stránky nesedí presne s adresou servera (presmerovanie, www…)
+                view.evaluateJavascript(WATCH_JS, null)
                 if (Uri.parse(url).path?.endsWith("/login.php") == true) relogin()
             }
 
