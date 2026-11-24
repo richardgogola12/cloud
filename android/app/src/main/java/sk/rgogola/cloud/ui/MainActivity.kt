@@ -119,7 +119,11 @@ class MainActivity : AppCompatActivity() {
 
     inner class JsBridge {
         @JavascriptInterface
-        fun setRefreshBlocked(blocked: Boolean) { refreshBlocked = blocked }
+        fun setRefreshBlocked(blocked: Boolean) {
+            refreshBlocked = blocked
+            // keď je otvorené okno (editor fotky, náhľad, editor tabuľky…), potiahnutie nadol nesmie obnoviť stránku
+            runOnUiThread { if (::b.isInitialized) { b.swipe.isEnabled = !blocked; if (blocked) b.swipe.isRefreshing = false } }
+        }
 
         /* zamknuté zložky: heslo uložené v aplikácii sa vydá iba po overení odtlačkom */
         @JavascriptInterface

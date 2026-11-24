@@ -696,3 +696,7 @@ body:not(:has(#items)) .kbd-menu { display: none !important; }
 .tfa-qr svg { width: 180px; height: 180px; background: #fff; border-radius: 8px; }
 .tfa-codes { columns: 2; font-size: 1rem; background: var(--c-hover); border-radius: 10px; padding: 10px 14px; user-select: all; }
 .tfa-code { letter-spacing: .3em; }
+
+/* otvorené okno (editor fotky, náhľad, editory): ťahanie nadol v prehliadači v mobile neobnoví stránku */
+html:has(body.modal-open), body.modal-open { overscroll-behavior-y: none; }
+.modal { overscroll-behavior: contain; }
