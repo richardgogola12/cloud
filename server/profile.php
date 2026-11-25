@@ -283,6 +283,10 @@ $used = used_space($uid);
     <div class="card card-soft mb-4" id="display">
       <div class="card-body p-4">
         <h2 class="h6 fw-bold mb-1"><i class="bi bi-magic me-2"></i>Zobrazenie</h2>
+        <div class="d-flex align-items-center gap-3 mt-2 mb-3 flex-wrap">
+          <div class="small text-body-secondary flex-grow-1" style="min-width:220px">Téma, farba zvýraznenia, hustota zoznamu, veľkosť náhľadov, animácie, spodná lišta a gestá na mobile. Ukladá sa do účtu – platí na každom zariadení.</div>
+          <button class="btn btn-sm btn-primary rounded-pill px-3" type="button" onclick="cloudAppearance()"><i class="bi bi-palette me-1"></i>Vzhľad a ovládanie</button>
+        </div>
         <div class="form-check form-switch mt-2">
           <input class="form-check-input" type="checkbox" role="switch" id="prefFlash" <?= (user_prefs($user)['flash'] ?? true) ? 'checked' : '' ?>>
           <label class="form-check-label" for="prefFlash">Zvýrazniť položku pri návrate</label>

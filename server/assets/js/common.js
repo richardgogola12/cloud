@@ -85,8 +85,9 @@ window.Cloud = (function () {
     setIcon();
     tt && tt.addEventListener('click', () => {
       const n = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-bs-theme', n); localStorage.setItem('cloud-theme', n); setIcon();
+      CloudUI.set('theme', n); CloudUI.apply();
     });
+    document.addEventListener('cloud-theme', setIcon);
     // zobraziť heslo
     document.querySelectorAll('[data-toggle-pass]').forEach(b => b.addEventListener('click', () => {
       const i = document.querySelector(b.dataset.togglePass); i.type = i.type === 'password' ? 'text' : 'password';
@@ -137,9 +138,9 @@ window.Cloud = (function () {
     document.querySelectorAll('[data-remember]').forEach(b => {
       const k = b.dataset.remember, el = document.querySelector(b.dataset.bsTarget);
       if (!el) return;
-      try { if (localStorage.getItem(k) === '1' && !el.classList.contains('show')) { el.classList.add('show'); b.classList.remove('collapsed'); b.setAttribute('aria-expanded', 'true'); } } catch (e) {}
-      el.addEventListener('shown.bs.collapse', () => { try { localStorage.setItem(k, '1'); } catch (e) {} });
-      el.addEventListener('hidden.bs.collapse', () => { try { localStorage.setItem(k, '0'); } catch (e) {} });
+      const put = (v) => { const sd = Object.assign({}, CloudUI.get('side', {})); if (v) sd[k] = true; else delete sd[k]; CloudUI.set('side', sd); };
+      el.addEventListener('shown.bs.collapse', () => put(true));
+      el.addEventListener('hidden.bs.collapse', () => put(false));
     });
     // Select2
     if (window.jQuery && jQuery.fn.select2) {
@@ -191,7 +192,7 @@ window.Cloud = (function () {
       await api('api.php?action=notifications_read'); setBadge(0); list.querySelectorAll('.unread').forEach(x => x.classList.remove('unread'));
     });
     // kontrola nových každú minútu
-    let lastSeen = parseInt(localStorage.getItem('cloud-notif-last') || '0');
+    let lastSeen = parseInt(CloudUI.get('notif', 0)) || 0;
     async function poll() {
       if (document.hidden) return;
       const r = await api('api.php?action=notifications_unread');
@@ -208,7 +209,7 @@ window.Cloud = (function () {
           const fresh = (l.items || []).filter(n => n.id > lastSeen && !n.read);
           if (fresh.length) toast(fresh[0].title + (fresh.length > 1 ? ' (+' + (fresh.length - 1) + ')' : ''), 'primary', 6000);
         }
-        lastSeen = r.last; localStorage.setItem('cloud-notif-last', String(lastSeen));
+        lastSeen = r.last; CloudUI.set('notif', lastSeen);
       }
     }
     poll(); setInterval(poll, 60000);
@@ -284,7 +285,112 @@ window.Cloud = (function () {
     return unlockOpen;
   }
 
-  return { api, toast, confirm: confirmBox, prompt: promptBox, formatBytes, esc, base, csrf, unlockFolder };
+  /* ---------- nastavenia vzhľadu a ovládania: v účte na serveri (platia na každom zariadení), v zariadení sa neukladá nič ---------- */
+  const UI = window.CLOUD_UI || {};
+  const logged = !!document.getElementById('accountMenu');
+  let uiPend = {}, uiT = null;
+  const uiFlush = (beacon) => {
+    clearTimeout(uiT); uiT = null;
+    if (!Object.keys(uiPend).length || !logged) return;
+    const value = JSON.stringify(uiPend); uiPend = {};
+    if (beacon && navigator.sendBeacon) {
+      const fd = new FormData(); fd.append('key', 'ui'); fd.append('value', value); fd.append('_csrf', csrf);
+      if (navigator.sendBeacon(base + 'api.php?action=prefs_save', fd)) return;
+    }
+    apiRaw('api.php?action=prefs_save', { key: 'ui', value });
+  };
+  addEventListener('pagehide', () => uiFlush(true));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) uiFlush(true); });
+  const CloudUI = {
+    get(k, d) { return Object.prototype.hasOwnProperty.call(UI, k) ? UI[k] : d; },
+    set(k, v, now) {
+      if (JSON.stringify(UI[k]) === JSON.stringify(v)) return;
+      if (v === null || v === undefined) delete UI[k]; else UI[k] = v;
+      uiPend[k] = v === undefined ? null : v;
+      clearTimeout(uiT); uiT = setTimeout(uiFlush, now ? 0 : 800);
+      document.dispatchEvent(new CustomEvent('cloud-ui', { detail: { key: k, value: v } }));
+    },
+    apply() {
+      const d = document.documentElement;
+      const t = UI.theme === 'light' || UI.theme === 'dark' ? UI.theme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      d.setAttribute('data-bs-theme', t);
+      d.setAttribute('data-accent', UI.accent || 'blue');
+      d.setAttribute('data-density', UI.density || 'normal');
+      d.setAttribute('data-thumbs', UI.thumbs || 'm');
+      if (UI.anim === 'off') d.setAttribute('data-anim', 'off'); else d.removeAttribute('data-anim');
+      const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = ACCENTS[UI.accent || 'blue'] || '#1a73e8';
+      document.dispatchEvent(new Event('cloud-theme'));
+    },
+    flush: () => uiFlush(false),
+  };
+  const ACCENTS = { blue: '#1a73e8', green: '#188038', purple: '#7c4dff', red: '#d93025', orange: '#e8710a', teal: '#00897b', pink: '#d01884' };
+  const ACC_NAMES = { blue: 'Modrá', green: 'Zelená', purple: 'Fialová', red: 'Červená', orange: 'Oranžová', teal: 'Tyrkysová', pink: 'Ružová' };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (!UI.theme || UI.theme === 'auto') CloudUI.apply(); });
+  // jednorazový prenos starých nastavení, ktoré boli uložené v zariadení, do účtu – potom sa v zariadení vymažú
+  if (logged && !UI.migrated) {
+    try {
+      const L = localStorage, g = (k) => L.getItem(k), j = (k) => { try { return JSON.parse(g(k) || 'null'); } catch (e) { return null; } };
+      const m = { migrated: 1 };
+      if (g('cloud-theme')) m.theme = g('cloud-theme');
+      if (g('cloud-layout')) m.layout = g('cloud-layout');
+      if (g('cloud-sort')) m.sort = g('cloud-sort');
+      if (g('cloud-dir')) m.dir = g('cloud-dir');
+      if (g('cloud-psort')) m.psort = g('cloud-psort');
+      if (g('cloud-pdir')) m.pdir = g('cloud-pdir');
+      if (g('cloud-playout')) m.playout = g('cloud-playout');
+      if (j('cloud-layouts')) m.layouts = j('cloud-layouts');
+      if (j('cloud-colw')) m.colw = j('cloud-colw');
+      const side = {}; Object.keys(L).filter(k => /^cloud-side-\d+$/.test(k)).forEach(k => { side['g' + k.slice(11)] = L.getItem(k) === '1'; });
+      if (Object.keys(side).length) m.side = side;
+      if (g('cloud-notif-last')) m.notif = parseInt(g('cloud-notif-last')) || 0;
+      Object.entries(m).forEach(([k, v]) => { if (!(k in UI) || k === 'migrated') { UI[k] = v; uiPend[k] = v; } });
+      uiFlush();
+      Object.keys(L).filter(k => k.startsWith('cloud-')).forEach(k => L.removeItem(k));
+    } catch (e) { CloudUI.set('migrated', 1, true); }
+  }
+
+  /* ---------- okno „Vzhľad a ovládanie“ ---------- */
+  function appearance() {
+    document.getElementById('uiModal')?.remove();
+    const opt = (name, val, label, icon) => '<input type="radio" class="btn-check" name="' + name + '" id="ui-' + name + '-' + val + '" value="' + val + '"' + ((CloudUI.get(name, name === 'theme' ? 'auto' : name === 'density' ? 'normal' : name === 'thumbs' ? 'm' : 'auto') === val) ? ' checked' : '') + '>'
+      + '<label class="btn ui-opt" for="ui-' + name + '-' + val + '">' + (icon ? '<i class="bi ' + icon + '"></i>' : '') + label + '</label>';
+    const sw = (name, label, sub, def) => '<div class="form-check form-switch ui-switch"><input class="form-check-input" type="checkbox" role="switch" id="ui-' + name + '" data-ui-bool="' + name + '"' + (CloudUI.get(name, def) ? ' checked' : '') + '>'
+      + '<label class="form-check-label" for="ui-' + name + '">' + label + '<span class="d-block small text-body-secondary">' + sub + '</span></label></div>';
+    const touch = 'ontouchstart' in window;
+    document.body.insertAdjacentHTML('beforeend', '<div class="modal fade" id="uiModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">'
+      + '<div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-palette me-2"></i>Vzhľad a ovládanie</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+      + '<div class="modal-body pt-0">'
+      + '<div class="ui-label">Téma</div><div class="ui-opts">' + opt('theme', 'light', 'Svetlá', 'bi-sun') + opt('theme', 'dark', 'Tmavá', 'bi-moon-stars') + opt('theme', 'auto', 'Podľa systému', 'bi-circle-half') + '</div>'
+      + '<div class="ui-label">Farba zvýraznenia</div><div class="ui-accents">' + Object.keys(ACCENTS).map(a => '<button type="button" class="ui-acc' + ((UI.accent || 'blue') === a ? ' on' : '') + '" data-acc="' + a + '" style="--a:' + ACCENTS[a] + '" title="' + ACC_NAMES[a] + '" aria-label="' + ACC_NAMES[a] + '"><i class="bi bi-check-lg"></i></button>').join('') + '</div>'
+      + '<div class="ui-label">Hustota zobrazenia</div><div class="ui-opts">' + opt('density', 'compact', 'Kompaktná', 'bi-list') + opt('density', 'normal', 'Normálna', 'bi-list-ul') + opt('density', 'comfy', 'Vzdušná', 'bi-view-list') + '</div>'
+      + '<div class="ui-label">Veľkosť náhľadov v mriežke</div><div class="ui-opts">' + opt('thumbs', 's', 'Malé', 'bi-grid-3x3-gap') + opt('thumbs', 'm', 'Stredné', 'bi-grid') + opt('thumbs', 'l', 'Veľké', 'bi-grid-1x2') + '</div>'
+      + '<div class="ui-label">Animácie</div><div class="ui-opts">' + opt('anim', 'auto', 'Zapnuté', 'bi-magic') + opt('anim', 'off', 'Vypnuté', 'bi-slash-circle') + '</div>'
+      + '<div class="ui-label">Mobil</div>'
+      + sw('bnav', 'Spodná lišta', 'Môj disk, Nedávne, Fotky a Zdieľané vždy po ruke', true)
+      + sw('swipe', 'Potiahnutie riadku v zozname', 'Doľava = do koša, doprava = hviezdička', true)
+      + (touch ? '' : '<div class="small text-body-secondary mt-3"><i class="bi bi-keyboard me-1"></i>Klávesové skratky ukáže kláves <kbd>?</kbd></div>')
+      + '<div class="small text-body-secondary mt-3"><i class="bi bi-cloud-check me-1"></i>Nastavenia sa ukladajú do tvojho účtu a platia na každom zariadení.</div>'
+      + '</div><div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill me-auto" data-ui-reset>Predvolené</button><button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">Hotovo</button></div></div></div></div>');
+    const el = document.getElementById('uiModal');
+    el.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t.dataset.uiBool) CloudUI.set(t.dataset.uiBool, t.checked);
+      else if (t.name) CloudUI.set(t.name, t.value === 'auto' && t.name === 'anim' ? null : t.value);
+      CloudUI.apply();
+    });
+    el.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-acc]');
+      if (a) { CloudUI.set('accent', a.dataset.acc === 'blue' ? null : a.dataset.acc); el.querySelectorAll('.ui-acc').forEach(x => x.classList.toggle('on', x === a)); CloudUI.apply(); }
+      if (e.target.closest('[data-ui-reset]')) { ['theme', 'accent', 'density', 'thumbs', 'anim', 'bnav', 'swipe'].forEach(k => CloudUI.set(k, null)); CloudUI.apply(); bootstrap.Modal.getInstance(el).hide(); toast('Vzhľad je nastavený na predvolený.', 'success'); }
+    });
+    el.addEventListener('hidden.bs.modal', () => { el.remove(); CloudUI.flush(); });
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  }
+  document.addEventListener('cloud-ui', (e) => { if (e.detail.key === 'bnav') document.body.classList.toggle('has-bnav', e.detail.value !== false); });
+  window.CloudUI = CloudUI;
+  window.cloudAppearance = appearance;
+
+  return { api, toast, confirm: confirmBox, prompt: promptBox, formatBytes, esc, base, csrf, unlockFolder, ui: CloudUI };
 })();
 
 /* Mobil a aplikácia: menu vľavo sa otvorí potiahnutím prstom doprava a zatvorí potiahnutím doľava */
@@ -294,14 +400,15 @@ window.Cloud = (function () {
   const narrow = () => window.innerWidth < 992; // na širokej obrazovke je menu stále viditeľné
   const isOpen = () => sb.classList.contains('show') || sb.classList.contains('showing');
   // kde sa potiahnutie nemá brať ako gesto pre menu
-  const blocked = (t) => !!t.closest('.modal, .dropdown-menu, input, textarea, select, [contenteditable], .mem-row, .sheet-tabs, .table-responsive, .col-resize, #previewBody, .no-swipe')
+  const blocked = (t, x) => !!t.closest('.modal, .dropdown-menu, input, textarea, select, [contenteditable], .mem-row, .sheet-tabs, .table-responsive, .col-resize, #previewBody, .no-swipe')
+    || (x > 28 && !!t.closest('.row-item') && window.CloudUI && CloudUI.get('swipe', true) !== false) || document.body.classList.contains('drag-select')
     || (() => { for (let el = t; el && el !== document.body; el = el.parentElement) { if (el.scrollWidth > el.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true; } return false; })();
   let x0 = 0, y0 = 0, t0 = 0, active = false, done = false;
   document.addEventListener('touchstart', (e) => {
     active = false; done = false;
     if (e.touches.length !== 1 || !narrow() || document.body.classList.contains('modal-open') && !isOpen()) return;
     const t = e.touches[0];
-    if (!isOpen() && blocked(e.target)) return;
+    if (!isOpen() && blocked(e.target, t.clientX)) return;
     x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); active = true;
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {

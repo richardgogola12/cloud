@@ -59,8 +59,8 @@ class Client {
 }
 
 /** nahratie po častiach presne ako Android aplikácia (multipart: id, offset, chunk) */
-function upload(Client $c, int $folder, string $name, string $data, string $rel = '', int $chunk = 300000, ?string $resume = null, ?int $stopAfter = null): array {
-    $init = $c->api('upload_init', ['folder' => $folder, 'name' => $name, 'size' => strlen($data), 'relpath' => $rel, 'resume' => $resume ?? '']);
+function upload(Client $c, int $folder, string $name, string $data, string $rel = '', int $chunk = 300000, ?string $resume = null, ?int $stopAfter = null, string $fkey = ''): array {
+    $init = $c->api('upload_init', ['folder' => $folder, 'name' => $name, 'size' => strlen($data), 'relpath' => $rel, 'resume' => $resume ?? '', 'fkey' => $fkey]);
     if (empty($init['ok'])) return $init + ['stage' => 'init'];
     $off = (int)$init['received']; $sent = 0;
     while (true) {
@@ -249,6 +249,13 @@ $part = upload($app, $cam, 'prerusene.bin', $big, '', 300000, null, 1);
 ok(!empty($part['partial']), 'app: prerušené nahrávanie (1 časť)');
 $res = upload($app, $cam, 'prerusene.bin', $big, '', 300000, $part['id'] ?? null);
 ok(!empty($res['done']) && ($res['upload_id'] ?? '') === ($part['id'] ?? 'x'), 'app: pokračovanie od miesta prerušenia', json_encode($res));
+// web: pokračovanie podľa odtlačku súboru – prehliadač si id nepamätá, nájde ho server
+$big2 = random_bytes(800000); $fk = "$cam|odtlacok.bin|800000|1700000000000";
+$part2 = upload($app, $cam, 'odtlacok.bin', $big2, '', 300000, null, 1, $fk);
+$res2 = upload($app, $cam, 'odtlacok.bin', $big2, '', 300000, null, null, $fk);
+ok(!empty($res2['done']) && ($res2['upload_id'] ?? '') === ($part2['id'] ?? 'x'), 'web: pokračovanie podľa odtlačku (bez localStorage)', json_encode($res2));
+$res3 = upload($app, $cam, 'odtlacok.bin', $big2, '', 300000, null, null, $fk);
+ok(!empty($res3['done']) && ($res3['upload_id'] ?? '') !== ($part2['id'] ?? 'x'), 'web: dokončené nahrávanie sa znova nepoužije');
 $bid = (int)($res['file']['id'] ?? 0);
 $r = $app->get("api.php?action=download&id=$bid", ['ajax' => true]);
 ok($r['body'] === $big, 'app: stiahnutie (Otvoriť v aplikácii) vráti správny obsah');
@@ -491,6 +498,18 @@ ok(($web->api('prefs_save', ['key' => 'flash', 'value' => '0'])['flash'] ?? null
 ok(($web->api('prefs_save', ['key' => 'flash', 'value' => '1'])['flash'] ?? null) === true, 'zapnutie bliknutia');
 ok(($web->api('prefs_save', ['key' => 'flash', 'time' => '3'])['time'] ?? null) == 3 && str_contains($web->get('index.php')['body'], 'CLOUD_FLASH_TIME = 3'), 'dĺžka bliknutia');
 $web->api('prefs_save', ['key' => 'flash', 'time' => '2']);
+// vzhľad a ovládanie – v účte, nie v zariadení
+$j = $web->api('prefs_save', ['key' => 'ui', 'value' => json_encode(['theme' => 'dark', 'accent' => 'green', 'density' => 'compact', 'thumbs' => 'l', 'layouts' => ['folder:1' => 'grid', 'x' => 'zle'], 'colw' => ['size' => 99999], 'zly' => 1, 'migrated' => 1])]);
+ok(($j['ui']['accent'] ?? '') === 'green' && ($j['ui']['colw']['size'] ?? 0) === 1200 && !isset($j['ui']['zly']) && !isset($j['ui']['layouts']['x']), 'vzhľad sa uloží a vyčistí', json_encode($j));
+$j = $web->api('prefs_save', ['key' => 'ui', 'value' => json_encode(['accent' => 'nezmysel', 'density' => null, 'swipe' => false])]);
+ok(($j['ui']['theme'] ?? '') === 'dark' && !isset($j['ui']['density']) && ($j['ui']['swipe'] ?? null) === false && ($j['ui']['accent'] ?? '') === 'green', 'zmeny vzhľadu sa zlučujú (null maže)', json_encode($j));
+$ib = $web->get('index.php')['body'];
+ok(str_contains($ib, '"accent":"green"') && str_contains($ib, 'window.CLOUD_UI') && str_contains($ib, 'content="#188038"'), 'vzhľad sa vloží do stránky (bez bliknutia)');
+ok(str_contains($ib, 'id="bnav"') && str_contains($ib, 'has-bnav') && str_contains($ib, 'Vzhľad a ovládanie'), 'spodná lišta a okno Vzhľad');
+$web->api('prefs_save', ['key' => 'ui', 'value' => json_encode(['bnav' => false])]);
+ok(!str_contains($web->get('index.php')['body'], 'class="app has-bnav'), 'spodná lišta sa dá vypnúť');
+$web->api('prefs_save', ['key' => 'ui', 'value' => json_encode(['theme' => null, 'accent' => null, 'thumbs' => null, 'bnav' => null, 'swipe' => null, 'layouts' => null, 'colw' => null])]);
+foreach (['assets/js/common.js', 'assets/js/drive.js'] as $jsf) ok(!preg_match('/localStorage\.setItem/', file_get_contents(__DIR__ . '/../server/' . $jsf)), "$jsf neukladá nič do zariadenia");
 
 section('Stĺpce v zozname');
 $j = $web->api('prefs_save', ['key' => 'columns', 'value' => json_encode(['recent' => ['kind', 'location', 'size', 'nezmysel'], 'zly' => ['size']])]);

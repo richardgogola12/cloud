@@ -22,15 +22,16 @@ Ak si zabudol heslo, použi <b>Zabudnuté heslo</b> – príde ti odkaz na nasta
   <li><b>Menu vľavo</b> – tlačidlo <b>+ Nový</b>, sekcie Môj disk, Nedávne, S hviezdičkou, Fotky, Aktivita, zdieľanie, Duplicitné súbory, Kôš, štítky, nastavenia a Pomoc. Dole vidíš, koľko miesta ti ostáva.</li>
   <li><b>Hľadanie</b> – pole <i>Hľadať v disku</i> s návrhmi a filtrami (kapitola <a href="#hladanie">Vyhľadávanie</a>).</li>
   <li><b>Zvonček</b> – upozornenia (niekto s tebou zdieľal, dochádza miesto, nové prihlásenie…).</li>
-  <li><b>Mesiac</b> – prepína svetlý a tmavý vzhľad.</li>
+  <li><b>Mesiac</b> – prepína svetlý a tmavý vzhľad. Viac možností (farba, hustota, veľkosť náhľadov…) je v <b>avatar → Vzhľad a ovládanie</b> (kapitola <a href="#vzhlad">Vzhľad a ovládanie</a>).</li>
   <li><b>Tvoj avatar</b> – účet, prepínanie medzi účtami, odhlásenie.</li>
   <li><b>Prepínač zobrazenia</b> vpravo nad zoznamom – <i>zoznam</i> alebo <i>mriežka</i> a zoradenie.</li>
 </ol>
 <?= fig('u-tmavy', 'Tmavý režim – prepneš ho ikonou mesiaca vpravo hore.') ?>
 
 <h3>V mobile</h3>
-<p>Na telefóne sa menu skryje – otvoríš ho ikonou <i class="bi bi-list"></i> vľavo hore alebo <b>potiahnutím prsta doprava</b>
-(zatvoríš potiahnutím doľava). Akcie pre súbor nájdeš pod tlačidlom <b>⋮</b> pri každej položke.</p>
+<p>Na telefóne sa menu skryje – otvoríš ho ikonou <i class="bi bi-list"></i> vľavo hore alebo <b>potiahnutím prsta od ľavého okraja doprava</b>
+(zatvoríš potiahnutím doľava). Dole je <b>spodná lišta</b> s položkami Môj disk, Nedávne, Fotky a Zdieľané – vypneš ju vo <a href="#vzhlad">Vzhľad a ovládanie</a>.
+Akcie pre súbor nájdeš pod tlačidlom <b>⋮</b> pri každej položke, najčastejšie aj potiahnutím riadku (pozri <a href="#gesta">Gestá</a>).</p>
 <div>
 <?= fig('m-disk', 'Môj disk v mobile.', 'phone half') ?>
 <?= fig('m-menu', 'Menu otvorené potiahnutím prsta.', 'phone half') ?>
@@ -93,7 +94,9 @@ V mriežke použi ikonu zoradenia vpravo hore. Ktoré stĺpce sa majú ukazovať
 <h3>Výber viacerých položiek</h3>
 <p>Klikni na zaškrtávacie políčko pri položkách (alebo <kbd>Ctrl</kbd>+klik, <kbd>Shift</kbd>+klik pre rozsah, <kbd>Ctrl</kbd>+<kbd>A</kbd> pre všetko).
 Hore sa objaví modrý panel s akciami pre všetky vybrané položky naraz: štítky, stiahnuť, presunúť, hviezdička, zmazať.
-V mobile podrž prst na položke a potom ťukaj na ďalšie.</p>
+Na počítači môžeš <b>ťahať myšou na prázdnom mieste</b> vedľa položiek – vznikne obdĺžnik a všetko, čoho sa dotkne, sa označí
+(s <kbd>Ctrl</kbd> sa pridáva k doterajšiemu výberu). Pri okraji okna sa zoznam sám posúva.
+V mobile podrž prst na položke a potom ťukaj na ďalšie – alebo po podržaní <b>neodťahuj prst a posúvaj ho</b> hore či dole: označí sa celý rad položiek naraz.</p>
 <h3>Presúvanie myšou</h3>
 <p>Položky môžeš potiahnuť na zložku v zozname alebo na niektorú časť cesty hore (napr. „Môj disk“). Fungujú aj
 <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>X</kbd> a <kbd>Ctrl</kbd>+<kbd>V</kbd> do inej zložky.</p>
@@ -103,6 +106,8 @@ V mobile podrž prst na položke a potom ťukaj na ďalšie.</p>
 <?= fig('u-nahlad', 'Náhľad fotky. Šípkami listuješ, medzerníkom spustíš prezentáciu.') ?>
 <p>Dvojklikom (v mobile ťuknutím) otvoríš náhľad. Obrázky a fotky, videá (aj posúvanie v nich), hudba, PDF a textové súbory sa
 zobrazia priamo. Šípkami <kbd>←</kbd> <kbd>→</kbd> (v mobile potiahnutím) prejdeš na ďalší súbor, <kbd>D</kbd> stiahne, <kbd>Esc</kbd> zavrie.
+Fotku <b>priblížiš</b> dvoma prstami, dvojitým ťuknutím (dvojklikom), kolieskom myši alebo klávesmi <kbd>+</kbd> / <kbd>−</kbd>; <kbd>0</kbd> alebo ďalšie dvojité ťuknutie
+ukáže celú fotku. Priblíženú fotku posúvaš prstom alebo myšou a dole vidíš percentá s tlačidlami − + a „celá fotka“.
 Ostatné typy (napr. Word, Excel) si stiahneš alebo v aplikácii otvoríš v inej aplikácii v telefóne.</p>
 <h3>Farby, štítky a hviezdičky</h3>
 <p><b>Farbu</b> zložky alebo súboru nastavíš v okne <b>Štítky a farba…</b> (ponuka položky) – farebný pásik ju zvýrazní v zozname. <b>Štítky</b> sú farebné menovky (napr. „Dôležité“, „Rodina“) –
@@ -440,8 +445,43 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
 <p>V menu <b>Server</b> zmeníš adresu servera (napr. doma cez Wi-Fi a mimo domu cez Tailscale) a tlačidlom <b>Otestovať</b> overíš spojenie.</p>
 <div class="note">Aplikácia si na disk telefónu neukladá miniatúry ani zoznamy súborov – všetko zostáva na serveri. V telefóne sú iba súbory, ktoré si sám stiahneš alebo synchronizuješ.</div>
 
+<?= h2('vzhlad', 'bi-palette', 'Vzhľad a ovládanie') ?>
+<p>Klikni na svoj avatar vpravo hore → <b>Vzhľad a ovládanie</b> (alebo <b>Môj účet → Zobrazenie</b>). Zmeny sa prejavia hneď.</p>
+<?= fig('u-vzhlad', 'Okno Vzhľad a ovládanie: téma, farba, hustota, náhľady, animácie a nastavenia pre mobil.') ?>
+<table class="table table-sm">
+  <thead><tr><th style="width:32%">Nastavenie</th><th>Možnosti</th></tr></thead>
+  <tbody>
+    <tr><td>Téma</td><td><b>Svetlá</b>, <b>Tmavá</b> alebo <b>Podľa systému</b> (prepína sa sama s telefónom či počítačom). Ikona mesiaca/slnka hore prepína rýchlo medzi svetlou a tmavou.</td></tr>
+    <tr><td>Farba zvýraznenia</td><td>Modrá, zelená, fialová, červená, oranžová, tyrkysová alebo ružová – tlačidlá, výber, označené položky a menu.</td></tr>
+    <tr><td>Hustota zobrazenia</td><td><b>Kompaktná</b> (viac riadkov na obrazovke), <b>Normálna</b>, <b>Vzdušná</b> (väčšie riadky, ľahšie sa trafí prstom).</td></tr>
+    <tr><td>Veľkosť náhľadov</td><td>Malé, stredné alebo veľké dlaždice v mriežke a vo Fotkách.</td></tr>
+    <tr><td>Animácie</td><td>Jemné nabehnutie položiek a okien. Vypni, ak chceš všetko okamžite (vypnú sa aj podľa systému, ak máš obmedzené animácie).</td></tr>
+    <tr><td>Spodná lišta</td><td>Na mobile Môj disk, Nedávne, Fotky a Zdieľané vždy dole po ruke.</td></tr>
+    <tr><td>Potiahnutie riadku</td><td>Na mobile riadok v zozname potiahni doľava = do koša, doprava = hviezdička.</td></tr>
+  </tbody>
+</table>
+<div class="note">Vzhľad, zoznam/mriežka pre každé miesto, zoradenie, šírky stĺpcov aj rozbalené skupiny v menu sa ukladajú <b>do tvojho účtu na serveri</b> –
+platia na každom počítači, telefóne aj v aplikácii a v zariadení sa neukladá nič. Tlačidlo <b>Predvolené</b> vráti pôvodný vzhľad.</div>
+
+<h3 id="gesta">Gestá</h3>
+<table class="table table-sm">
+  <thead><tr><th style="width:40%">Gesto</th><th>Čo robí</th></tr></thead>
+  <tbody>
+    <tr><td>Podržať prst na položke</td><td>Označí ju (ďalšie označíš ťuknutím)</td></tr>
+    <tr><td>Podržať a ťahať prstom</td><td>Označí celý rad položiek; pri okraji obrazovky sa zoznam posúva</td></tr>
+    <tr><td>Riadok potiahnuť doľava</td><td>Do koša – v upozornení dole je <b>Späť</b></td></tr>
+    <tr><td>Riadok potiahnuť doprava</td><td>Pridá alebo odoberie hviezdičku – tiež sa dá vrátiť</td></tr>
+    <tr><td>Od ľavého okraja doprava</td><td>Otvorí menu</td></tr>
+    <tr><td>Dva prsty / dvakrát ťuknúť v náhľade fotky</td><td>Priblíži fotku</td></tr>
+    <tr><td>Potiahnuť v náhľade do strany</td><td>Ďalší / predchádzajúci súbor (keď fotka nie je priblížená)</td></tr>
+    <tr><td>Myšou ťahať na prázdnom mieste</td><td>Výber obdĺžnikom (lasso)</td></tr>
+  </tbody>
+</table>
+<p>Potiahnutie riadku funguje iba v zobrazení <b>zoznam</b> a iba tam, kde na to máš právo (do koša môžeš dať, čo môžeš upravovať; hviezdičku iba na svoje položky).
+Zoznam gest nájdeš aj v aplikácii: avatar → <b>Gestá a skratky</b>.</p>
+
 <?= h2('skratky', 'bi-keyboard', 'Klávesové skratky') ?>
-<?= fig('u-skratky', 'Zoznam skratiek otvoríš klávesom ?.') ?>
+<?= fig('u-skratky', 'Zoznam skratiek a gest otvoríš klávesom ?.') ?>
 <table class="table table-sm">
   <thead><tr><th style="width:40%">Kláves</th><th>Čo robí</th></tr></thead>
   <tbody>
@@ -460,6 +500,7 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
     <tr><td><kbd>S</kbd>, <kbd>I</kbd>, <kbd>.</kbd>, <kbd>D</kbd>, <kbd>Z</kbd>, <kbd>H</kbd></td><td>Hviezdička, informácie, zdieľať, stiahnuť, presunúť, história</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>Kopírovať / vystrihnúť / vložiť</td></tr>
     <tr><td><kbd>Shift</kbd>+<kbd>F10</kbd></td><td>Ponuka položky</td></tr>
+    <tr><td><kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> (v náhľade fotky)</td><td>Priblížiť / oddialiť / celá fotka</td></tr>
   </tbody>
 </table>
 
@@ -467,7 +508,7 @@ V nastaveniach aplikácie je aj voľba <b>Odomykať odtlačkom prsta</b> pri otv
 <ul>
   <li><b>Šifrovanie</b> – ak ho administrátor zapol, súbory sú na disku servera zašifrované (AES-256); bez kľúča ich nikto neprečíta ani pri krádeži disku.</li>
   <li><b>Žiadne sledovanie</b> – Cloud nepoužíva reklamy, analytiku ani cudzie služby. Okrem tvojho servera komunikuje iba s GitHubom kvôli aktualizáciám.</li>
-  <li><b>Nič v zariadení</b> – miniatúry, náhľady a zoznamy sa neukladajú na disk počítača ani telefónu.</li>
+  <li><b>Nič v zariadení</b> – miniatúry, náhľady, zoznamy ani nastavenia sa neukladajú na disk počítača ani telefónu; aj prerušené nahrávanie si pamätá server.</li>
   <li><b>Silné heslo</b> – používaj dlhé heslo, ktoré nepoužívaš inde, alebo prihlásenie odtlačkom.</li>
   <li><b>Dvojstupňové overenie</b> – zapni si ho v Môj účet: bez kódu z tvojho telefónu sa nikto neprihlási ani so správnym heslom.</li>
   <li><b>Zálohy</b> – administrátor môže zapnúť nočnú šifrovanú zálohu databázy aj súborov na iný počítač, takže dáta prežijú aj pád servera.</li>

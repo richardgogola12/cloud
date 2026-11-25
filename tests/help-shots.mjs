@@ -86,6 +86,8 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-rewind', async () => { await item(page, 'd:' + ids.dok).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="rewind"]'); await wait(page, 1000); });
   await shot(page, 'u-ucty', async () => { await page.click('.avatar-btn'); await wait(page, 500); });
   await shot(page, 'u-skratky', async () => { await page.keyboard.press('?'); await wait(page, 600); });
+  await shot(page, 'u-vzhlad', async () => { await page.evaluate(() => window.cloudAppearance && cloudAppearance()); await wait(page, 700); });
+  await page.keyboard.press('Escape'); await wait(page, 400);
   await shot(page, 'u-sprievodca', async () => { await page.evaluate(() => window.cloudTour && window.cloudTour()); await wait(page, 900); });
   await shot(page, 'u-tmavy', async () => { await page.click('#themeToggle'); await wait(page, 800); });
   await page.click('#themeToggle').catch(() => {}); await wait(page, 500);

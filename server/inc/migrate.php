@@ -3,7 +3,7 @@ declare(strict_types=1);
 /* ------------------------------------------------------------------
  *  Automatické migrácie databázy (spúšťajú sa samé pri prvej požiadavke)
  * ------------------------------------------------------------------ */
-const SCHEMA_VERSION = 22;
+const SCHEMA_VERSION = 23;
 
 function col_exists(string $table, string $col): bool {
     return (bool)q('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col])->fetchColumn();
@@ -42,6 +42,7 @@ function migrate(): void {
         if ($v < 20) migrate_v20();
         if ($v < 21) migrate_v21();
         if ($v < 22) migrate_v22();
+        if ($v < 23) migrate_v23();
         setting_set('schema_version', (string)SCHEMA_VERSION);
     } finally {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
@@ -471,4 +472,10 @@ function migrate_v22(): void {
         size BIGINT UNSIGNED NOT NULL DEFAULT 0,
         uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/* v23: obnovenie prerušeného nahrávania podľa odtlačku súboru – prehliadač si nič neukladá */
+function migrate_v23(): void {
+    add_col(P . 'uploads', 'fkey', 'CHAR(40) NULL');
+    if (!idx_exists(P . 'uploads', 'idx_cloud_uploads_fkey')) db()->exec('CREATE INDEX idx_cloud_uploads_fkey ON ' . P . 'uploads (user_id, fkey)');
 }

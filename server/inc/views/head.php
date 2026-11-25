@@ -1,9 +1,11 @@
+<?php $__ui = !empty($user['id']) ? ui_prefs($user) : [];
+  $__acc = $__ui['accent'] ?? 'blue'; ?>
 <!doctype html>
 <html lang="sk" data-bs-theme="light" data-ver="<?= e(APP_VERSION) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1a73e8">
+<meta name="theme-color" content="<?= e(UI_ACCENTS[$__acc] ?? '#1a73e8') ?>">
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 <meta name="base-url" content="<?= e(url()) ?>">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,8 +16,11 @@
 <link rel="icon" href="<?= e(url('assets/icons/icon-192.png')) ?>">
 <link rel="apple-touch-icon" href="<?= e(url('assets/icons/icon-192.png')) ?>">
 <script>
-  // tmavý režim podľa systému (alebo uložená voľba)
-  (function(){var t=localStorage.getItem('cloud-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-bs-theme',t);})();
+  // vzhľad podľa nastavení v účte (na serveri, nič sa neukladá v zariadení); téma „auto“ = podľa systému
+  window.CLOUD_UI = <?= json_encode((object)$__ui, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
+  (function(){var u=window.CLOUD_UI,d=document.documentElement,t=u.theme==='light'||u.theme==='dark'?u.theme:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.setAttribute('data-bs-theme',t);
+    d.setAttribute('data-accent',u.accent||'blue');d.setAttribute('data-density',u.density||'normal');d.setAttribute('data-thumbs',u.thumbs||'m');
+    if(u.anim==='off')d.setAttribute('data-anim','off');})();
 </script>
 <link href="<?= e(lib('bootstrap/bootstrap.min.css', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css')) ?>" rel="stylesheet">
 <link href="<?= e(lib('bootstrap-icons/bootstrap-icons.min.css', 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css')) ?>" rel="stylesheet">

@@ -515,6 +515,9 @@ try {
         $size = max(0, (int)($_POST['size'] ?? 0));
         $rel = trim(str_replace('\\', '/', (string)($_POST['relpath'] ?? '')), '/');
         $resume = preg_replace('/[^a-f0-9]/', '', (string)($_POST['resume'] ?? ''));
+        // odtlačok súboru (zložka, cesta, veľkosť, dátum zmeny) – prerušené nahrávanie sa nájde na serveri, prehliadač si nič nepamätá
+        $fkey = (string)($_POST['fkey'] ?? '') !== '' ? sha1($uid . '|' . (string)$_POST['fkey']) : null;
+        if (!$resume && $fkey) $resume = (string)(q('SELECT id FROM ' . P . 'uploads WHERE user_id = ? AND fkey = ? ORDER BY updated_at DESC LIMIT 1', [$uid, $fkey])->fetchColumn() ?: '');
         if ($resume) {
             $up = q('SELECT * FROM ' . P . 'uploads WHERE id = ? AND user_id = ? AND size = ? AND name = ?', [$resume, $uid, $size, $name])->fetch();
             $path = data_path('tmp/chunks/' . $resume);
@@ -531,8 +534,8 @@ try {
         $dir = data_path('tmp/chunks');
         if (!is_dir($dir)) mkdir($dir, 0750, true);
         touch($dir . '/' . $id);
-        q('INSERT INTO ' . P . 'uploads (id, user_id, owner_id, folder_id, relpath, name, size) VALUES (?,?,?,?,?,?,?)',
-          [$id, $uid, $acc['owner'], $folder, $rel, $name, $size]);
+        q('INSERT INTO ' . P . 'uploads (id, user_id, owner_id, folder_id, relpath, name, size, fkey) VALUES (?,?,?,?,?,?,?,?)',
+          [$id, $uid, $acc['owner'], $folder, $rel, $name, $size, $fkey]);
         json_out(['ok' => true, 'id' => $id, 'received' => 0, 'chunk' => chunk_size()]);
     }
 
@@ -835,6 +838,18 @@ try {
             $prefs['editor'][$ns] = $v;
             q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
             json_out(['ok' => true]);
+        }
+        if ($key === 'ui') { // vzhľad a ovládanie disku – zmenené kľúče sa zlúčia s uloženými (null = vymazať)
+            $v = json_decode((string)($_POST['value'] ?? ''), true);
+            if (!is_array($v)) throw new RuntimeException('Neplatné nastavenie.');
+            $prefs = user_prefs($user);
+            $cur = is_array($prefs['ui'] ?? null) ? $prefs['ui'] : [];
+            foreach ($v as $k => $x) { if ($x === null) unset($cur[$k]); else $cur[$k] = $x; }
+            $cur = ui_clean($cur);
+            if (strlen(json_encode($cur, JSON_UNESCAPED_UNICODE)) > 30000) throw new RuntimeException('Príliš veľa nastavení.');
+            $prefs['ui'] = $cur;
+            q('UPDATE ' . P . 'users SET prefs = ? WHERE id = ?', [json_encode($prefs, JSON_UNESCAPED_UNICODE), $uid]);
+            json_out(['ok' => true, 'ui' => $cur]);
         }
         if ($key !== 'columns') throw new RuntimeException('Neznáme nastavenie.');
         $val = json_decode((string)($_POST['value'] ?? ''), true);

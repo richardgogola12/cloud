@@ -39,7 +39,8 @@ if ($user['role'] === 'admin') $help[] = ['devhelp', 'help.php?doc=dev', 'bi-cod
 $navGroups[] = ['Pomoc', $help, true];
 require __DIR__ . '/head.php';
 ?>
-<body class="app">
+<?php $__bnav = (ui_prefs($user)['bnav'] ?? true) !== false; ?>
+<body class="app<?= $__bnav ? ' has-bnav' : '' ?>">
 <header class="app-topbar">
   <button class="btn btn-icon d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-label="Menu"><i class="bi bi-list"></i></button>
   <a href="<?= e(url('index.php')) ?>" class="brand"><span class="brand-logo"><i class="bi bi-cloud-fill"></i></span><span class="d-none d-sm-inline"><?= e(cfg('app_name')) ?></span></a>
@@ -87,7 +88,8 @@ require __DIR__ . '/head.php';
       <?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="<?= e(url('profile.php')) ?>"><i class="bi bi-person-gear me-2"></i>Môj účet</a></li>
-      <?php if (!$inApp): ?><li class="d-none d-lg-block kbd-menu"><a class="dropdown-item" href="#" onclick="if (window.cloudShortcuts) cloudShortcuts(); return false;"><i class="bi bi-keyboard me-2"></i>Klávesové skratky <span class="kbd-hint">?</span></a></li><?php endif; ?>
+      <li><a class="dropdown-item" href="#" data-appearance onclick="if (window.cloudAppearance) cloudAppearance(); return false;"><i class="bi bi-palette me-2"></i>Vzhľad a ovládanie</a></li>
+      <li class="kbd-menu"><a class="dropdown-item" href="#" onclick="if (window.cloudShortcuts) cloudShortcuts(); return false;"><i class="bi bi-keyboard me-2"></i><span class="d-none d-lg-inline">Klávesové skratky a gestá</span><span class="d-lg-none">Gestá a skratky</span> <span class="kbd-hint d-none d-lg-inline">?</span></a></li>
       <?php if ($user['role'] === 'admin'): ?><li><a class="dropdown-item" href="<?= e(url('admin.php')) ?>"><i class="bi bi-shield-lock me-2"></i>Administrácia</a></li><?php endif; ?>
       <li><hr class="dropdown-divider"></li>
       <?php if ($inApp): ?>
@@ -126,9 +128,9 @@ require __DIR__ . '/head.php';
       <?php endif; ?>
       <nav class="nav flex-column side-nav">
         <?php foreach ($navGroups as $gi => [$glabel, $gitems, $collapsible]):
-            $openGroup = $collapsible && in_array($active ?? '', array_column($gitems, 0), true); ?>
+            $openGroup = $collapsible && (in_array($active ?? '', array_column($gitems, 0), true) || !empty(ui_prefs($user)['side']['g' . $gi])); ?>
           <?php if ($collapsible): ?>
-            <button class="side-label side-toggle <?= $openGroup ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#sideGroup<?= $gi ?>" aria-expanded="<?= $openGroup ? 'true' : 'false' ?>" data-remember="cloud-side-<?= $gi ?>">
+            <button class="side-label side-toggle <?= $openGroup ? '' : 'collapsed' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#sideGroup<?= $gi ?>" aria-expanded="<?= $openGroup ? 'true' : 'false' ?>" data-remember="g<?= $gi ?>">
               <span><?= e($glabel) ?></span><i class="bi bi-chevron-down"></i></button>
             <div class="collapse <?= $openGroup ? 'show' : '' ?>" id="sideGroup<?= $gi ?>">
           <?php elseif ($glabel): ?>

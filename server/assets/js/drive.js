@@ -13,25 +13,23 @@
   const state = {
     view: 'folder', folder: null, q: '', items: [], tags: [], tagId: null, crumbs: [], perm: 'owner', root: 'drive', trashDays: 30,
     sel: new Set(),
-    layout: localStorage.getItem('cloud-layout') || (innerWidth < 576 ? 'list' : 'grid'),
+    layout: CloudUI.get('layout', innerWidth < 576 ? 'list' : 'grid'),
     limit: 300, // koľko položiek sa vykreslí (pri posúvaní sa pridávajú ďalšie)
-    sort: localStorage.getItem('cloud-sort') || 'name',
-    dir: localStorage.getItem('cloud-dir') || 'asc',
+    sort: CloudUI.get('sort', 'name'),
+    dir: CloudUI.get('dir', 'asc'),
   };
   const key = (it) => it.type + ':' + it.id;
   const isPhotoView = () => state.view === 'photos' || state.view === 'album';
   const CUSTOM_VIEWS = ['albums'];
   // zoradenie a rozloženie, ktoré sa robí v prehliadači (Aktivita, Fotky, album)
-  const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
   state.actSort = { k: 'when', dir: 'desc' };
-  state.photoSort = { k: lsGet('cloud-psort', 'taken'), dir: lsGet('cloud-pdir', 'desc') };
-  state.photoLayout = lsGet('cloud-playout', 'photos');
+  state.photoSort = { k: CloudUI.get('psort', 'taken'), dir: CloudUI.get('pdir', 'desc') };
+  state.photoLayout = CloudUI.get('playout', 'photos');
   // zobrazenia mimo zložky (Nedávne, Kôš, Zdieľané, Hľadanie…) sa zoraďujú v prehliadači, každé si pamätá svoje
   state.vsort = {};
   const VSORT_DEF = { recent: ['updated', 'desc'], trash: ['deleted', 'desc'], search: ['rel', 'asc'], shared: ['updated', 'desc'], byme: ['updated', 'desc'] };
   /* zoznam / mriežka si pamätá každé miesto zvlášť: Môj disk, každá zložka (podzložka zdedí nastavenie nadradenej), Nedávne, Kôš, Fotky, každý album… */
-  let layoutMap = {};
-  try { layoutMap = JSON.parse(localStorage.getItem('cloud-layouts') || '{}') || {}; } catch (e) {}
+  let layoutMap = Object.assign({}, CloudUI.get('layouts', {}));
   function layoutKeys() {
     if (state.view === 'album') return ['album:' + (state.album || 0), 'photos'];
     if (state.view === 'folder') {
@@ -139,7 +137,6 @@
   }
   /* ---------------- cache zoznamov: zložka sa ukáže hneď z pamäte a potichu sa overí na serveri ---------------- */
   /* zoznamy sa držia iba v pamäti (kým je stránka otvorená) – na disk zariadenia sa neukladá nič */
-  try { Object.keys(localStorage).filter(k => k.startsWith('cloud-lc-') || k === 'cloud-recent-search').forEach(k => localStorage.removeItem(k)); } catch (e) {}
   const lcMem = new Map();
   const lcKey = (p) => p.view === 'search' || p.view === 'dupes' ? null : [p.view, p.folder || 0, p.view === 'tag' ? p.tag : p.view === 'album' ? p.album : 0, p.sort, p.dir].join('|');
   function lcPut(k, r) {
@@ -339,6 +336,7 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view) renderCrumbs(); });
   })();
 
+  let lastViewKey = null, animT = null;
   function render() {
     renderCrumbs();
     renderSearchChips();
@@ -357,7 +355,7 @@
         + '<li><a class="dropdown-item' + (csr.dir === 'desc' ? ' active' : '') + '" href="#" data-dir="desc"><i class="bi bi-sort-down me-2"></i>Zostupne</a></li>';
       const sm = $('#sortMenu'); if (sm.dataset.html !== mh) { sm.innerHTML = mh; sm.dataset.html = mh; }
     }
-    $$('.side-nav [data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
+    $$('.side-nav [data-nav], .bnav [data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
     $$('#sideTags [data-tag]').forEach(a => a.classList.toggle('active', state.view === 'tag' && +a.dataset.tag === state.tagId));
     $$('#sidePins [data-pin]').forEach(a => a.classList.toggle('active', state.view === 'folder' && +a.dataset.pin === state.folder));
     document.body.classList.toggle('readonly', !canEditHere());
@@ -438,6 +436,14 @@
       h += '<div id="moreItems" class="text-center text-body-secondary small py-4"><div class="spinner-border spinner-border-sm me-2"></div>Zobrazených ' + visible.length + ' z ' + state.items.length + '</div>';
     }
     box.innerHTML = h;
+    // pri otvorení inej zložky alebo zobrazenia položky jemne naskočia (iba prvé, aby to nebrzdilo)
+    const vk = [state.view, state.folder, state.tagId, state.album, state.q, layout].join('|');
+    if (vk !== lastViewKey && CloudUI.get('anim', 'auto') !== 'off') {
+      box.querySelectorAll('.item').forEach((el, i) => { if (i < 40) el.style.setProperty('--i', i); });
+      box.classList.add('anim-in');
+      clearTimeout(animT); animT = setTimeout(() => box.classList.remove('anim-in'), 1000);
+    }
+    lastViewKey = vk;
     const more = document.getElementById('moreItems');
     if (more) {
       const io = new IntersectionObserver((en) => {
@@ -571,9 +577,8 @@
   }
   let lastW = innerWidth, rT;
   addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (innerWidth !== lastW && state.items.length) { lastW = innerWidth; render(); } }, 120); });
-  // šírky stĺpcov upravené ťahaním (uložené v tomto zariadení – závisia od veľkosti obrazovky)
-  let colWidths = {};
-  try { colWidths = JSON.parse(localStorage.getItem('cloud-colw') || '{}') || {}; } catch (e) {}
+  // šírky stĺpcov upravené ťahaním (uložené v účte)
+  let colWidths = Object.assign({}, CloudUI.get('colw', {}));
   const colTpl = (cols) => cols.map(c => colWidths[c] ? colWidths[c] + 'px' : (COLW[c] || '120px')).join(' ');
   function applyColWidths() {
     const w = colTpl(state.colsShown || []);
@@ -675,7 +680,7 @@
   const endResize = () => {
     if (!resizing) return;
     resizing = null; document.body.classList.remove('col-resizing');
-    try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (e) {}
+    CloudUI.set('colw', Object.assign({}, colWidths));
     render(); // prepočítať, koľko stĺpcov sa zmestí
     setTimeout(() => { justResized = false; }, 0);
   };
@@ -685,7 +690,7 @@
   $('#listHeader').addEventListener('dblclick', (e) => {
     const hnd = e.target.closest('.col-resize'); if (!hnd) return;
     delete colWidths[hnd.dataset.resize];
-    try { localStorage.setItem('cloud-colw', JSON.stringify(colWidths)); } catch (x) {}
+    CloudUI.set('colw', Object.assign({}, colWidths));
     render();
   });
   // triedenie kliknutím na hlavičku stĺpca
@@ -696,7 +701,7 @@
     if (clientSortOf()) return setSort(k);
     if (state.sort === k) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
     else { state.sort = k; state.dir = ['updated', 'created', 'size'].includes(k) ? 'desc' : 'asc'; }
-    localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
+    CloudUI.set('sort', state.sort); CloudUI.set('dir', state.dir);
     load(true);
   });
   function gridItem(it) {
@@ -1424,7 +1429,7 @@
       body.innerHTML = '<div class="pv-img">' + (it.thumb ? '<img class="pv-low" src="' + base + 'api.php?action=thumb&id=' + it.id + '&v=' + encodeURIComponent(it.updated || '') + '" alt="">' : '')
         + '<div class="pv-spin spinner-border text-light"></div><img class="pv-full" src="' + u + '" alt=""></div>';
       const box = body.firstChild, full = box.querySelector('.pv-full');
-      const done = () => box.classList.add('loaded');
+      const done = () => { box.classList.add('loaded'); pvZoom(box); };
       if (full.complete && full.naturalWidth) done(); else { full.onload = done; full.onerror = () => { done(); toast('Fotku sa nepodarilo načítať', 'danger'); }; }
     }
     else if (m.startsWith('video/')) {
@@ -1509,10 +1514,85 @@
     if (!$('#previewModal').classList.contains('show')) return;
     if (e.key === 'ArrowLeft') pvStep(-1); if (e.key === 'ArrowRight') pvStep(1); // pri videe šípky posúvajú video, súbor sa mení so Shift
   });
+  /* priblíženie fotky v náhľade: dva prsty, dvojité ťuknutie / dvojklik, koliesko myši, klávesy + − 0 */
+  let pvZ = null;
+  function pvZoom(box) {
+    const imgs = [...box.querySelectorAll('img')], full = box.querySelector('.pv-full');
+    if (!full || !full.naturalWidth) return;
+    box.classList.add('pv-zoom');
+    const z = pvZ = { s: 1, tx: 0, ty: 0, box };
+    const badge = box.appendChild(Object.assign(document.createElement('div'), { className: 'pv-zoom-badge d-none' }));
+    badge.innerHTML = '<button type="button" data-z="-" title="Oddialiť (−)"><i class="bi bi-dash-lg"></i></button><span>100 %</span><button type="button" data-z="+" title="Priblížiť (+)"><i class="bi bi-plus-lg"></i></button><button type="button" data-z="0" title="Celá fotka (0)"><i class="bi bi-fullscreen-exit"></i></button>';
+    const fit = () => { // kde je fotka v okne pri 100 % (object-fit: contain)
+      const W = box.clientWidth, H = box.clientHeight, r = Math.min(W / full.naturalWidth, H / full.naturalHeight);
+      const iw = full.naturalWidth * r, ih = full.naturalHeight * r;
+      return { W, H, iw, ih, ox: (W - iw) / 2, oy: (H - ih) / 2 };
+    };
+    const MAX = () => Math.max(4, 2 * full.naturalWidth / Math.max(1, fit().iw));
+    const clamp = () => {
+      const f = fit();
+      const cl = (t, size, o, view) => size * z.s <= view ? (view - size * z.s) / 2 - o * z.s : Math.min(-o * z.s, Math.max(view - (o + size) * z.s, t));
+      z.tx = cl(z.tx, f.iw, f.ox, f.W); z.ty = cl(z.ty, f.ih, f.oy, f.H);
+    };
+    const paint = (anim) => {
+      if (z.s <= 1.001) { z.s = 1; z.tx = 0; z.ty = 0; } else clamp();
+      imgs.forEach(im => { im.style.transition = anim ? 'transform .2s ease' : 'none'; im.style.transform = z.s === 1 ? '' : 'translate(' + z.tx + 'px,' + z.ty + 'px) scale(' + z.s + ')'; });
+      box.classList.toggle('zoomed', z.s > 1);
+      badge.classList.toggle('d-none', z.s <= 1);
+      badge.querySelector('span').textContent = Math.round(z.s * 100) + ' %';
+    };
+    const zoomAt = (ns, px, py, anim) => {
+      ns = Math.max(1, Math.min(MAX(), ns));
+      z.tx = px - (px - z.tx) * (ns / z.s); z.ty = py - (py - z.ty) * (ns / z.s); z.s = ns; paint(anim);
+    };
+    const local = (cx, cy) => { const r = box.getBoundingClientRect(); return [cx - r.left, cy - r.top]; };
+    z.step = (k) => { const W = box.clientWidth / 2, H = box.clientHeight / 2; if (k === '0') zoomAt(1, W, H, true); else zoomAt(z.s * (k === '+' ? 1.5 : 1 / 1.5), W, H, true); };
+    badge.addEventListener('click', (e) => { const b = e.target.closest('[data-z]'); if (b) { e.stopPropagation(); z.step(b.dataset.z); } });
+    badge.addEventListener('pointerdown', (e) => e.stopPropagation());
+    box.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = local(e.clientX, e.clientY); zoomAt(z.s * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0022)), x, y); }, { passive: false });
+    box.addEventListener('dblclick', (e) => { if (e.target.closest('.pv-zoom-badge') || Date.now() - (z.busy || 0) < 500) return; const [x, y] = local(e.clientX, e.clientY); zoomAt(z.s > 1 ? 1 : 2.5, x, y, true); });
+    const pts = new Map(); let g = null, lastTap = 0;
+    box.addEventListener('pointerdown', (e) => {
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      try { box.setPointerCapture(e.pointerId); } catch (x) {}
+      if (e.pointerType === 'touch' && pts.size === 1) { // dvojité ťuknutie
+        const now = Date.now();
+        if (now - lastTap < 300) { e.preventDefault(); const [x, y] = local(e.clientX, e.clientY); zoomAt(z.s > 1 ? 1 : 2.5, x, y, true); lastTap = 0; z.busy = Date.now(); return; }
+        lastTap = now;
+      }
+      if (pts.size > 1) z.busy = Date.now();
+      g = null;
+    });
+    box.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size >= 2) {
+        const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), [mx, my] = local((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        if (!g || !g.pinch) g = { pinch: true, d: Math.max(1, d), s: z.s, mx, my };
+        z.busy = Date.now();
+        z.tx += mx - g.mx; z.ty += my - g.my; g.mx = mx; g.my = my; // posun dvoma prstami
+        zoomAt(g.s * d / g.d, mx, my);
+      } else if (z.s > 1) { // posúvanie priblíženej fotky
+        z.busy = Date.now(); box.classList.add('dragging');
+        z.tx += e.clientX - prev[0]; z.ty += e.clientY - prev[1]; paint();
+      }
+    });
+    const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) g = null; if (!pts.size) box.classList.remove('dragging'); };
+    box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+    addEventListener('resize', () => { if (box.isConnected) paint(); });
+    paint();
+  }
+  document.addEventListener('keydown', (e) => {
+    if (!pvZ || !pvZ.box.isConnected || !$('#previewModal').classList.contains('show') || e.target.matches('input, textarea')) return;
+    if (['+', '=', '-', '0'].includes(e.key) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); pvZ.step(e.key === '=' ? '+' : e.key); }
+  });
   (() => { // swipe na mobile
     let x0 = null;
-    $('#previewBody').addEventListener('touchstart', e => x0 = e.touches[0].clientX, { passive: true });
-    $('#previewBody').addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60 && !e.target.closest('.sheet-preview,.doc-preview,.preview-text,.cv-ctrl,.cv-resume')) pvStep(dx < 0 ? 1 : -1); x0 = null; });
+    $('#previewBody').addEventListener('touchstart', e => { x0 = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+    $('#previewBody').addEventListener('touchmove', e => { if (e.touches.length > 1) x0 = null; }, { passive: true });
+    $('#previewBody').addEventListener('touchend', e => { if (x0 === null) return;
+      if (pvZ && pvZ.box.isConnected && (pvZ.s > 1 || Date.now() - (pvZ.busy || 0) < 400)) { x0 = null; return; } // priblížená fotka sa posúva, nemení sa súbor
+ const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60 && !e.target.closest('.sheet-preview,.doc-preview,.preview-text,.cv-ctrl,.cv-resume')) pvStep(dx < 0 ? 1 : -1); x0 = null; });
   })();
 
   /* ---------------- kontextové menu ---------------- */
@@ -1602,6 +1682,7 @@
   itemsBox.addEventListener('contextmenu', (e) => {
     const el = e.target.closest('.item'); if (!el) return;
     e.preventDefault();
+    if (lpFired || dragSel || Date.now() - lastTouch < 800) return; // dlhé podržanie prstom = výber, nie menu
     const k = el.dataset.key;
     if (!state.sel.has(k)) { state.sel.clear(); state.sel.add(k); updateSel(); }
     showCtx(selItems(), e.clientX, e.clientY);
@@ -1609,9 +1690,168 @@
   itemsBox.addEventListener('touchstart', (e) => {
     const el = e.target.closest('.item'); if (!el || e.target.closest('.item-menu')) return;
     lpFired = false;
-    lpTimer = setTimeout(() => { lpFired = true; navigator.vibrate && navigator.vibrate(30); toggleSel(el.dataset.key); }, 500);
+    lpTimer = setTimeout(() => {
+      lpFired = true; navigator.vibrate && navigator.vibrate(30);
+      const k = el.dataset.key, was = state.sel.has(k);
+      // po podržaní sa dá ďalej ťahať prstom a označiť tak celý rad položiek
+      dragSel = { anchor: k, add: !was, base: new Set(state.sel), last: k };
+      toggleSel(k);
+      document.body.classList.add('drag-select');
+      try { window.CloudAndroid && CloudAndroid.setRefreshBlocked && CloudAndroid.setRefreshBlocked(true); } catch (x) {}
+    }, 500);
   }, { passive: true });
-  ['touchend', 'touchmove', 'touchcancel'].forEach(ev => itemsBox.addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
+  ['touchend', 'touchmove', 'touchcancel'].forEach(ev => itemsBox.addEventListener(ev, () => { if (!dragSel) clearTimeout(lpTimer); }, { passive: true }));
+  addEventListener('touchstart', () => { lastTouch = Date.now(); }, { passive: true, capture: true });
+
+  /* ---- ťahanie prstom po dlhom podržaní: výber radu položiek, pri okraji obrazovky sa zoznam sám posúva ---- */
+  let dragSel = null, lastTouch = 0, dsScroll = 0, dsY = 0, dsX = 0;
+  function dragSelAt(x, y) {
+    const hit = document.elementFromPoint(x, y);
+    const el = hit && hit.closest('#items .item[data-key]'); if (!el || !dragSel) return;
+    const k = el.dataset.key; if (k === dragSel.last) return;
+    dragSel.last = k;
+    const keys = itemEls().map(e => e.dataset.key), a = keys.indexOf(dragSel.anchor), b = keys.indexOf(k);
+    if (a < 0 || b < 0) return;
+    const range = keys.slice(Math.min(a, b), Math.max(a, b) + 1);
+    const ns = new Set(dragSel.base);
+    range.forEach(x2 => dragSel.add ? ns.add(x2) : ns.delete(x2));
+    state.sel = ns; anchor = dragSel.anchor; cursor = k;
+    updateSel();
+    navigator.vibrate && navigator.vibrate(8);
+  }
+  function dsLoop() {
+    if (!dragSel) { dsScroll = 0; return; }
+    const edge = 70, top = $('.app-topbar').getBoundingClientRect().bottom + 40;
+    const bot = innerHeight - (document.body.classList.contains('has-bnav') && innerWidth < 992 ? 80 : 0);
+    const v = dsY < top + edge ? -Math.ceil((top + edge - dsY) / 6) : dsY > bot - edge ? Math.ceil((dsY - (bot - edge)) / 6) : 0;
+    if (v) { scrollBy(0, Math.max(-28, Math.min(28, v))); dragSel.last = null; dragSelAt(dsX, dsY); }
+    dsScroll = requestAnimationFrame(dsLoop);
+  }
+  itemsBox.addEventListener('touchmove', (e) => {
+    if (!dragSel || e.touches.length !== 1) return;
+    if (e.cancelable) e.preventDefault();
+    const t = e.touches[0]; dsX = t.clientX; dsY = t.clientY;
+    dragSelAt(dsX, dsY);
+    if (!dsScroll) dsScroll = requestAnimationFrame(dsLoop);
+  }, { passive: false });
+  const dsEnd = () => {
+    if (!dragSel) return;
+    dragSel = null; cancelAnimationFrame(dsScroll); dsScroll = 0;
+    document.body.classList.remove('drag-select');
+  };
+  addEventListener('touchend', dsEnd, { passive: true }); addEventListener('touchcancel', dsEnd, { passive: true });
+
+  /* ---- výber ťahaním myšou (lasso) na prázdnom mieste vedľa položiek ---- */
+  let lasso = null, lassoEnded = 0;
+  const noLasso = '.item, a, button, input, textarea, select, label, .dropdown-menu, .list-header, .selection-bar, .drive-head, .photo-bar, .alert, .modal, .ctx-menu, .upload-panel, .fab-wrap, .bnav, #photoBar, .memories, [data-no-lasso]';
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.detail > 1) return;
+    const main = e.target.closest('.app-main');
+    if (!main || e.target.closest(noLasso) || !$('#items') || document.querySelector('.modal.show')) return;
+    lasso = { x: e.clientX, y: e.clientY + scrollY, on: false, add: e.ctrlKey || e.metaKey || e.shiftKey, base: new Set(state.sel), cx: e.clientX, cy: e.clientY };
+  });
+  function lassoDraw() {
+    if (!lasso || !lasso.on) return;
+    const y0 = lasso.y - scrollY, x1 = Math.min(lasso.x, lasso.cx), x2 = Math.max(lasso.x, lasso.cx), y1 = Math.min(y0, lasso.cy), y2 = Math.max(y0, lasso.cy);
+    Object.assign(lasso.el.style, { left: x1 + 'px', top: y1 + 'px', width: (x2 - x1) + 'px', height: (y2 - y1) + 'px' });
+    const ns = new Set(lasso.add ? lasso.base : []);
+    itemEls().forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right < x1 || r.left > x2 || r.bottom < y1 || r.top > y2) return;
+      const k = el.dataset.key;
+      if (lasso.add && lasso.base.has(k)) ns.delete(k); else ns.add(k);
+    });
+    if (ns.size !== state.sel.size || [...ns].some(k => !state.sel.has(k))) { state.sel = ns; updateSel(); }
+  }
+  document.addEventListener('mousemove', (e) => {
+    if (!lasso) return;
+    lasso.cx = e.clientX; lasso.cy = e.clientY;
+    if (!lasso.on) {
+      if (Math.hypot(e.clientX - lasso.x, e.clientY + scrollY - lasso.y) < 6) return;
+      lasso.on = true; hideCtx();
+      lasso.el = document.body.appendChild(Object.assign(document.createElement('div'), { className: 'lasso' }));
+      document.body.classList.add('lasso-on');
+      const tick = () => { // pri okraji okna sa stránka posúva
+        if (!lasso || !lasso.on) return;
+        const top = $('.app-topbar').getBoundingClientRect().bottom;
+        const v = lasso.cy < top + 30 ? -14 : lasso.cy > innerHeight - 30 ? 14 : 0;
+        if (v) { scrollBy(0, v); lassoDraw(); }
+        lasso.raf = requestAnimationFrame(tick);
+      };
+      lasso.raf = requestAnimationFrame(tick);
+    }
+    e.preventDefault();
+    lassoDraw();
+  });
+  addEventListener('scroll', () => { if (lasso && lasso.on) lassoDraw(); }, { passive: true });
+  document.addEventListener('mouseup', () => {
+    if (!lasso) return;
+    if (lasso.on) {
+      lasso.el.remove(); cancelAnimationFrame(lasso.raf);
+      document.body.classList.remove('lasso-on');
+      lassoEnded = Date.now();
+      const ks = [...state.sel]; if (ks.length) { anchor = ks[0]; cursor = ks[ks.length - 1]; }
+    }
+    lasso = null;
+  });
+  // klik po skončení lasa nesmie zrušiť výber
+  document.addEventListener('click', (e) => { if (Date.now() - lassoEnded < 300) { e.stopPropagation(); e.preventDefault(); } }, true);
+
+  /* ---- potiahnutie riadku v zozname (mobil): doľava = do koša, doprava = hviezdička, obe sa dajú vrátiť ---- */
+  let sw = null;
+  const swipeOn = () => CloudUI.get('swipe', true) !== false && 'ontouchstart' in window;
+  const swipeAllowed = (it, dir) => it && !it.deleted && state.view !== 'trash' && (dir < 0 ? PERM[it.perm] >= 2 : PERM[it.perm] === 3);
+  itemsBox.addEventListener('touchstart', (e) => {
+    sw = null;
+    if (!swipeOn() || e.touches.length !== 1 || state.sel.size || curLayout() !== 'list') return;
+    const el = e.target.closest('.row-item[data-key]'); if (!el || e.target.closest('.item-menu, .item-check')) return;
+    const t = e.touches[0];
+    if (t.clientX < 28) return; // od okraja sa otvára menu
+    sw = { el, x: t.clientX, y: t.clientY, dx: 0, on: false, it: byKey(el.dataset.key) };
+  }, { passive: true });
+  itemsBox.addEventListener('touchmove', (e) => {
+    if (!sw || dragSel) return;
+    const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (!sw.on) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
+      if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      sw.on = true; clearTimeout(lpTimer);
+      sw.el.classList.add('swiping');
+      const r = sw.el.getBoundingClientRect();
+      sw.under = document.body.appendChild(Object.assign(document.createElement('div'), { className: 'swipe-under' }));
+      Object.assign(sw.under.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', height: r.height + 'px', zIndex: 0 });
+      sw.el.style.zIndex = 2;
+    }
+    if (e.cancelable) e.preventDefault();
+    const dir = dx < 0 ? -1 : 1, ok = swipeAllowed(sw.it, dir);
+    sw.dx = ok ? dx : dx / 6; // nepovolený smer sa iba jemne pohne
+    sw.el.style.transform = 'translateX(' + sw.dx + 'px)';
+    const lim = Math.min(140, sw.el.offsetWidth * 0.35);
+    sw.ready = ok && Math.abs(dx) > lim;
+    sw.under.className = 'swipe-under ' + (dir < 0 ? 'left' : 'right') + (sw.ready ? ' ready' : '');
+    sw.under.innerHTML = dir < 0 ? '<span>Do koša</span><i class="bi bi-trash3"></i>' : '<i class="bi bi-star' + (sw.it.starred ? '' : '-fill') + '"></i><span>' + (sw.it.starred ? 'Bez hviezdičky' : 'Hviezdička') + '</span>';
+    if (sw.ready && !sw.buzz) { sw.buzz = true; navigator.vibrate && navigator.vibrate(12); } else if (!sw.ready) sw.buzz = false;
+  }, { passive: false });
+  const swEnd = () => {
+    if (!sw || !sw.on) { sw = null; return; }
+    const { el, under, ready, dx, it } = sw; sw = null;
+    lpFired = true; setTimeout(() => { lpFired = false; }, 350); // nech sa po potiahnutí položka neotvorí
+    const back = () => { el.classList.remove('swiping'); el.classList.add('swipe-back'); el.style.transform = ''; setTimeout(() => { el.classList.remove('swipe-back'); el.style.zIndex = ''; under.remove(); }, 220); };
+    if (!ready) return back();
+    if (dx < 0) {
+      el.classList.add('swipe-back'); el.style.transform = 'translateX(-110%)';
+      setTimeout(() => { under.remove(); del([it]); }, 200);
+    } else { back(); starUndo(it); }
+  };
+  itemsBox.addEventListener('touchend', swEnd, { passive: true });
+  itemsBox.addEventListener('touchcancel', swEnd, { passive: true });
+  async function starUndo(it) {
+    const val = it.starred ? 0 : 1;
+    const r = await api('api.php?action=star', { items: [key(it)], value: val });
+    if (!r.ok) return toast(r.error, 'danger');
+    toastUndo(val ? 'Pridaná hviezdička' : 'Hviezdička odstránená', async () => { await api('api.php?action=star', { items: [key(it)], value: val ? 0 : 1 }); load(true); });
+    load(true);
+  }
 
   // ťahanie položiek do zložky
   let dragKeys = null;
@@ -1648,15 +1888,24 @@
       ['Shift + klik', 'Vybrať rozsah'], ['Home / End', 'Prvá / posledná položka']]],
     ['Položky', [['Enter', 'Otvoriť'], ['F2  /  N', 'Premenovať'], ['Delete', 'Do koša'], ['Shift + Delete', 'Natrvalo zmazať (v koši)'], ['S', 'Hviezdička'], ['I', 'Informácie'],
       ['.', 'Zdieľať'], ['D', 'Stiahnuť'], ['Z', 'Presunúť do…'], ['H', 'História zmien'], ['Ctrl + C / X / V', 'Kopírovať / vystrihnúť / vložiť sem'], ['Shift + F10', 'Menu položky']]],
-    ['Náhľad', [['← →', 'Predchádzajúci / ďalší'], ['Medzerník', 'Prezentácia spustiť / zastaviť'], ['D', 'Stiahnuť'], ['Esc', 'Zavrieť']]],
+    ['Náhľad', [['← →', 'Predchádzajúci / ďalší'], ['Medzerník', 'Prezentácia spustiť / zastaviť'], ['Plus / Mínus', 'Priblížiť / oddialiť fotku'], ['0', 'Celá fotka'], ['D', 'Stiahnuť'], ['Esc', 'Zavrieť']]],
+  ];
+  // myš a dotyk – zobrazí sa pod skratkami (na mobile namiesto nich)
+  const GESTURES = [
+    ['Myš', [['Ťahať na prázdnom mieste', 'Vybrať viac položiek obdĺžnikom'], ['Ctrl + ťahať', 'Pridať k výberu'], ['Ťahať položku na zložku', 'Presunúť'], ['Koliesko v náhľade', 'Priblížiť fotku'], ['Dvojklik na fotku', 'Priblížiť / celá fotka']]],
+    ['Dotyk', [['Podržať položku', 'Označiť'], ['Podržať a ťahať prstom', 'Označiť celý rad'], ['Riadok doľava', 'Do koša (dá sa vrátiť)'], ['Riadok doprava', 'Hviezdička (dá sa vrátiť)'],
+      ['Od ľavého okraja doprava', 'Otvoriť menu'], ['Dva prsty v náhľade', 'Priblížiť fotku'], ['Dvakrát ťuknúť na fotku', 'Priblížiť / celá fotka'], ['Potiahnuť v náhľade do strany', 'Ďalší / predchádzajúci súbor']]],
   ];
   function showShortcuts() {
     let m = $('#kbdModal');
     if (!m) {
+      const touchOnly = matchMedia('(hover: none)').matches;
+      const gest = '<div class="kbd-grid">' + GESTURES.filter(g2 => !touchOnly || g2[0] === 'Dotyk').map(([g, list]) => '<div><div class="kbd-group">' + esc(g) + '</div>' + list.map(([k, t]) => '<div class="kbd-row"><span>' + esc(t) + '</span><span class="kbd-gest">' + esc(k) + '</span></div>').join('') + '</div>').join('') + '</div>';
       document.body.insertAdjacentHTML('beforeend', '<div class="modal fade" id="kbdModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">'
-        + '<div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-keyboard me-2"></i>Klávesové skratky</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
-        + '<div class="modal-body pt-0"><div class="kbd-grid">' + SHORTCUTS.map(([g, list]) => '<div><div class="kbd-group">' + esc(g) + '</div>' + list.map(([k, t]) => '<div class="kbd-row"><span>' + esc(t) + '</span><span class="kbd-keys">'
-          + k.split(/\s+(\/|potom)\s+|\s*\+\s*/).filter(x => x && x.trim()).map(x => x === '/' || x === 'potom' ? '<span class="kbd-sep">' + (x === '/' ? 'alebo' : 'potom') + '</span>' : '<kbd>' + esc(x) + '</kbd>').join('') + '</span></div>').join('') + '</div>').join('') + '</div></div></div></div></div>');
+        + '<div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-' + (touchOnly ? 'hand-index' : 'keyboard') + ' me-2"></i>' + (touchOnly ? 'Gestá' : 'Klávesové skratky a gestá') + '</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+        + '<div class="modal-body pt-0">' + (touchOnly ? gest : '') + '<div class="kbd-grid' + (touchOnly ? ' d-none' : '') + '">' + SHORTCUTS.map(([g, list]) => '<div><div class="kbd-group">' + esc(g) + '</div>' + list.map(([k, t]) => '<div class="kbd-row"><span>' + esc(t) + '</span><span class="kbd-keys">'
+          + k.split(/\s+(\/|potom)\s+|\s*\+\s*/).filter(x => x && x.trim()).map(x => x === '/' || x === 'potom' ? '<span class="kbd-sep">' + (x === '/' ? 'alebo' : 'potom') + '</span>' : '<kbd>' + esc(x) + '</kbd>').join('') + '</span></div>').join('') + '</div>').join('') + '</div>' + (touchOnly ? '' : gest)
+        + '<div class="text-center mt-3"><button type="button" class="btn btn-light rounded-pill btn-sm" data-bs-dismiss="modal" onclick="cloudAppearance()"><i class="bi bi-palette me-1"></i>Vzhľad a ovládanie</button></div></div></div></div></div>');
       m = $('#kbdModal');
     }
     bootstrap.Modal.getOrCreateInstance(m).show();
@@ -1794,7 +2043,7 @@
     const keys = layoutKeys().slice(1); let inh = null;
     for (const k2 of keys) if (layoutMap[k2]) { inh = layoutMap[k2]; break; }
     if (keys.length && v === (inh || (isPhotoView() ? state.photoLayout : state.layout))) delete layoutMap[k];
-    try { localStorage.setItem('cloud-layouts', JSON.stringify(layoutMap)); } catch (e) {}
+    CloudUI.set('layouts', Object.assign({}, layoutMap));
     render();
   }
   $$('[data-view]').forEach(b => b.onclick = () => setLayout(b.dataset.view));
@@ -1803,12 +2052,12 @@
     if (cs) { // Aktivita a Fotky sa zoraďujú v prehliadači
       if (k) { cs.dir = dir || (cs.k === k ? (cs.dir === 'asc' ? 'desc' : 'asc') : (['when', 'taken', 'updated', 'created', 'size', 'deleted'].includes(k) ? 'desc' : 'asc')); cs.k = k; }
       else if (dir) cs.dir = dir;
-      if (isPhotoView()) { try { localStorage.setItem('cloud-psort', cs.k); localStorage.setItem('cloud-pdir', cs.dir); } catch (e) {} }
-      if (state.view === 'folder') { state.sort = cs.k; state.dir = cs.dir; try { localStorage.setItem('cloud-sort', cs.k); localStorage.setItem('cloud-dir', cs.dir); } catch (e) {} }
+      if (isPhotoView()) { CloudUI.set('psort', cs.k); CloudUI.set('pdir', cs.dir); }
+      if (state.view === 'folder') { state.sort = cs.k; state.dir = cs.dir; CloudUI.set('sort', cs.k); CloudUI.set('dir', cs.dir); }
       clientSort(); render(); return;
     }
     if (k) { state.sort = k; } if (dir) state.dir = dir;
-    localStorage.setItem('cloud-sort', state.sort); localStorage.setItem('cloud-dir', state.dir);
+    CloudUI.set('sort', state.sort); CloudUI.set('dir', state.dir);
     load();
   }
   $('#sortMenu').addEventListener('click', (e) => {
@@ -1819,7 +2068,7 @@
     setSort(a.dataset.sort);
   });
   $('#crumbs').addEventListener('click', (e) => { const a = e.target.closest('a'); if (a && a.dataset.dropFolder === '0') { e.preventDefault(); go('#'); } });
-  $$('.side-nav [data-nav]').forEach(a => {
+  $$('.side-nav [data-nav], .bnav [data-nav]').forEach(a => {
     const map = { drive: '#', recent: '#recent', starred: '#starred', trash: '#trash', shared: '#shared', byme: '#byme', dupes: '#dupes', photos: '#photos', activity: '#activity' };
     if (map[a.dataset.nav] !== undefined) a.addEventListener('click', (e) => { e.preventDefault(); go(map[a.dataset.nav]); });
   });
@@ -2377,7 +2626,7 @@
     job.cancelled = true;
     if (job.xhr) job.xhr.abort();
     const qi = queue.indexOf(job); if (qi >= 0) { queue.splice(qi, 1); finish(job, false, 'Zrušené'); }
-    if (job.id) { api('api.php?action=upload_cancel', { id: job.id }); localStorage.removeItem(job.lsKey); }
+    if (job.id) api('api.php?action=upload_cancel', { id: job.id });
   }
   function finish(job, ok, msg) {
     const st = job.el.querySelector('.up-status'), bar = job.el.querySelector('.progress-bar');
@@ -2407,9 +2656,9 @@
     const f = job.file;
     job.lsKey = 'cloud-up:' + [job.folder, job.rel || job.name, f.size, f.lastModified].join('|');
     try {
-      const init = await api('api.php?action=upload_init', { folder: job.folder, name: job.name, size: f.size, relpath: job.rel || '', resume: localStorage.getItem(job.lsKey) || '' });
+      const init = await api('api.php?action=upload_init', { folder: job.folder, name: job.name, size: f.size, relpath: job.rel || '', fkey: job.lsKey });
       if (!init.ok) throw new Error(init.error);
-      job.id = init.id; localStorage.setItem(job.lsKey, init.id);
+      job.id = init.id;
       const chunk = init.chunk || 2097152;
       let off = init.received, tries = 0, res = null;
       if (off > 0) job.el.querySelector('.up-err').innerHTML = '<span class="text-body-secondary">Pokračujem od ' + formatBytes(off) + '</span>';
@@ -2430,7 +2679,6 @@
         off = res.received;
         if (res.done) break;
       }
-      localStorage.removeItem(job.lsKey);
       updateQuota(res.quota);
       finish(job, true, res.file && res.file.versioned ? 'Uložené ako nová verzia' : '');
     } catch (e) {

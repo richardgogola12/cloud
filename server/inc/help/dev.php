@@ -194,7 +194,20 @@ Podporuje PROPFIND, PROPPATCH, HEAD, GET (Range), PUT, MKCOL, MOVE, COPY, DELETE
 <ul>
   <li><code>drive.js</code> – stav (<code>state</code>: view, folder, items, výber, zoradenie), smerovanie cez <code>location.hash</code> (<code>#folder/ID</code>, <code>#recent</code>, <code>#album/ID</code>…), vykresľovanie zoznamu/mriežky (postupne po 300 položkách), zoradenie v prehliadači pre zobrazenia mimo zložky, kontextová ponuka, dialógy, nahrávanie po častiach, náhľad, fotky, klávesové skratky.</li>
   <li>Cache zoznamov je <b>iba v pamäti</b> (<code>lcMem</code>), prednačítanie zložiek pri prejdení myšou.</li>
-  <li>Rozloženie zoznam/mriežka sa pamätá pre každé miesto (<code>cloud-layouts</code> v localStorage); podzložky dedia.</li>
+  <li>Rozloženie zoznam/mriežka sa pamätá pre každé miesto (<code>layouts</code>); podzložky dedia.</li>
+  <li><b>Nastavenia vzhľadu a ovládania</b> sú v <code>users.prefs.ui</code> (nie v localStorage): <code>theme</code> (light/dark/auto), <code>accent</code>, <code>density</code>,
+    <code>thumbs</code>, <code>anim</code>, <code>bnav</code>, <code>swipe</code>, <code>layout</code>/<code>layouts</code>, <code>sort</code>/<code>dir</code>, <code>psort</code>/<code>pdir</code>/<code>playout</code>,
+    <code>colw</code>, <code>side</code>, <code>notif</code>. Server ich čistí v <code>ui_clean()</code> (<code>inc/files.php</code>) a vkladá do stránky ako <code>window.CLOUD_UI</code>
+    spolu s atribútmi <code>data-bs-theme</code>, <code>data-accent</code>, <code>data-density</code>, <code>data-thumbs</code>, <code>data-anim</code> na <code>&lt;html&gt;</code> (bez bliknutia).
+    V JS <code>CloudUI.get(k, d)</code> / <code>CloudUI.set(k, v)</code> (<code>common.js</code>) – zmeny sa zlučujú a posielajú po 0,8 s cez <code>prefs_save</code> s <code>key=ui</code>
+    (posiela sa iba zmenený kľúč, <code>null</code> ho zmaže; pri zatvorení stránky <code>sendBeacon</code>). Staré hodnoty z localStorage sa raz prenesú do účtu (<code>migrated</code>) a vymažú.
+    Okno nastavení: <code>cloudAppearance()</code>; farby zvýraznenia sú premenné <code>--c-primary</code>, <code>--c-sel</code>, <code>--c-on-sel</code>, <code>--bs-primary(-rgb)</code> v <code>app.css</code>.</li>
+  <li><b>Gestá</b> (<code>drive.js</code>): lasso myšou (<code>mousedown</code> mimo položiek v <code>.app-main</code>), po dlhom podržaní ťahanie prstom
+    (<code>dragSel</code>, nepasívny <code>touchmove</code>, automatické posúvanie pri okraji, aplikácii sa vypne obnovenie potiahnutím), potiahnutie riadku
+    (<code>.row-item</code>, kontrola práv, <code>toastUndo</code>), priblíženie v náhľade <code>pvZoom()</code> (pointer events, transform na <code>.pv-img img</code>,
+    hranice podľa <code>object-fit: contain</code>). Potiahnutie menu v <code>common.js</code> ignoruje riadky okrem ľavého okraja.</li>
+  <li><b>Obnovenie nahrávania</b>: klient posiela <code>fkey</code> (zložka|cesta|veľkosť|dátum zmeny), server uloží jeho SHA-1 do <code>uploads.fkey</code> (schéma v23)
+    a pri ďalšom <code>upload_init</code> nájde rozpracované nahrávanie sám.</li>
   <li>Pozícia posúvania sa pamätá pre každé miesto iba v pamäti stránky (<code>scrollMem</code>). Pri návrate o úroveň vyššie sa zložka, z ktorej sa prišlo, posunie do viditeľnej časti a blikne (<code>flashLater()</code> / <code>ensureTarget()</code> – kontroluje po každom vykreslení, posúva bez plynulej animácie). Odkaz <code>#folder/ID?ver=FILE</code> otvorí okno Verzie daného súboru.</li>
   <li>Panel hromadných akcií (<code>#selBar</code>) prekryje riadok s cestou, takže sa pri výbere nič neposunie.</li>
   <li><code>sheet.php</code> + <code>lsheet.js</code> + <code>lsheet-io.js</code> – editor tabuliek (Luckysheet) v rámci nad diskom; <code>sheet.js</code> ho otvára a vymieňa si s ním správy (<code>postMessage</code>: <code>ready</code>, <code>saved</code>, <code>close</code>, <code>renamed</code>, <code>action</code> – zdieľať, presunúť, verzie, podrobnosti a aktivita otvorí disk nad editorom).

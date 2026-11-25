@@ -245,6 +245,39 @@ function user_prefs(?array $u): array {
     $p = $u && !empty($u['prefs']) ? json_decode((string)$u['prefs'], true) : null;
     return is_array($p) ? $p : [];
 }
+/** Nastavenia vzhľadu a ovládania (téma, farba, hustota, zoznam/mriežka, triedenie, šírky stĺpcov…) – na serveri, nie v zariadení. */
+const UI_ACCENTS = ['blue' => '#1a73e8', 'green' => '#188038', 'purple' => '#7c4dff', 'red' => '#d93025', 'orange' => '#e8710a', 'teal' => '#00897b', 'pink' => '#d01884'];
+function ui_clean(array $v): array {
+    $out = [];
+    $str = fn($x, $re) => is_string($x) && preg_match($re, $x) ? $x : null;
+    $map = function ($x, callable $f, int $max = 400) { if (!is_array($x)) return null; $r = []; foreach ($x as $k => $y) { if (count($r) >= $max) break; $k = (string)$k; if (strlen($k) > 60 || !preg_match('/^[\w:.-]+$/', $k)) continue; $y = $f($y); if ($y !== null) $r[$k] = $y; } return $r; };
+    foreach ($v as $k => $x) {
+        $c = match ($k) {
+            'theme' => in_array($x, ['light', 'dark', 'auto'], true) ? $x : null,
+            'accent' => isset(UI_ACCENTS[$x]) ? $x : null,
+            'density' => in_array($x, ['compact', 'normal', 'comfy'], true) ? $x : null,
+            'thumbs' => in_array($x, ['s', 'm', 'l'], true) ? $x : null,
+            'anim' => in_array($x, ['on', 'off', 'auto'], true) ? $x : null,
+            'swipe' => is_bool($x) ? $x : null,
+            'bnav' => is_bool($x) ? $x : null,
+            'layout', 'playout' => $str($x, '/^(list|grid|photos)$/'),
+            'sort', 'psort' => $str($x, '/^[a-z_]{1,20}$/'),
+            'dir', 'pdir' => $str($x, '/^(asc|desc)$/'),
+            'layouts' => $map($x, fn($y) => in_array($y, ['list', 'grid', 'photos'], true) ? $y : null, 1000),
+            'colw' => $map($x, fn($y) => is_numeric($y) ? max(40, min(1200, (int)$y)) : null, 40),
+            'side' => $map($x, fn($y) => is_bool($y) ? $y : null, 20),
+            'notif' => is_int($x) && $x >= 0 ? $x : null,
+            'migrated' => $x ? 1 : null,
+            default => null,
+        };
+        if ($c !== null) $out[$k] = $c;
+    }
+    return $out;
+}
+function ui_prefs(?array $u): array {
+    $p = user_prefs($u)['ui'] ?? [];
+    return is_array($p) ? ui_clean($p) : [];
+}
 /** Cesty k zložkám používateľa (id → „Môj disk / A / B“), 0 = koreň. */
 function folder_paths(int $uid, array $ids): array {
     $all = q('SELECT id, parent_id, name FROM ' . P . 'folders WHERE user_id = ? AND deleted_at IS NULL', [$uid])->fetchAll();
