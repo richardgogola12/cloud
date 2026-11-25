@@ -844,7 +844,11 @@ try {
             if (!is_array($v)) throw new RuntimeException('Neplatné nastavenie.');
             $prefs = user_prefs($user);
             $cur = is_array($prefs['ui'] ?? null) ? $prefs['ui'] : [];
-            foreach ($v as $k => $x) { if ($x === null) unset($cur[$k]); else $cur[$k] = $x; }
+            foreach ($v as $k => $x) { // neplatná hodnota sa ignoruje, uložená ostane
+                if ($x === null) { unset($cur[$k]); continue; }
+                $c = ui_clean([$k => $x]);
+                if (array_key_exists($k, $c)) $cur[$k] = $c[$k];
+            }
             $cur = ui_clean($cur);
             if (strlen(json_encode($cur, JSON_UNESCAPED_UNICODE)) > 30000) throw new RuntimeException('Príliš veľa nastavení.');
             $prefs['ui'] = $cur;
