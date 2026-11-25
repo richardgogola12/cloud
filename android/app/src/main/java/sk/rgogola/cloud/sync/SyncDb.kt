@@ -15,6 +15,8 @@ data class SyncPair(
     val includeExisting: Boolean,
     val initialized: Boolean,
     val lastError: String?,
+    /** po úspešnom nahratí súbor zmazať z telefónu */
+    val deleteAfter: Boolean = false,
 )
 
 data class PairStats(val done: Int, val pending: Int, val errors: Int, val skipped: Int = 0)
@@ -22,7 +24,7 @@ data class PairStats(val done: Int, val pending: Int, val errors: Int, val skipp
 data class LogEntry(val ts: Long, val msg: String, val ok: Boolean)
 
 /** Lokálna databáza: páry zložiek (telefón → cloud) a stav nahratých súborov. */
-class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(ctx.applicationContext, name, null, 1) {
+class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(ctx.applicationContext, name, null, 2) {
 
     companion object {
         @Volatile private var inst: SyncDb? = null
@@ -53,7 +55,8 @@ class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(
             tree_uri TEXT NOT NULL, local_name TEXT NOT NULL,
             remote_id INTEGER NOT NULL, remote_name TEXT NOT NULL,
             enabled INTEGER NOT NULL DEFAULT 1, include_existing INTEGER NOT NULL DEFAULT 0,
-            initialized INTEGER NOT NULL DEFAULT 0, last_error TEXT, created INTEGER NOT NULL)""")
+            initialized INTEGER NOT NULL DEFAULT 0, last_error TEXT, created INTEGER NOT NULL,
+            delete_after INTEGER NOT NULL DEFAULT 0)""")
         db.execSQL("""CREATE TABLE files (
             pair_id INTEGER NOT NULL, rel TEXT NOT NULL, doc_uri TEXT NOT NULL,
             size INTEGER NOT NULL, mtime INTEGER NOT NULL, state INTEGER NOT NULL DEFAULT 0,
@@ -62,7 +65,9 @@ class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(
         db.execSQL("CREATE TABLE log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, msg TEXT NOT NULL, ok INTEGER NOT NULL)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) db.execSQL("ALTER TABLE pairs ADD COLUMN delete_after INTEGER NOT NULL DEFAULT 0")
+    }
 
     // ---------------- páry ----------------
     fun pairs(onlyEnabled: Boolean = false): List<SyncPair> {
@@ -79,22 +84,41 @@ class SyncDb private constructor(ctx: Context, name: String) : SQLiteOpenHelper(
                     c.getInt(c.getColumnIndexOrThrow("include_existing")) == 1,
                     c.getInt(c.getColumnIndexOrThrow("initialized")) == 1,
                     c.getString(c.getColumnIndexOrThrow("last_error")),
+                    c.getInt(c.getColumnIndexOrThrow("delete_after")) == 1,
                 )
             }
         }
         return out
     }
 
-    fun addPair(treeUri: String, localName: String, remoteId: Int, remoteName: String, includeExisting: Boolean): Long =
+    fun addPair(treeUri: String, localName: String, remoteId: Int, remoteName: String, includeExisting: Boolean, deleteAfter: Boolean = false): Long =
         writableDatabase.insert("pairs", null, ContentValues().apply {
             put("tree_uri", treeUri); put("local_name", localName)
             put("remote_id", remoteId); put("remote_name", remoteName)
             put("include_existing", if (includeExisting) 1 else 0)
+            put("delete_after", if (deleteAfter) 1 else 0)
             put("created", System.currentTimeMillis())
         })
 
     fun setPairEnabled(id: Long, enabled: Boolean) {
         writableDatabase.execSQL("UPDATE pairs SET enabled = ? WHERE id = ?", arrayOf<Any>(if (enabled) 1 else 0, id))
+    }
+
+    fun setPairDeleteAfter(id: Long, on: Boolean) {
+        writableDatabase.execSQL("UPDATE pairs SET delete_after = ? WHERE id = ?", arrayOf<Any>(if (on) 1 else 0, id))
+    }
+
+    /** Nahraté súbory zložky (na zmazanie z telefónu). */
+    fun doneFiles(pairId: Long): List<FileRow> {
+        val out = ArrayList<FileRow>()
+        readableDatabase.rawQuery("SELECT rel, doc_uri, size, mtime, state, upload_id FROM files WHERE pair_id = ? AND state = ?", arrayOf(pairId.toString(), ST_DONE.toString())).use { c ->
+            while (c.moveToNext()) out += FileRow(c.getString(0), c.getString(1), c.getLong(2), c.getLong(3), c.getInt(4), c.getString(5))
+        }
+        return out
+    }
+
+    fun forgetFile(pairId: Long, rel: String) {
+        writableDatabase.delete("files", "pair_id = ? AND rel = ?", arrayOf(pairId.toString(), rel))
     }
 
     fun setPairInitialized(id: Long) {

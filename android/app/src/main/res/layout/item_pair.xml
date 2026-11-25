@@ -58,6 +58,13 @@
                 android:layout_marginTop="2dp"
                 android:textColor="@color/ink_muted"
                 android:textSize="13sp" />
+            <com.google.android.material.checkbox.MaterialCheckBox
+                android:id="@+id/pairDeleteAfter"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minHeight="0dp"
+                android:textSize="14sp"
+                android:text="Po nahratí zmazať z telefónu" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pairRequeue"
                 style="@style/Widget.Material3.Button.TextButton"

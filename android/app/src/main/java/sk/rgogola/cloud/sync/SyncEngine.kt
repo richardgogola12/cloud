@@ -21,6 +21,7 @@ import java.io.InputStream
 /**
  * Jadro synchronizácie: prehľadá sledované zložky v telefóne a nové alebo zmenené súbory nahrá
  * do zvolenej zložky v cloude (jednosmerne – mazanie v telefóne sa do cloudu neprenáša).
+ * Ak má zložka zapnuté „Po nahratí zmazať z telefónu“, súbor sa po potvrdenom nahratí zmaže z telefónu.
  */
 object SyncEngine {
     private val mutex = Mutex()
@@ -152,7 +153,7 @@ object SyncEngine {
 
         // 2) nahrávanie
         val todo = validPairs.flatMap { p -> db.pendingFiles(p.id).map { p to it } }
-        var n = 0; var ok = 0; var failed = 0
+        var n = 0; var ok = 0; var failed = 0; var deleted = 0
         for ((pair, row) in todo) {
             if (!prefs.syncEnabled || !prefs.loggedIn) break
             if (!networkOk(ctx, prefs.wifiOnly)) { setStatus(ctx, "Prerušené – čaká sa na pripojenie"); return }
@@ -169,6 +170,7 @@ object SyncEngine {
                 db.setPairError(pair.id, null)
                 db.log("${pair.localName}/${row.rel} → ${pair.remoteName}" + when (versioned) { true -> " (nová verzia)"; null -> " (už v cloude)"; else -> "" })
                 ok++
+                if (pair.deleteAfter && deleteLocal(ctx, db, pair, row)) deleted++
             } catch (e: ApiException) {
                 if (e.code == 401) {
                     prefs.authError = true
@@ -203,8 +205,46 @@ object SyncEngine {
             ok == 0 && failed == 0 && pending == 0 -> "Všetko je synchronizované"
             failed > 0 -> "Nahraté: $ok, chyby: $failed (skúsim znova)"
             pending > 0 -> "Nahraté: $ok, čaká: $pending"
+            deleted > 0 -> "Nahraté: $ok, zmazané z telefónu: $deleted"
             else -> "Nahraté: $ok súborov"
         })
+    }
+
+    /**
+     * Zmaže nahratý súbor z telefónu – iba ak sa od nahratia nezmenil (veľkosť aj dátum sedia).
+     * Vráti true, ak sa zmazal.
+     */
+    internal fun deleteLocal(ctx: Context, db: SyncDb, pair: SyncPair, row: SyncDb.FileRow): Boolean {
+        val uri = Uri.parse(row.docUri)
+        return try {
+            var size = -1L; var mtime = -1L
+            ctx.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED), null, null, null)?.use { c ->
+                if (c.moveToFirst()) { size = if (c.isNull(0)) 0L else c.getLong(0); mtime = if (c.isNull(1)) 0L else c.getLong(1) }
+            }
+            if (size < 0) { db.forgetFile(pair.id, row.rel); return false } // už neexistuje
+            if (size != row.size || mtime != row.mtime) return false // zmenil sa – nahrá sa znova pri ďalšom behu
+            if (DocumentsContract.deleteDocument(ctx.contentResolver, uri)) {
+                db.forgetFile(pair.id, row.rel)
+                db.log("${pair.localName}/${row.rel} – zmazané z telefónu (je v cloude)")
+                true
+            } else false
+        } catch (e: SecurityException) {
+            db.setPairError(pair.id, "Súbory sa nedajú mazať – vypni a znova zapni „Po nahratí zmazať z telefónu“ a povoľ prístup k zložke.")
+            false
+        } catch (e: Exception) {
+            db.log("${row.rel}: nepodarilo sa zmazať z telefónu – ${e.message ?: e.javaClass.simpleName}", false)
+            false
+        }
+    }
+
+    /** Zmaže z telefónu všetky už nahraté (a odvtedy nezmenené) súbory zložky. Vráti počet zmazaných. */
+    fun deleteUploaded(ctx: Context, pairId: Long): Int {
+        val db = SyncDb.get(ctx)
+        val pair = db.pairs().firstOrNull { it.id == pairId } ?: return 0
+        var n = 0
+        for (row in db.doneFiles(pairId)) if (deleteLocal(ctx, db, pair, row)) n++
+        if (n > 0) setStatus(ctx, "Zmazané z telefónu: $n (sú v cloude)")
+        return n
     }
 
     internal fun scanTree(ctx: Context, tree: Uri): List<LocalFile> {

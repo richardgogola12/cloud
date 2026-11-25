@@ -39,4 +39,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Nahrať aj súbory, ktoré už v zložke sú" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/deleteAfter"
+        android:checked="false"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Po nahratí súbory zmazať z telefónu (uvoľní miesto)" />
 </LinearLayout>

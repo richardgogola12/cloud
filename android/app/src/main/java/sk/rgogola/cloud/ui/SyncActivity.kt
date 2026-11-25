@@ -58,6 +58,55 @@ class SyncActivity : AppCompatActivity() {
     }
 
     private val pickTree = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> if (uri != null) onTreePicked(uri) }
+    /** znova vybratá zložka kvôli povoleniu mazať (pre „Po nahratí zmazať z telefónu“) */
+    private var writeFor: Long = -1
+    private val pickTreeWrite = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> onWriteGranted(uri) }
+
+    private fun canWrite(tree: String) = contentResolver.persistedUriPermissions.any { it.uri.toString() == tree && it.isWritePermission }
+    private fun release(uri: Uri) {
+        try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: Exception) {
+            try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+        }
+    }
+
+    private fun onWriteGranted(uri: Uri?) {
+        val p = db.pairs().firstOrNull { it.id == writeFor }; writeFor = -1
+        if (p == null) return
+        if (uri == null || uri.toString() != p.treeUri) {
+            Toast.makeText(this, "Treba vybrať tú istú zložku „${p.localName}“ – mazanie ostáva vypnuté.", Toast.LENGTH_LONG).show(); refreshPairs(); return
+        }
+        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (e: Exception) {
+            Toast.makeText(this, "Android nedovolil mazať v tejto zložke.", Toast.LENGTH_LONG).show(); refreshPairs(); return
+        }
+        confirmDeleteAfter(p)
+    }
+
+    /** Zapnutie „Po nahratí zmazať z telefónu“ – s otázkou, čo s už nahratými súbormi. */
+    private fun confirmDeleteAfter(p: sk.rgogola.cloud.sync.SyncPair) {
+        val done = db.stats(p.id).done
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setTitle("Mazať po nahratí?")
+            .setMessage("Každý súbor zo zložky „${p.localName}“ sa po úspešnom nahratí do „${p.remoteName}“ zmaže z telefónu. Zmaže sa iba súbor, ktorý je v cloude celý a odvtedy sa nezmenil." +
+                (if (done > 0) "\n\nV zložke je už $done nahratých súborov – môžeš ich zmazať hneď." else ""))
+            .setNegativeButton("Zrušiť") { _, _ -> refreshPairs() }
+            .setOnCancelListener { refreshPairs() }
+        if (done > 0) {
+            dlg.setPositiveButton("Zapnúť a zmazať aj $done") { _, _ -> enableDeleteAfter(p, true) }
+            dlg.setNeutralButton("Iba nové") { _, _ -> enableDeleteAfter(p, false) }
+        } else dlg.setPositiveButton("Zapnúť") { _, _ -> enableDeleteAfter(p, false) }
+        dlg.show()
+    }
+
+    private fun enableDeleteAfter(p: sk.rgogola.cloud.sync.SyncPair, old: Boolean) {
+        db.setPairDeleteAfter(p.id, true); db.setPairError(p.id, null)
+        refreshPairs()
+        if (!old) return
+        lifecycleScope.launch {
+            val n = withContext(Dispatchers.IO) { sk.rgogola.cloud.sync.SyncEngine.deleteUploaded(applicationContext, p.id) }
+            Toast.makeText(this@SyncActivity, "Z telefónu zmazané: $n súborov (sú v cloude)", Toast.LENGTH_LONG).show()
+            refreshAll()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -206,6 +255,20 @@ class SyncActivity : AppCompatActivity() {
             ib.pairError.visibility = if (p.lastError.isNullOrBlank()) View.GONE else View.VISIBLE
             ib.pairEnabled.isChecked = p.enabled
             ib.pairEnabled.setOnCheckedChangeListener { _, on -> db.setPairEnabled(p.id, on); CloudApp.kick(applicationContext, on) }
+            ib.pairDeleteAfter.isChecked = p.deleteAfter
+            ib.pairDeleteAfter.setOnCheckedChangeListener { _, on ->
+                if (!on) { db.setPairDeleteAfter(p.id, false); return@setOnCheckedChangeListener }
+                if (canWrite(p.treeUri)) confirmDeleteAfter(p)
+                else {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Povoliť mazanie")
+                        .setMessage("Aby mohla aplikácia mazať nahraté súbory, vyber ešte raz zložku „${p.localName}“ a potvrď „Použiť túto zložku“.")
+                        .setPositiveButton("Vybrať zložku") { _, _ -> writeFor = p.id; pickTreeWrite.launch(Uri.parse(p.treeUri)) }
+                        .setNegativeButton("Zrušiť") { _, _ -> refreshPairs() }
+                        .setOnCancelListener { refreshPairs() }
+                        .show()
+                }
+            }
             ib.root.setOnClickListener { showErrors(p.id, p.localName) }
             ib.pairRequeue.setOnClickListener {
                 MaterialAlertDialogBuilder(this)
@@ -226,7 +289,7 @@ class SyncActivity : AppCompatActivity() {
                     .setMessage("Súbory, ktoré už sú v cloude, tam zostanú.")
                     .setPositiveButton("Prestať sledovať") { _, _ ->
                         db.deletePair(p.id)
-                        try { contentResolver.releasePersistableUriPermission(Uri.parse(p.treeUri), Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+                        release(Uri.parse(p.treeUri))
                         SyncService.start(applicationContext)
                         refreshAll()
                     }
@@ -262,7 +325,9 @@ class SyncActivity : AppCompatActivity() {
     // ---------------- pridanie zložky ----------------
     private fun onTreePicked(uri: Uri) {
         try {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // aj zápis – kvôli „Po nahratí zmazať z telefónu“ (ak ho Android nedá, stačí čítanie)
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            catch (_: Exception) { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         } catch (e: Exception) {
             Toast.makeText(this, "K tejto zložke sa nedá získať trvalý prístup.", Toast.LENGTH_LONG).show(); return
         }
@@ -272,7 +337,7 @@ class SyncActivity : AppCompatActivity() {
             val res = withContext(Dispatchers.IO) { runCatching { Api(prefs).folders() } }
             res.onFailure {
                 Toast.makeText(this@SyncActivity, "Zložky v cloude sa nepodarilo načítať: ${it.message}", Toast.LENGTH_LONG).show()
-                try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+                release(uri)
             }
             res.onSuccess { pickRemote(uri, localName, it) }
         }
@@ -304,14 +369,24 @@ class SyncActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("Kam nahrávať?")
             .setView(db2.root)
-            .setPositiveButton("Uložiť") { _, _ -> savePair(uri, localName, selected ?: newOpt, db2.includeExisting.isChecked) }
+            .setPositiveButton("Uložiť") { _, _ ->
+                val del = db2.deleteAfter.isChecked
+                if (!del) { savePair(uri, localName, selected ?: newOpt, db2.includeExisting.isChecked, false); return@setPositiveButton }
+                if (!canWrite(uri.toString())) Toast.makeText(this, "Android nedovolil mazať v tejto zložke – súbory sa budú iba nahrávať.", Toast.LENGTH_LONG).show()
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Mazať po nahratí?")
+                    .setMessage("Každý súbor zo zložky „$localName“ sa po úspešnom nahratí do cloudu zmaže z telefónu. Zmaže sa iba súbor, ktorý je v cloude celý a odvtedy sa nezmenil.")
+                    .setPositiveButton("Áno, mazať") { _, _ -> savePair(uri, localName, selected ?: newOpt, db2.includeExisting.isChecked, canWrite(uri.toString())) }
+                    .setNegativeButton("Iba nahrávať") { _, _ -> savePair(uri, localName, selected ?: newOpt, db2.includeExisting.isChecked, false) }
+                    .show()
+            }
             .setNegativeButton("Zrušiť") { _, _ ->
-                try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+                release(uri)
             }
             .show()
     }
 
-    private fun savePair(uri: Uri, localName: String, target: RemoteFolder, includeExisting: Boolean) {
+    private fun savePair(uri: Uri, localName: String, target: RemoteFolder, includeExisting: Boolean, deleteAfter: Boolean) {
         lifecycleScope.launch {
             val res = withContext(Dispatchers.IO) {
                 runCatching {
@@ -326,7 +401,7 @@ class SyncActivity : AppCompatActivity() {
             }
             res.onFailure { Toast.makeText(this@SyncActivity, "Chyba: ${it.message}", Toast.LENGTH_LONG).show() }
             res.onSuccess { f ->
-                db.addPair(uri.toString(), localName, f.id, f.path, includeExisting)
+                db.addPair(uri.toString(), localName, f.id, f.path, includeExisting, deleteAfter)
                 prefs.syncEnabled = true
                 b.swEnabled.isChecked = true
                 CloudApp.kick(applicationContext, syncNow = true)

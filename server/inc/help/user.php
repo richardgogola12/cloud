@@ -419,9 +419,12 @@ Nové fotky a súbory sa nahrajú hneď, ako vzniknú. Nastaviť môžeš:</p>
   <li><b>Automatická synchronizácia</b> zapnutá / vypnutá,</li>
   <li><b>Nahrávať iba cez Wi-Fi</b> – šetrí mobilné dáta,</li>
   <li><b>Kontrola zmien</b> každých 5 minút až 3 hodiny,</li>
-  <li><b>Widget</b> na plochu so stavom synchronizácie.</li>
+  <li><b>Widget</b> na plochu so stavom synchronizácie,</li>
+  <li><b>Po nahratí zmazať z telefónu</b> – nastavuje sa pri každej zložke zvlášť (pri pridaní zložky alebo zaškrtnutím pri zložke). Súbor sa z telefónu zmaže až vtedy,
+    keď je v Cloude celý, a iba ak sa odvtedy nezmenil. Pri zapnutí môžeš hneď zmazať aj súbory, ktoré už boli nahraté – uvoľníš tak miesto v telefóne.
+    Pri staršie pridanej zložke ťa aplikácia požiada, aby si ju vybral ešte raz (Android tak povolí mazanie).</li>
 </ul>
-<div class="note">Synchronizácia je jednosmerná (telefón → Cloud): súbory zmazané v telefóne zostanú v Cloude. Zmenený súbor sa uloží ako nová verzia.</div>
+<div class="note">Synchronizácia je jednosmerná (telefón → Cloud): súbory zmazané v telefóne zostanú v Cloude (aj tie, ktoré zmazala voľba „Po nahratí zmazať z telefónu“). Zmenený súbor sa uloží ako nová verzia.</div>
 <h3>Poslať do Cloudu z iných aplikácií</h3>
 <p>V galérii, správcovi súborov či inej aplikácii daj <b>Zdieľať → Cloud</b>, vyber cieľovú zložku (alebo vytvor novú) a ťukni na <b>Nahrať</b>.
 Nahrávanie pokračuje aj po zatvorení aplikácie – priebeh vidíš v notifikácii.</p>
