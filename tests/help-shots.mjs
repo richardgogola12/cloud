@@ -55,15 +55,15 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-obrazok', async () => { await page.evaluate(() => bootstrap.Modal.getInstance(document.getElementById('previewModal'))?.hide()); await wait(page, 400);
     await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500);
     await page.click('#imgEditModal [data-ratio="1.7777777777777777"]'); await wait(page, 600); });
-  await shot(page, 'u-obrazok-tvary', async () => {
-    await page.click('#imgEditModal [data-ratio="free"]'); await page.click('#imgEditModal [data-tab="shapes"]'); await wait(page, 400);
+  const openEd = async () => { await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500); };
+  await shot(page, 'u-obrazok-tvary', async () => { await openEd();
+    await page.click('#imgEditModal [data-tab="shapes"]'); await wait(page, 400);
     await page.click('#imgEditModal [data-ie="lib"]'); await wait(page, 300); await page.click('#imgEditModal [data-shape="callRound"]'); await wait(page, 300);
     await page.click('#imgEditModal [data-gp="fill"] [data-sw="fill"][data-c="#ffffff"]');
     await page.click('#imgEditModal [data-g="text"]'); await page.fill('#imgEditModal [data-gp="text"] textarea', 'Krásny výhľad!'); await page.click('#imgEditModal [data-gp="text"] [data-sw="tc"][data-c="#000000"]');
     await page.click('#imgEditModal [data-g="shadow"]'); await page.click('#imgEditModal [data-gp="shadow"] [data-k="shadow"]'); await wait(page, 600); });
-  await shot(page, 'u-obrazok-kniznica', async () => { await page.click('#imgEditModal [data-ie="lib"]'); await wait(page, 500); });
-  await page.click('#imgEditModal [data-ie="libclose"]').catch(() => {});
-  await shot(page, 'u-obrazok-maska', async () => { await page.click('#imgEditModal [data-tab="mask"]'); await page.click('#imgEditModal [data-mpre="vignette"]'); await wait(page, 800); });
+  await shot(page, 'u-obrazok-kniznica', async () => { await openEd(); await page.click('#imgEditModal [data-tab="shapes"]'); await page.click('#imgEditModal [data-ie="lib"]'); await wait(page, 500); });
+  await shot(page, 'u-obrazok-maska', async () => { await openEd(); await page.click('#imgEditModal [data-tab="mask"]'); await page.click('#imgEditModal [data-mpre="vignette"]'); await wait(page, 800); });
   await page.evaluate(() => { const m = document.getElementById('imgEditModal'); m && bootstrap.Modal.getInstance(m)?.hide(); }); await wait(page, 500);
   await go(page, '#shared');
   await shot(page, 'u-zdielane-so-mnou');
