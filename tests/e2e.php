@@ -1245,6 +1245,10 @@ $j = json_decode($r['body'], true) ?: [];
 ok(!empty($j['ok']) && ($j['name'] ?? '') === 'Fotka (upravené).jpg', 'upravená fotka sa uloží ako kópia (.jpg)', $r['body']);
 $r = $web->get('index.php');
 ok(str_contains($r['body'], 'assets/js/imgedit.js'), 'editor obrázkov je na stránke');
+ok(str_contains($r['body'], 'assets/js/imgedit-shapes.js'), 'knižnica tvarov je na stránke');
+$shp = file_get_contents(__DIR__ . '/../server/assets/js/imgedit-shapes.js');
+ok(preg_match_all("/\badd\(\w+, '[\w]+'/", $shp) >= 100, 'editor obrázkov má aspoň 100 tvarov');
+ok(!preg_match('#https?://#', $shp . file_get_contents(__DIR__ . '/../server/assets/js/imgedit.js')), 'editor obrázkov nič nenačítava z cudzích serverov');
 
 section('Príručky a rýchly sprievodca');
 $r = $web->get('help.php');

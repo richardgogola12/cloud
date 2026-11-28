@@ -228,9 +228,43 @@ Starý formát .doc treba najprv uložiť ako .docx. Úpravy v rovnakom čase od
   <li><b>Otočiť</b> doľava / doprava o 90°, <b>zrkadliť</b> vodorovne alebo hore-dole a <b>vyrovnať</b> šikmý horizont posuvníkom (±45°).</li>
   <li><b>Úpravy</b> – jas, kontrast, sýtosť a teplota farieb. Dvojklik na posuvník ho vráti na 0.</li>
   <li><b>Filtre</b> – čiernobiely, sépia, teplý, studený, živý, vybledlý, vintage, dráma.</li>
+  <li><b>Tvary</b> – vyše 100 hotových tvarov a textové pole (pozri nižšie).</li>
+  <li><b>Maska</b> – fotka v tvare kruhu, srdca, hviezdy… s priehľadným, farebným, rozmazaným, čiernobielym alebo stmaveným okolím (pozri nižšie).</li>
   <li><b>Veľkosť</b> – zmenšenie na šírku/výšku v pixeloch, na 75 / 50 / 25 %, na Full HD alebo na web; kvalita JPEG.</li>
 </ul>
-<p><b>Uložiť</b> uloží upravený obrázok a pôvodný ostane vo <b>Verziách</b>. Šípka vedľa ponúka <b>Uložiť ako kópiu</b> (vznikne „… (upravené).jpg“) a <b>Stiahnuť upravený</b>. Tlačidlo <b>Pôvodný</b> zruší všetky úpravy. Na počítači: <kbd>Ctrl</kbd>+<kbd>S</kbd> uloží, <kbd>Esc</kbd> zavrie.</p>
+
+<h3 id="obrazky-tvary">Tvary a text</h3>
+<?= fig('u-obrazok-tvary', 'Bublina s textom a tieňom vložená do fotky.') ?>
+<p>Na karte <b>Tvary</b> ťukni na <b>Pridať tvar</b>. Otvorí sa knižnica so <b>140 tvarmi</b> v skupinách
+Základné (obdĺžniky, kruhy, mnohouholníky, kríž, prstenec, valec, kocka…), Hviezdy, Šípky, Bubliny, Symboly (srdce, oblak, mesiac, blesk, fajka, smajlík, špendlík…),
+Stuhy a rámčeky, Čiary (aj so šípkou, krivka, cikcak, špirála) a Diagramy (vývojové diagramy). Tvar nájdeš aj vyhľadávaním podľa názvu. Tlačidlo <b>Text</b> pridá samostatné textové pole.</p>
+<?= fig('u-obrazok-kniznica', 'Knižnica tvarov s vyhľadávaním a skupinami.') ?>
+<ul>
+  <li><b>Presun, veľkosť, otočenie</b> – tvar ťahaj, rohmi a stranami meníš veľkosť, guľôčkou nad ním otáčaš (pri 0°, 45°, 90°… sa prichytí).
+    Na mobile ho <b>dvoma prstami</b> zväčšíš, zmenšíš a otočíš naraz. Na počítači aj kolieskom myši (s <kbd>Alt</kbd> otáča) a šípkami (so <kbd>Shift</kbd> o 10 px).</li>
+  <li><b>Výplň</b> – žiadna, farba alebo <b>prechod</b> dvoch farieb s nastaviteľným smerom; krytie výplne.</li>
+  <li><b>Obrys</b> – farba, hrúbka, krytie a štýl: plná čiara, čiarky alebo bodky.</li>
+  <li><b>Priehľadnosť</b> – celého tvaru a <b>prelínanie</b> s fotkou (násobiť, zosvetliť, prekryť, rozdiel, farba, jas…).</li>
+  <li><b>Tieň</b> – farba, krytie, rozmazanie a posun.</li>
+  <li><b>Text</b> – do každého tvaru (bubliny, stuhy, diagramy…) môžeš písať; farba, veľkosť, písmo, tučné, kurzíva a zarovnanie. Dvojité ťuknutie na tvar otvorí text.</li>
+  <li><b>Tvar</b> – posuvník mení vlastnosť tvaru (zaoblenie rohov, hrúbku šípky, počet cípov hviezdy, chvost bubliny…), presné otočenie, zrkadlenie,
+    zámok pomeru strán, <b>Zmeniť tvar</b> (zachová farby aj text) a umiestnenie na stred.</li>
+  <li>Pri vybranom tvare hore: <b>Duplikovať</b> (<kbd>Ctrl</kbd>+<kbd>D</kbd>), <b>Dopredu</b>, <b>Dozadu</b> a <b>Zmazať</b> (<kbd>Delete</kbd>).</li>
+</ul>
+
+<h3 id="obrazky-maska">Masky</h3>
+<?= fig('u-obrazok-maska', 'Maska „Vinetácia“ – stmavené okraje fotky.') ?>
+<p>Na karte <b>Maska</b> vyber tvar (kruh, zaoblený obdĺžnik, srdce, hviezda, šesťuholník, oblak… alebo <b>Viac tvarov</b> z celej knižnice).
+Fotka ostane viditeľná vo vnútri masky a okolie sa upraví podľa voľby:</p>
+<ul>
+  <li><b>Priehľadné</b> – vznikne fotka v tvare (obrázok sa uloží ako PNG, pri JPEG ako kópia .png),</li>
+  <li><b>Farba</b> – okolie vyplní zvolená farba (silou nastavíš, nakoľko zakryje fotku),</li>
+  <li><b>Rozmazané</b>, <b>Čiernobiele</b> alebo <b>Stmavené</b> – okolie sa rozmaže, odfarbí alebo stmaví.</li>
+</ul>
+<p><b>Mäkký okraj</b> rozmaže prechod, <b>Obrátiť</b> upraví naopak vnútro masky, <b>Aj tvary</b> použije masku aj na vložené tvary a text,
+<b>Orezať na masku</b> oreže obrázok na rozmer masky. Masku posúvaš, meníš a otáčaš ťahaním rovnako ako tvary. Hotové voľby: <b>Vinetácia</b> a <b>Rozmazané okolie</b>.</p>
+<p>Všetky úpravy vrátiš tlačidlami <b>Späť</b> a <b>Znova</b> hore (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Y</kbd>). Pri otočení alebo zrkadlení fotky sa tvary a maska otočia s ňou.</p>
+<p><b>Uložiť</b> uloží upravený obrázok a pôvodný ostane vo <b>Verziách</b>. Šípka vedľa ponúka <b>Uložiť ako kópiu</b> (vznikne „… (upravené).jpg“) a <b>Stiahnuť upravený</b>. Tlačidlo <b>Pôvodný</b> zruší všetky úpravy. Na počítači: <kbd>Ctrl</kbd>+<kbd>S</kbd> uloží, <kbd>Ctrl</kbd>+<kbd>Z</kbd> vráti krok, <kbd>Esc</kbd> zavrie.</p>
 <div class="note">Dátum odfotenia sa pri úprave zachová, takže fotka ostane vo Fotkách na svojom mieste. GIF a BMP sa uložia ako kópia vo formáte PNG (animácia GIF sa stratí).</div>
 
 <?= h2('zdielanie', 'bi-share', 'Zdieľanie') ?>
