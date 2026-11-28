@@ -55,7 +55,7 @@ const setLayout = async (page, v) => { const b = page.locator(`[data-view="${v}"
   await shot(page, 'u-obrazok', async () => { await page.evaluate(() => bootstrap.Modal.getInstance(document.getElementById('previewModal'))?.hide()); await wait(page, 400);
     await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500);
     await page.click('#imgEditModal [data-ratio="1.7777777777777777"]'); await wait(page, 600); });
-  const openEd = async () => { await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500); };
+  const openEd = async () => { await page.evaluate(() => { document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide()); }); await wait(page, 600); await page.evaluate(() => { document.querySelectorAll('.modal-backdrop').forEach(b => b.remove()); document.body.classList.remove('modal-open'); document.body.style.overflow = ''; }); await item(page, 'f:' + ids.photo).click({ button: 'right' }); await wait(page, 300); await page.click('[data-ctx="edit"]'); await page.waitForSelector('#imgEditModal.show .ie-canvas', { timeout: 15000 }); await wait(page, 1500); };
   await shot(page, 'u-obrazok-tvary', async () => { await openEd();
     await page.click('#imgEditModal [data-tab="shapes"]'); await wait(page, 400);
     await page.click('#imgEditModal [data-ie="lib"]'); await wait(page, 300); await page.click('#imgEditModal [data-shape="callRound"]'); await wait(page, 300);
